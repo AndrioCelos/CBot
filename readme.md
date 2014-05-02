@@ -77,5 +77,5 @@ Important MainCommands
 IRC channel
 -----------
 
-#angelina on irc.esper.net
+\#angelina on irc.esper.net
 Use an [IRC client](irc://irc.esper.net/#angelina) or [webchat](http://webchat.esper.net/?channels=angelina)
