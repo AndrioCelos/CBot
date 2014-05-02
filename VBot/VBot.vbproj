@@ -95,21 +95,10 @@
     <Import Include="System.Xml.Linq" />
   </ItemGroup>
   <ItemGroup>
-    <Compile Include="..\..\Advanced Console Output.vb">
-      <Link>Advanced Console Output.vb</Link>
-    </Compile>
-    <Compile Include="..\..\CompuChat\CompuChat\IRCChannel.vb">
-      <Link>IRCChannel.vb</Link>
-    </Compile>
-    <Compile Include="..\..\CompuChat\CompuChat\IRCConnection.vb">
-      <Link>IRCConnection.vb</Link>
-    </Compile>
-    <Compile Include="..\..\CompuChat\CompuChat\IRCEvents.vb">
-      <Link>IRCEvents.vb</Link>
-    </Compile>
-    <Compile Include="..\..\MD5.vb">
-      <Link>MD5.vb</Link>
-    </Compile>
+    <Compile Include="Advanced Console Output.vb" />
+    <Compile Include="IRCChannel.vb" />
+    <Compile Include="IRCConnection.vb" />
+    <Compile Include="IRCEvents.vb" />
     <Compile Include="VBot.vb" />
     <Compile Include="IRCColours.vb" />
     <Compile Include="PluginBase.vb" />
