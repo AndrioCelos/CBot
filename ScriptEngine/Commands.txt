@@ -1,0 +1,63 @@
+﻿IRC commands ----------------
+ame <message>									Sends an action to all channels.
+amsg <message>									Sends a message to all channels.
+anick <nickname>								Changes my nickname on all networks.
+ban <channel> <nickname|address>				Bans a user from a channel.
+away [message]									Marks me as away.
+ctcp <target> <request> [parameters]			Sends a CTCP request to a user.			
+ctcpreply <nickname> <type> <message>			Sends a CTCP reply to a user.
+describe <target> <action>						Sends an action.
+hop <channel> <target channel> [message]		Parts one channel and joins another.
+invite <nickname> <channel>						Invites a user to a channel.
+join <channel>									Joins a channel.
+kick <channel> <nickname>						Kicks a user out of a channel.
+kickban <channel> <nickname|address>			Kicks and bans a user from a channel.
+me <action>										Sends an action to the current channel. (Same as  describe *# <action>)
+mode <target> <modes> [parameters]				Sets channel modes.
+msg <target> <message>							Sends a message.
+nick <nickname>									Changes my nickname.
+notice <target> <message>						Sends a notice.
+part <channel> [message]						Parts a channel.
+partall [network]								Parts all channels on a network.
+quit [network] [message]						Quits a network.
+raw [network] <command>							Sends a raw command to the server.
+say <message>									Sends a message to the current channel. (Same as  msg *# <message>)
+topic <channel> <new topic>						Changes the topic of a channel.
+
+admin [channel] <nicknames>
+op [channel] <nicknames>
+halfop [channel] <nicknames>
+voice [channel] <nicknames>
+halfvoice [channel] <nicknames>
+deadmin [channel] <nicknames>
+deop [channel] <nicknames>
+dehalfop [channel] <nicknames>
+devoice [channel] <nicknames>
+dehalfvoice [channel] <nicknames>
+
+connect <address>								Connects to a server.
+die [message]									Shuts down the bot.
+disconnect [address]							Disconnects from a server.
+
+ignore <hostmask> <type> [networks]				Ignores a user or users.
+
+clear											Clears the console window.
+echo [colour] <text>							Writes text to the console window.
+
+Variable commands ----------------
+set <variable> <value>							Sets a global variable.
+setl <variable> <value>							Sets a local variable.
+unset <variable>								Deletes a varaible.
+inc <variable> [amount]							Increments a variable's value.
+dec <variable> [amount]							Decrements a variable's value.
+
+Filing commands ----------------
+copy <source> <destination> [overwrite|append]	Copies a file.
+mode <source> <destination> [overwrite|append]	Moves a file.
+delete <file>									Deletes a file.
+rename <file> <name>							Renames a file.
+
+Control commands ----------------
+goto <label>									Skips to a label.
+:label											Defines a label, for use with the goto command.
+halt											Stops the script in its tracks.
