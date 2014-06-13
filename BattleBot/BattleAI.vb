@@ -37,12 +37,12 @@ Partial Public Class BattleBot
     Private Sub AISelf(ByVal Health As String, ByVal Status As String)
         ' Check that there are actually monsters in the battle.
         If currentMonsters.Count = 0 Then
-            If WaitingForRegistration Is Nothing And UnmatchedFullNames.Count = 0 Then
-                DoBattle("There are no monsters in the battle!")
-            Else
-                WaitingForRegistration = {LoggedIn, Health, Status}
-                DoBattle("!bat info")
-            End If
+            'If WaitingForRegistration Is Nothing And UnmatchedFullNames.Count = 0 Then
+            DoBattle("No monsters were found in the battle...")
+            'Else
+            'WaitingForRegistration = {LoggedIn, Health, Status}
+            'DoBattle("!bat info")
+            'End If
             Return
         End If
         If CurrentTurn <> LoggedIn Then Return
@@ -107,7 +107,7 @@ Partial Public Class BattleBot
 
                     WriteMessage(1, 12, "[" & Player & "] Using technique " & TechniqueToUse & " on " & Target)
                     CurrentAbility = TechniqueToUse
-                    Say(ArenaConnection, ArenaChannel, Player & " uses " & .GenderPronoun.tolower & " " & TechniqueToUse & " on " & Target)
+                    Say(ArenaConnection, ArenaChannel, Player & " uses " & .GenderWord.tolower & " " & TechniqueToUse & " on " & Target)
                     Return
                 End If
             End If
@@ -214,7 +214,7 @@ Partial Public Class BattleBot
                     DoBattle(Chr(1) & "ACTION goes " & Target & Chr(1))
                 Else
                     WriteMessage(1, 12, "Using technique " & Ability & " on " & Target)
-                    DoBattle(Chr(1) & "ACTION uses " & Characters(CurrentTurn).GenderPronoun.tolower & " " & Ability & " on " & Target & Chr(1))
+                    DoBattle(Chr(1) & "ACTION uses " & Characters(CurrentTurn).GenderWord.tolower & " " & Ability & " on " & Target & Chr(1))
                 End If
             ElseIf Type = "Skill" Then
                 WriteMessage(1, 12, "Using skill " & Ability & If(Target = Nothing, "", " on " & Target))
@@ -298,7 +298,7 @@ Partial Public Class BattleBot
                     DoBattle(CurrentTurn & " goes " & Target)
                 Else
                     WriteMessage(1, 12, "[" & Characters(CurrentTurn).Name & "] Using technique " & Ability & " on " & Target)
-                    DoBattle(CurrentTurn & " uses " & Characters(CurrentTurn).GenderPronoun.tolower & " " & Ability & " on " & Target)
+                    DoBattle(CurrentTurn & " uses " & Characters(CurrentTurn).GenderWord.tolower & " " & Ability & " on " & Target)
                 End If
             ElseIf Type = "Skill" Then
                 WriteMessage(1, 12, "[" & Characters(CurrentTurn).Name & "] Using skill " & Ability & If(Target = Nothing, "", " on " & Target))
@@ -1279,12 +1279,12 @@ Partial Public Class BattleBot
             If Target = Nothing Then
                 If Tt.Type = "AoE Attack" Or Tt.Type = "AoE Suicide" Then
                     CurrentAbility = Match.Groups("Technique").Value
-                    DoBattle(ChrW(1) & "ACTION uses " & Characters(LoggedIn).GenderPronoun.tolower & " " & Match.Groups("Technique").Value & " on " & currentMonsters(0) & ChrW(1))
+                    DoBattle(ChrW(1) & "ACTION uses " & Characters(LoggedIn).GenderWord.tolower & " " & Match.Groups("Technique").Value & " on " & currentMonsters(0) & ChrW(1))
                     Return
                 End If
                 If Tt.Type = "AoE Heal" Then
                     CurrentAbility = Match.Groups("Technique").Value
-                    DoBattle(ChrW(1) & "ACTION uses " & Characters(LoggedIn).GenderPronoun.tolower & " " & Match.Groups("Technique").Value & " on " & currentPlayers(0) & ChrW(1))
+                    DoBattle(ChrW(1) & "ACTION uses " & Characters(LoggedIn).GenderWord.tolower & " " & Match.Groups("Technique").Value & " on " & currentPlayers(0) & ChrW(1))
                     Return
                 End If
                 Say(Connection, Channel, "$k04" & Match.Groups("Target").Value & "$o isn't in this battle" & Choose(".", ", " & Sender.Split("!"c)(0) & "."))

@@ -318,6 +318,7 @@ Public Module Bot
             Next
             PluginsLoaded += 1
             Dim asm As Reflection.Assembly = Reflection.Assembly.LoadFrom(tempFile)
+            Dim asmName = asm.GetName()
 
             Dim myType As System.Type
             For Each myType In asm.GetTypes
@@ -356,7 +357,7 @@ FoundPluginType:
             End Select
 
             plugin.Channels = If(Channels, {})
-            Output(" {0}", plugin.Name)
+            Output(" {0} ({1})", plugin.Name, asmName.Version)
             Plugins.Add(Key, New PluginData With {.Filename = Filename, .Obj = plugin})
             'plugin.Calculate(5, 4)
             'Else

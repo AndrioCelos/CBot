@@ -238,13 +238,13 @@ Public Class ScriptEngine
 
     End Class
 
-    Public Scripts As New List(Of ScriptPointer)
+    Public Scripts As New List(Of Script)
     Public _Commands As New Commands(Me)
     Public _Functions As New Functions(Me)
 
     Public Sub New()
         Dim h = New EventHandler(Me, "script.loaded")
-        AddHandler ScriptLoaded, AddressOf h.Run
+        'AddHandler ScriptLoaded, AddressOf h.Run
     End Sub
 
     <Command({"loadscript"}, 1, 1,
@@ -259,7 +259,7 @@ Public Class ScriptEngine
                 Owner.Add(ID.Value.AccountName)
         Next
 
-        Scripts.Add(New ScriptPointer(args(0), Me) With {.Owner = Owner.ToArray})
+        Scripts.Add(New Script(args(0), Me) With {.Owner = Owner.ToArray})
         Reply(Connection, Channel, Sender, "Loaded.")
         RaiseEvent ScriptLoaded(Me, EventArgs.Empty)
     End Sub
@@ -276,26 +276,26 @@ Nothing, CommandAttribute.CommandScope.NoMinorChannel)>
                 Owner.Add(ID.Value.AccountName)
         Next
 
-        Dim TempScript = New ScriptPointer(Me) With {.Script = {args(0)}, .Owner = Owner.ToArray}
-        Try
+        Dim TempScript = New Script(Me) With {.Script = args(0), .Owner = Owner.ToArray}
+        'Try
             Dim Result = TempScript.ParseExpression()
             Dim rValue = Result.Value
-            Say(Connection, Channel, ChrW(3) & "4Result  " & rValue.GetType.Name & ChrW(3) & "12 " & rValue.ToString, SayOptions.NoParse)
-        Catch ex As FormatException
-            Say(Connection, Channel, ChrW(3) & "4Parse error (line " & TempScript.Line & " column " & TempScript.Column & "): " & ex.GetType.FullName & " : " & ex.Message, SayOptions.NoParse)
-            Say(Connection, Channel, TempScript.UserFriendlyErrorLocation, SayOptions.NoParse)
-        Catch ex As NotImplementedException
-            Say(Connection, Channel, ChrW(3) & "4Parse error (line " & TempScript.Line & " column " & TempScript.Column & "): " & ex.GetType.FullName & " : " & ex.Message, SayOptions.NoParse)
-            Say(Connection, Channel, TempScript.UserFriendlyErrorLocation, SayOptions.NoParse)
-        Catch ex As SyntaxException
-            Say(Connection, Channel, ChrW(3) & "4Syntax error (line " & TempScript.Line & " column " & TempScript.Column & "): " & ex.Message, SayOptions.NoParse)
-            Say(Connection, Channel, TempScript.UserFriendlyErrorLocation, SayOptions.NoParse)
-        Catch ex As Exception
-            Say(Connection, Channel, ChrW(3) & "4Error (line " & TempScript.Line & " column " & TempScript.Column & "): " & ex.GetType.FullName & " : " & ex.Message, SayOptions.NoParse)
-            Say(Connection, Channel, TempScript.UserFriendlyErrorLocation, SayOptions.NoParse)
-        Finally
-            Me.Connection = Nothing : Me.Channel = Nothing : Me.Sender = Nothing
-        End Try
+        Say(Connection, Channel, ChrW(3) & "4Result: " & rValue.GetType.Name & ChrW(3) & "12 " & rValue.ToString, SayOptions.NoParse)
+        'Catch ex As FormatException
+        '    Say(Connection, Channel, ChrW(3) & "4Parse error (line " & TempScript.Line & " column " & TempScript.Column & "): " & ex.GetType.FullName & " : " & ex.Message, SayOptions.NoParse)
+        '    Say(Connection, Channel, TempScript.UserFriendlyErrorLocation, SayOptions.NoParse)
+        'Catch ex As NotImplementedException
+        '    Say(Connection, Channel, ChrW(3) & "4Parse error (line " & TempScript.Line & " column " & TempScript.Column & "): " & ex.GetType.FullName & " : " & ex.Message, SayOptions.NoParse)
+        '    Say(Connection, Channel, TempScript.UserFriendlyErrorLocation, SayOptions.NoParse)
+        'Catch ex As SyntaxException
+        '    Say(Connection, Channel, ChrW(3) & "4Syntax error (line " & TempScript.Line & " column " & TempScript.Column & "): " & ex.Message, SayOptions.NoParse)
+        '    Say(Connection, Channel, TempScript.UserFriendlyErrorLocation, SayOptions.NoParse)
+        'Catch ex As Exception
+        '    Say(Connection, Channel, ChrW(3) & "4Error (line " & TempScript.Line & " column " & TempScript.Column & "): " & ex.GetType.FullName & " : " & ex.Message, SayOptions.NoParse)
+        '    Say(Connection, Channel, TempScript.UserFriendlyErrorLocation, SayOptions.NoParse)
+        'Finally
+        Me.Connection = Nothing : Me.Channel = Nothing : Me.Sender = Nothing
+        'End Try
     End Sub
 
     <Regex("^~\?\s+(?<Expression>.*)$",
@@ -308,89 +308,84 @@ Nothing, CommandAttribute.CommandScope.NoMinorChannel, False)>
 ".run", CommandAttribute.CommandScope.NoMinorChannel, False)>
     Public Sub RegexCommand(ByVal Connection As IRCConnection, ByVal Sender As String, ByVal Channel As String, ByVal Match As Match, ByRef Handled As Boolean)
         Me.Connection = Connection : Me.Channel = Channel : Me.Sender = Sender
-        Dim TempScript = New ScriptPointer(Me) With {.Script = {Match.Groups("Command").Value}}
-        Try
-            Dim Result As ScriptPointer.ExecuteResults = ScriptPointer.ExecuteResults.OK
-            Do
-                Dim lResult = TempScript.ParseLine(Connection, Channel)
-                Select Case lResult
-                    Case ScriptPointer.ExecuteResults.DefaultHalted : Result = ScriptPointer.ExecuteResults.DefaultHalted
-                    Case ScriptPointer.ExecuteResults.EndOfFile : Exit Do
-                    Case ScriptPointer.ExecuteResults.ErrorOccurred : Result = ScriptPointer.ExecuteResults.ErrorOccurred : Exit Do
-                    Case ScriptPointer.ExecuteResults.Halted : Result = ScriptPointer.ExecuteResults.Halted : Exit Do
-                End Select
-            Loop
-            Select Case Result
-                Case ScriptPointer.ExecuteResults.DefaultHalted
-                Case ScriptPointer.ExecuteResults.EndOfBlock, ScriptPointer.ExecuteResults.EndOfFile, ScriptPointer.ExecuteResults.OK, ScriptPointer.ExecuteResults.Halted
-                    Say(Connection, Sender.Split("!"c)(0), ChrW(3) & "9The command completed successfully.", SayOptions.NoParse)
-                Case ScriptPointer.ExecuteResults.ErrorOccurred
-                    Say(Connection, Sender.Split("!"c)(0), ChrW(3) & "4The command failed.", SayOptions.NoParse)
+        Dim TempScript = New Script(Me) With {.Script = Match.Groups("Command").Value}
+        'Try
+        Dim Result As Script.ExecuteResults = Script.ExecuteResults.OK
+        Do
+            Dim lResult = TempScript.RunInstruction(Connection, Channel)
+            Select Case lResult
+                Case Script.ExecuteResults.DefaultHalted : Result = Script.ExecuteResults.DefaultHalted
+                Case Script.ExecuteResults.EndOfFile : Exit Do
+                Case Script.ExecuteResults.ErrorOccurred : Result = Script.ExecuteResults.ErrorOccurred : Exit Do
+                Case Script.ExecuteResults.Halted : Result = Script.ExecuteResults.Halted : Exit Do
             End Select
-        Catch ex As FormatException
-            Say(Connection, Channel, ChrW(3) & "4Parse error (line " & TempScript.Line & " column " & TempScript.Column & "): " & ex.GetType.FullName & " : " & ex.Message, SayOptions.NoParse)
-            Say(Connection, Channel, TempScript.UserFriendlyErrorLocation, SayOptions.NoParse)
-        Catch ex As NotImplementedException
-            Say(Connection, Channel, ChrW(3) & "4Parse error (line " & TempScript.Line & " column " & TempScript.Column & "): " & ex.GetType.FullName & " : " & ex.Message, SayOptions.NoParse)
-            Say(Connection, Channel, TempScript.UserFriendlyErrorLocation, SayOptions.NoParse)
-        Catch ex As SyntaxException
-            Say(Connection, Channel, ChrW(3) & "4Syntax error (line " & TempScript.Line & " column " & TempScript.Column & "): " & ex.Message, SayOptions.NoParse)
-            Say(Connection, Channel, TempScript.UserFriendlyErrorLocation, SayOptions.NoParse)
-        Catch ex As Exception
-            Say(Connection, Channel, ChrW(3) & "4Error (line " & TempScript.Line & " column " & TempScript.Column & "): " & ex.GetType.FullName & " : " & ex.Message, SayOptions.NoParse)
-            Say(Connection, Channel, TempScript.UserFriendlyErrorLocation, SayOptions.NoParse)
-        Finally
-            Me.Connection = Nothing : Me.Channel = Nothing : Me.Sender = Nothing
-        End Try
+        Loop
+        Select Case Result
+            Case Script.ExecuteResults.DefaultHalted
+            Case Script.ExecuteResults.EndOfBlock, Script.ExecuteResults.EndOfFile, Script.ExecuteResults.OK, Script.ExecuteResults.Halted
+                Say(Connection, Sender.Split("!"c)(0), ChrW(3) & "9The command completed successfully.", SayOptions.NoParse)
+            Case Script.ExecuteResults.ErrorOccurred
+                Say(Connection, Sender.Split("!"c)(0), ChrW(3) & "4The command failed.", SayOptions.NoParse)
+        End Select
+        'Catch ex As FormatException
+        '    Say(Connection, Channel, ChrW(3) & "4Parse error (line " & TempScript.Line & " column " & TempScript.Column & "): " & ex.GetType.FullName & " : " & ex.Message, SayOptions.NoParse)
+        '    Say(Connection, Channel, TempScript.UserFriendlyErrorLocation, SayOptions.NoParse)
+        'Catch ex As NotImplementedException
+        '    Say(Connection, Channel, ChrW(3) & "4Parse error (line " & TempScript.Line & " column " & TempScript.Column & "): " & ex.GetType.FullName & " : " & ex.Message, SayOptions.NoParse)
+        '    Say(Connection, Channel, TempScript.UserFriendlyErrorLocation, SayOptions.NoParse)
+        'Catch ex As SyntaxException
+        '    Say(Connection, Channel, ChrW(3) & "4Syntax error (line " & TempScript.Line & " column " & TempScript.Column & "): " & ex.Message, SayOptions.NoParse)
+        '    Say(Connection, Channel, TempScript.UserFriendlyErrorLocation, SayOptions.NoParse)
+        'Catch ex As Exception
+        '    Say(Connection, Channel, ChrW(3) & "4Error (line " & TempScript.Line & " column " & TempScript.Column & "): " & ex.GetType.FullName & " : " & ex.Message, SayOptions.NoParse)
+        '    Say(Connection, Channel, TempScript.UserFriendlyErrorLocation, SayOptions.NoParse)
+        'Finally
+        Me.Connection = Nothing : Me.Channel = Nothing : Me.Sender = Nothing
+        'End Try
     End Sub
 
-    Public Function RunEvent(Connection As IRCConnection, Channel As String, Sender As String, Name As String, Parameter As String, e As EventArgs, IsPluginEvent As Boolean) As ScriptPointer.ExecuteResults
-        Dim Result As ScriptPointer.ExecuteResults = ScriptPointer.ExecuteResults.OK
-        For Each script In Scripts
+    'Public Function RunEvent(Connection As IRCConnection, Channel As String, Sender As String, Name As String, Parameter As String, e As EventArgs, IsPluginEvent As Boolean) As Script.ExecuteResults
+    '    Dim Result As Script.ExecuteResults = Script.ExecuteResults.OK
+    '    For Each script In Scripts
 
-            Me.Connection = Connection
-            Me.Channel = Channel
-            Me.Sender = Sender
-            Me.e = e
-            Me.Parameter = Parameter
-            Dim lResult = script.RunEvent(Connection, Channel, Sender, Name, Parameter, e, IsPluginEvent)
-            Me.Connection = Nothing
-            Me.Channel = Nothing
-            Me.Sender = Nothing
-            Me.e = Nothing
-            Me.Parameter = Nothing
+    '        Me.Connection = Connection
+    '        Me.Channel = Channel
+    '        Me.Sender = Sender
+    '        Me.e = e
+    '        Me.Parameter = Parameter
+    '        Dim lResult = script.RunEvent(Connection, Channel, Sender, Name, Parameter, e, IsPluginEvent)
+    '        Me.Connection = Nothing
+    '        Me.Channel = Nothing
+    '        Me.Sender = Nothing
+    '        Me.e = Nothing
+    '        Me.Parameter = Nothing
 
-            Select Case lResult
-                Case ScriptPointer.ExecuteResults.OK, ScriptPointer.ExecuteResults.EndOfBlock, ScriptPointer.ExecuteResults.EndOfFile
-                Case ScriptPointer.ExecuteResults.DefaultHalted
-                    Result = ScriptPointer.ExecuteResults.DefaultHalted
-                Case ScriptPointer.ExecuteResults.Halted
-                    Return ScriptPointer.ExecuteResults.Halted
-                Case ScriptPointer.ExecuteResults.ErrorOccurred
-                    Return ScriptPointer.ExecuteResults.ErrorOccurred
-            End Select
-        Next
-        Return Result
-    End Function
+    '        Select Case lResult
+    '            Case Script.ExecuteResults.OK, Script.ExecuteResults.EndOfBlock, Script.ExecuteResults.EndOfFile
+    '            Case Script.ExecuteResults.DefaultHalted
+    '                Result = Script.ExecuteResults.DefaultHalted
+    '            Case Script.ExecuteResults.Halted
+    '                Return Script.ExecuteResults.Halted
+    '            Case Script.ExecuteResults.ErrorOccurred
+    '                Return Script.ExecuteResults.ErrorOccurred
+    '        End Select
+    '    Next
+    '    Return Result
+    'End Function
 
-    <Serializable()> _
-    Public Class SyntaxException
-        Inherits System.Exception
-
-        Public Sub New(ByVal message As String)
-            MyBase.New(message)
-        End Sub
-
-        Public Sub New(ByVal message As String, ByVal inner As Exception)
-            MyBase.New(message, inner)
-        End Sub
-
-        Public Sub New( _
-            ByVal info As System.Runtime.Serialization.SerializationInfo, _
-            ByVal context As System.Runtime.Serialization.StreamingContext)
-            MyBase.New(info, context)
-        End Sub
-    End Class
+    <Command({"token"}, 1, 1,
+"token <script>",
+"Tests the tokeniser.",
+Nothing, CommandAttribute.CommandScope.NoMinorChannel)>
+    Public Sub CommandToken(ByVal Connection As IRCConnection, ByVal Sender As String, ByVal Channel As String, ByVal args() As String)
+        Dim TempScript = New Script(Me) With {.Script = args(0)}
+        Do
+            TempScript.Tokeniser.NextToken()
+            Console.Write(TempScript.Tokeniser.ToString())
+            Console.Write(" ")
+        Loop Until TempScript.Tokeniser.TokenType = TokenTypes.tEndOfScript
+        Console.WriteLine()
+    End Sub
 
     Public Event ScriptLoaded(sender As Object, e As EventArgs)
 
@@ -404,8 +399,27 @@ Public Class EventHandler
         _EventName = EventName
     End Sub
 
-    Public Sub Run(sender As Object, e As EventArgs)
-        _Plugin.RunEvent(Nothing, Nothing, Nothing, _EventName, Nothing, e, True)
-    End Sub
+    'Public Sub Run(sender As Object, e As EventArgs)
+    '    _Plugin.RunEvent(Nothing, Nothing, Nothing, _EventName, Nothing, e, True)
+    'End Sub
 End Class
 
+''' <summary>The exception that is thrown when a syntax problem is encountered in a script</summary>
+<Serializable()> _
+Public Class SyntaxException
+    Inherits System.Exception
+
+    Public Sub New(ByVal message As String)
+        MyBase.New(message)
+    End Sub
+
+    Public Sub New(ByVal message As String, ByVal inner As Exception)
+        MyBase.New(message, inner)
+    End Sub
+
+    Public Sub New( _
+        ByVal info As System.Runtime.Serialization.SerializationInfo, _
+        ByVal context As System.Runtime.Serialization.StreamingContext)
+        MyBase.New(info, context)
+    End Sub
+End Class

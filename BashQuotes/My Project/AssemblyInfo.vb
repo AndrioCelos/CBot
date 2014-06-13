@@ -8,17 +8,17 @@ Imports System.Runtime.InteropServices
 
 ' Review the values of the assembly attributes
 
-<Assembly: AssemblyTitle("BattleBot")> 
+<Assembly: AssemblyTitle("BashQuotes")> 
 <Assembly: AssemblyDescription("")> 
 <Assembly: AssemblyCompany("Andrio Celos")> 
-<Assembly: AssemblyProduct("Battle Arena plugin for VBot")> 
+<Assembly: AssemblyProduct("BashQuotes")> 
 <Assembly: AssemblyCopyright("2012-4 Andrio Celos")> 
 <Assembly: AssemblyTrademark("")> 
 
 <Assembly: ComVisible(False)>
 
 'The following GUID is for the ID of the typelib if this project is exposed to COM
-<Assembly: Guid("66653c64-8fe5-4151-ba9a-03236f4d1d4c")> 
+<Assembly: Guid("267b103a-46ea-4f64-bb89-252137334036")> 
 
 ' Version information for an assembly consists of the following four values:
 '
@@ -31,5 +31,5 @@ Imports System.Runtime.InteropServices
 ' by using the '*' as shown below:
 ' <Assembly: AssemblyVersion("1.0.*")> 
 
-<Assembly: AssemblyVersion("2.6.5.0")> 
-<Assembly: AssemblyFileVersion("2.6.5.0")> 
+<Assembly: AssemblyVersion("1.0.3.0")> 
+<Assembly: AssemblyFileVersion("1.0.3.0")> 

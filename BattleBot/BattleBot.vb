@@ -37,8 +37,8 @@ Public Class BattleBot
     Public ViewingWeaponsCharacter As String = ""
     Public ViewingStatsCharacter As String
 
-    Public ViewingInfoWeapon As String = ""
-    Public ViewingInfoTechnique As String = ""
+    Public ViewingInfoWeapon As WeaponData
+    Public ViewingInfoTechnique As TechniqueData
     Public ViewingInfoItem As String = ""
     Public ViewingInfoSkill As String = ""
     Public RepeatCommand As Short
@@ -238,7 +238,7 @@ Public Class BattleBot
         End Operator
 
         Public Overrides Function ToString() As String
-            Return Major.ToString() & "." & Minor.ToString() & If(Revision <> 0, "." & Revision.ToString(), "") & If(BetaDate = Nothing, "", "beta" & BetaDate.ToString("MMddyy"))
+            Return Major.ToString() & "." & Minor.ToString() & If(Revision <> 0, "." & Revision.ToString(), "") & If(BetaDate = Nothing, "", "beta_" & BetaDate.ToString("MMddyy"))
         End Function
     End Structure
 
@@ -280,6 +280,40 @@ Public Class BattleBot
         Unknown = -1
     End Enum
 
+    Public Enum CombatantPresence As Short
+        Alive
+        Dead
+        RunAway
+    End Enum
+
+    Public Enum StatusEffect As Short
+        None
+        TimeStop
+        Poison
+        HeavyPoison
+        Silence
+        Blind
+        Drunk
+        Virus
+        Amnesia
+        Paralysis
+        Zombie
+        Slow
+        Stun
+        Curse
+        Charm
+        Intimidate
+        DefenseDown
+        StrengthDown
+        IntDown
+        Petrify
+        Bored
+        Confuse
+        RemoveBoost
+        DefenseUp
+        Random = Short.MaxValue
+    End Enum
+
     ''' <summary>Contains data relating to a character that the bot owns.</summary>
     Public Class OwnCharacterData
         Public FullName As String
@@ -294,12 +328,16 @@ Public Class BattleBot
         Public Name As String
         ''' <summary>Player, Ally or Monster.</summary>
         Public Category As CharacterCategory = 7
+        ''' <summary>This character's presence: whether alive, dead or run away.</summary>
+        Public Presence As CombatantPresence
 
         ''' <summary>Health: how much damage this character can sustain before being killed.</summary>
         Public HP As Integer
+        ''' <summary>Health: this character's health catrgory (ranges from 'Enhanced' to 'Dead').</summary>
         Public Health As String = "Perfect"
         ''' <summary>Damage: how much damage this character has already taken.</summary>
         Public Damage As Integer
+        ''' <summary>Damage: how much damage this character has already taken, as a percentage of their base HP.</summary>
         Public DamagePercent As Decimal
         ''' <summary>TP</summary>
         Public TP As Integer
@@ -396,6 +434,7 @@ Public Class BattleBot
         Public Status As New List(Of String)
 
         Public EquippedWeapon As String
+        Public EquippedWeapon2 As String
         Public EquippedAccessory As String
 
         ''' <summary>The character's elemental resistances.</summary>
@@ -489,31 +528,48 @@ Public Class BattleBot
         End Function
 
         Public Function Level() As Single
-            Return (bSTR + bDEF + bINT + bSPD) / 20
+            Return (bSTR + bDEF + bINT + bSPD * 0.6) / 18
         End Function
 
-        Public ReadOnly Property GenderPronoun
+        Public ReadOnly Property GenderWord
             Get
-                Select Case If(Gender, "").ToLower
-                    Case "male"
+                If Gender Is Nothing Then Return "Their"
+                Select Case Gender.ToUpper()
+                    Case "MALE"
                         Return "His"
-                    Case "female"
+                    Case "FEMALE"
                         Return "Her"
-                    Case "neither", "none"
+                    Case "NEITHER", "NONE"
                         Return "Its"
                     Case Else
                         Return "Their"
                 End Select
             End Get
         End Property
-        Public ReadOnly Property GenderPronoun2
+        Public ReadOnly Property GenderWord2
             Get
-                Select Case Gender.ToLower
-                    Case "male"
+                If Gender Is Nothing Then Return "Their"
+                Select Case Gender.ToUpper()
+                    Case "MALE"
+                        Return "Him"
+                    Case "FEMALE"
+                        Return "Her"
+                    Case "NEITHER", "NONE"
+                        Return "It"
+                    Case Else
+                        Return "Them"
+                End Select
+            End Get
+        End Property
+        Public ReadOnly Property GenderWord3
+            Get
+                If Gender Is Nothing Then Return "Their"
+                Select Case Gender.ToUpper()
+                    Case "MALE"
                         Return "He"
-                    Case "female"
+                    Case "FEMALE"
                         Return "She"
-                    Case "neither", "none"
+                    Case "NEITHER", "NONE"
                         Return "It"
                     Case Else
                         Return "They"
@@ -531,8 +587,10 @@ Public Class BattleBot
 
         ''' <summary>The weapon category: HandToHand, Sword, Wand etc.</summary>
         Public Category As String
-        ''' <summary>The weapon size: short, medium or large.</summary>
-        Public Size As Size = Size.Medium
+        ''' <summary>The weapon size: small, medium or large.</summary>
+        Public Size As Size
+        ''' <summary>True if the weapon is two-handed; false if it's one-handed</summary>
+        Public IsTwoHanded As Boolean
         ''' <summary>The cost to buy this weapon in black orbs.</summary>
         Public Cost As Integer
         ''' <summary>The cost to upgrade this weapon in red orbs.</summary>
@@ -543,7 +601,7 @@ Public Class BattleBot
         Public HitsMax As Short
 
         ''' <summary>Base power</summary>
-        Public Power As Integer
+        Public Power As Integer = -1
         ''' <summary>Status effect inflicted on the target/s, if any.</summary>
         Public Status As String
         ''' <summary>The element, if any, that this weapon is aligned with.</summary>
@@ -564,6 +622,8 @@ Public Class BattleBot
         Public Hits As String
         Public IsWellKnown As Boolean
 
+        ''' <summary>True if the technique's power is based on magical might; False if it's based on strength</summary>
+        Public UsesINT As Boolean
         ''' <summary>Base power</summary>
         Public Power As Integer
         ''' <summary>Status effect inflicted on the target/s, if any.</summary>
@@ -674,8 +734,8 @@ Public Class BattleBot
 
         For Each Method In Me.GetType.GetMethods
             For Each attr In Method.GetCustomAttributes(False)
-                If TypeOf attr Is RegexAttribute Then
-                    Expressions = CType(attr, RegexAttribute).Expressions
+                If TypeOf attr Is ArenaRegexAttribute Then
+                    Expressions = DirectCast(attr, ArenaRegexAttribute).Expressions
 
                     For Each Expression In Expressions
                         Match = System.Text.RegularExpressions.Regex.Match(Message, Expression, RegularExpressions.RegexOptions.IgnoreCase)
@@ -1502,7 +1562,7 @@ Public Class BattleBot
 "Instructs me to stop controlling someone, default yourself.",
  Nothing, CommandAttribute.CommandScope.Channel)>
     Public Sub CommandControlStop(ByVal Connection As IRCConnection, ByVal Sender As String, ByVal Channel As String, ByVal args() As String)
-        Dim Character As CharacterData, Nickname As String = If(args.ElementAtOrDefault(0), Sender.Split("!"c)(0))
+        Dim Nickname As String = If(args.ElementAtOrDefault(0), Sender.Split("!"c)(0))
         If Nickname <> Sender.Split("!"c)(0) And Not UserHasPermission(Connection, Channel, Sender, MyKey & ".control") Then
             Say(Connection, Channel, "You may not use that command on others.")
             Return
@@ -1843,7 +1903,7 @@ NoDateFound:
         End If
 1:
         ' Find my attributes.
-        WriteMessage(2, 12, "Getting attributes.")
+        WriteMessage(2, 12, "Checking attributes.")
         If I.bHP = 0 Or I.bTP = 0 Or I.bSTR = 0 Or I.bDEF = 0 Or I.bINT = 0 Or I.bSPD = 0 Or I.EquippedWeapon = Nothing Then
             DoBattlePrivate("!stats")
             For j = 1 To 120
@@ -1852,6 +1912,16 @@ NoDateFound:
             Next
         End If
 2:
+        ' Find my equipment.
+        I.EquippedWeapon = Nothing
+        I.EquippedWeapon2 = Nothing
+        WriteMessage(2, 12, "Checking equipment.")
+        DoBattlePrivate("!look")
+        For j = 1 To 120
+            If I.EquippedWeapon IsNot Nothing Then Exit For
+            Threading.Thread.Sleep(250)
+        Next
+        
         ' Find my skills.
         If I.Skills Is Nothing Then
             WriteMessage(2, 12, "Own skill list not known; retrieving.")
@@ -1884,7 +1954,7 @@ NoDateFound:
                         If I.EquippedWeapon = Weapon.Key And Weapons.ContainsKey(Weapon.Key) Then GoTo 3
                         Threading.Thread.Sleep(250)
                     Next
-                    Return
+                    Continue For
                 End If
 3:
                 ' !view-info the weapon.
@@ -1897,7 +1967,6 @@ NoDateFound:
                     Threading.Thread.Sleep(250)
                     If RepeatCommand = 1 Then GoTo 10
                 Next
-                Return
 4:
                 WaitingForOwnTechniques = True
                 Threading.Thread.Sleep(1000)
@@ -1906,7 +1975,6 @@ NoDateFound:
                     If Not WaitingForOwnTechniques Then GoTo 5
                     Threading.Thread.Sleep(250)
                 Next
-                Return
 5:
             End If
         Next
@@ -1925,7 +1993,6 @@ NoDateFound:
                         Threading.Thread.Sleep(250)
                         If RepeatCommand = 1 Then GoTo 11
                     Next
-                    Return
 6:
                 End If
             Next
@@ -1938,7 +2005,6 @@ NoDateFound:
                 If I.EquippedWeapon = "Fists" Then GoTo 7
                 Threading.Thread.Sleep(250)
             Next
-            Return
         End If
 7:
         ' Find my style.
@@ -2230,6 +2296,7 @@ NoDateFound:
             Characters(Character).EquippedWeaponTechs.Add(Match.Groups("Name").Value)
         Next
         WriteMessage(2, 3, "Registered " & Characters(Character).Name & "'s techniques for " & Characters(Character).Gender & " " & Weapon & ": " & String.Join(", ", Characters(Character).Weapons.ToArray))
+        Return True
     End Function
 
     Private Function GetSkills(ByVal Character As String)
@@ -2353,7 +2420,7 @@ NoDateFound:
                 End If
 
                 For Each Technique In Techniques
-                    Dim lMatch = Regex.Match(Technique, "(?<Name>.*)\((?<Level>\d+)\)")
+                    Dim lMatch = Regex.Match(Technique, "(?:\x035)?(?<Name>[^\x03]*)(?:\x033)?\((?<Level>\d+)\)")
 
                     If Not Me.Techniques.ContainsKey(lMatch.Groups("Name").Value) Then _
                         Me.Techniques.Add(lMatch.Groups("Name").Value, New TechniqueData With {.Name = lMatch.Groups("Name").Value})
@@ -2365,7 +2432,7 @@ NoDateFound:
                     If Character.Value.EquippedWeaponTechs Is Nothing Then Character.Value.EquippedWeaponTechs = New List(Of String)
                     Character.Value.EquippedWeaponTechs.Add(lMatch.Groups("Name").Value)
                 Next
-                WriteMessage(2, 7, "Registered " & Character.Value.Name & "'s techniques for " & Character.Value.GenderPronoun.tolower & " " & Match.Groups("Weapon").Value & ": " & String.Join(", ", Techniques.ToArray))
+                WriteMessage(2, 7, "Registered " & Character.Value.Name & "'s techniques for " & Character.Value.GenderWord.tolower & " " & Match.Groups("Weapon").Value & ": " & String.Join(", ", Techniques.ToArray))
                 If Character.Key = LoggedIn Then WaitingForOwnTechniques = False
             End If
         Next
@@ -2395,7 +2462,7 @@ NoDateFound:
                     Character.Value.Techniques.Remove(Technique)
                 Next
 
-                WriteMessage(2, 7, "Registered " & Character.Value.Name & "'s techniques for " & Character.Value.GenderPronoun.tolower & " " & Match.Groups("Weapon").Value & ": none")
+                WriteMessage(2, 7, "Registered " & Character.Value.Name & "'s techniques for " & Character.Value.GenderWord.tolower & " " & Match.Groups("Weapon").Value & ": none")
             End If
         Next
     End Sub
@@ -2431,6 +2498,29 @@ NoDateFound:
 
             WriteMessage(2, 7, String.Format("Registered {0}'s attributes.  HP: {1}/{2}  TP: {3}/{4}  IG: {5}/{6}  RG: {7}", c.Name, If(b IsNot Nothing, b.HP, c.bHP), c.bHP, If(b IsNot Nothing, b.TP, c.bTP), c.bTP, c.IgnitionCharge, c.bIG, c.RoyalGuardCharge))
         End If
+    End Sub
+
+    <ArenaRegex("^(?:\x033\x02|\x02\x033)(?<Name>[^\x02]*) \x02is wearing\x02 (?<Head>[^\x02]*) \x02on (?<Gender>\w+) head,\x02 (?<Body>[^\x02]*) \x02on \k<Gender> body,\x02 (?<Legs>[^\x02]*) \x02on \k<Gender> legs,\x02 (?<Feet>[^\x02]*) \x02on \k<Gender> feet,\x02 (?<Hands>[^\x02]*) \x02on \k<Gender> hands\. \k<Name> also has\x02 (?<Accessory>[^\x02]*) \x02equipped as an accessory and is currently using the\x02 (?<Weapon>[^\x02]*) \x02(?:weapon|and\x02 (?<Weapon2>[^\x02]*) \x02weapons)")>
+    Public Sub OnEquipment(ByVal Connection As IRCConnection, ByVal Sender As String, ByVal Channel As String, ByVal Match As Match)
+        Dim c As CharacterData = Nothing
+
+        For Each c In Characters.Values
+            If c.Name = Match.Groups("Name").Value Then
+                c.EquippedAccessory = If({"none", "nothing"}.Contains(Match.Groups("Accessory").Value, StringComparer.OrdinalIgnoreCase), Nothing, Match.Groups("Accessory").Value)
+
+                If Match.Groups("Weapon2").Success Then
+                    c.EquippedWeapon = Match.Groups("Weapon").Value
+                    c.EquippedWeapon2 = Match.Groups("Weapon2").Value
+                Else
+                    c.EquippedWeapon = Match.Groups("Weapon").Value
+                    c.EquippedWeapon2 = Nothing
+                End If
+
+                GetEquippedTechniques(c)
+                WriteMessage(2, 7, String.Format("Registered {0}'s equipment.  Weapons: {1}, {2}  Accessory: {3}", c.Name, c.EquippedWeapon, If(c.EquippedWeapon2, "nothing"), If(c.EquippedAccessory, "nothing")))
+                Return
+            End If
+        Next
     End Sub
 
     <ArenaRegex("^(?:\x033\x02|\x02\x033)(?<Character>.*) \x02is currently using the\x02 (?<Style>[^ ]+) \x02style\. \[(XP: (?<EXP>\d+) / (?<EXPNeeded>\d+)|(?<Maxed>[^\]]*Max[^\]]*))\]$")>
@@ -2535,13 +2625,18 @@ NoDateFound:
         End If
     End Sub
 
-    <ArenaRegex("^\[\x034Current Weapon Equipped ?\x0312 ?(?<Weapon>[^ ]*)\x031\]( \[\x034Current Accessory( Equipped)? \x0312(?<Accessory>[^ ]*)\x031\]( \[\x034Current Head Armor \x0312(?<Head>[^ ]*)\x031\] \[\x034Current Body Armor \x0312(?<Body>[^ ]*)\x031\] \[\x034Current Leg Armor \x0312(?<Legs>[^ ]*)\x031\] \[\x034Current Feet Armor \x0312(?<Feet>[^ ]*)\x031\] \[\x034Current Hand Armor \x0312(?<Hands>[^ ]*)\x031\])?)?$")>
+    <ArenaRegex("^\[\x034Current Weapons? Equipped ?\x0312 ?(?<Weapon>[^ ]*) (?:\x034and\x0312 (?<Weapon2>[^ ]*))?\x031\]( \[\x034Current Accessory( Equipped)? \x0312(?<Accessory>[^ ]*)\x031\]( \[\x034Current Head Armor \x0312(?<Head>[^ ]*)\x031\] \[\x034Current Body Armor \x0312(?<Body>[^ ]*)\x031\] \[\x034Current Leg Armor \x0312(?<Legs>[^ ]*)\x031\] \[\x034Current Feet Armor \x0312(?<Feet>[^ ]*)\x031\] \[\x034Current Hand Armor \x0312(?<Hands>[^ ]*)\x031\])?)?")>
     Public Sub OnStats3(ByVal Connection As IRCConnection, ByVal Sender As String, ByVal Channel As String, ByVal Match As Match)
         If Sender.Split("!"c)(0) <> ArenaNickname Then Return
         Dim c As CharacterData = Nothing
 
         If Characters.TryGetValue(ViewingStatsCharacter, c) Then
             c.EquippedWeapon = Match.Groups("Weapon").Value
+            If Match.Groups("Weapon2").Success Then
+                c.EquippedWeapon2 = Match.Groups("Weapon2").Value
+            Else
+                c.EquippedWeapon2 = Nothing
+            End If
             c.EquippedAccessory = If(Match.Groups("Accessory").Value = "nothing", Nothing, Match.Groups("Accessory").Value)
 
             Characters(LoggedIn).EquippedWeaponTechs = New List(Of String)
@@ -2909,77 +3004,98 @@ NoDateFound:
         If Sender.Split("!"c)(0) <> ArenaNickname Then Return
         Dim Name As String = Match.Groups("Name").Value, Type As String = Match.Groups("Type").Value, Hits As String = Match.Groups("Hits").Value
 
-        ViewingInfoWeapon = Name
+        If ViewingInfoWeapon Is Nothing Then
+            ViewingInfoWeapon = New WeaponData
+        ElseIf ViewingInfoWeapon.Name IsNot Nothing Then
+            ViewingInfoWeapon = New WeaponData
+        End If
 
-        If Not Weapons.ContainsKey(Name) Then Weapons.Add(Name, New WeaponData With {.Name = Name})
+        ViewingInfoWeapon.Name = Match.Groups("Name").Value
 
-        Weapons(Name).Category = Type
+        ViewingInfoWeapon.Category = Type
         If Short.TryParse(Hits, Weapons(Name).Hits) Then
-            Weapons(Name).HitsMin = Weapons(Name).Hits
-            Weapons(Name).HitsMax = Weapons(Name).Hits
+            ViewingInfoWeapon.HitsMin = Weapons(Name).Hits
+            ViewingInfoWeapon.HitsMax = Weapons(Name).Hits
         Else
-            Weapons(Name).Hits = 0
+            ViewingInfoWeapon.Hits = 0
             Dim m = Regex.Match(Hits, "random\(\s*(\d+)\s*,\s*-\s*(\d+)\s*\)", RegexOptions.IgnoreCase)
             If m.Success Then
-                Weapons(Name).HitsMin = Short.Parse(m.Groups(1).Value)
-                Weapons(Name).HitsMax = Short.Parse(m.Groups(2).Value)
-                If Weapons(Name).HitsMin > Weapons(Name).HitsMax Then
-                    Dim s = Weapons(Name).HitsMin
-                    Weapons(Name).HitsMin = Weapons(Name).HitsMax
-                    Weapons(Name).HitsMax = s
+                ViewingInfoWeapon.HitsMin = Short.Parse(m.Groups(1).Value)
+                ViewingInfoWeapon.HitsMax = Short.Parse(m.Groups(2).Value)
+                If ViewingInfoWeapon.HitsMin > ViewingInfoWeapon.HitsMax Then
+                    Dim s = ViewingInfoWeapon.HitsMin
+                    ViewingInfoWeapon.HitsMin = ViewingInfoWeapon.HitsMax
+                    ViewingInfoWeapon.HitsMax = s
                 End If
             Else
-                Weapons(Name).HitsMin = 0
-                Weapons(Name).HitsMax = 0
+                ViewingInfoWeapon.HitsMin = 0
+                ViewingInfoWeapon.HitsMax = 0
             End If
         End If
 
         If Match.Groups("Size").Success Then
             If Match.Groups("Size").Value.Equals("small", StringComparison.OrdinalIgnoreCase) Then
-                Weapons(Name).Size = Size.Small
+                ViewingInfoWeapon.Size = Size.Small
             ElseIf Match.Groups("Size").Value.Equals("medium", StringComparison.OrdinalIgnoreCase) Then
-                Weapons(Name).Size = Size.Medium
+                ViewingInfoWeapon.Size = Size.Medium
             ElseIf Match.Groups("Size").Value.Equals("large", StringComparison.OrdinalIgnoreCase) Then
-                Weapons(Name).Size = Size.Large
+                ViewingInfoWeapon.Size = Size.Large
             Else
-                Weapons(Name).Size = Size.Other
+                ViewingInfoWeapon.Size = Size.Other
             End If
         End If
 
-        WriteMessage(2, 10, String.Format("Registered weapon from !view-info: {0} ({1})", Weapons(Name).Name, Weapons(Name).Category))
+        Weapons(ViewingInfoWeapon.Name) = ViewingInfoWeapon
+        WriteMessage(2, 10, String.Format("Registered weapon from !view-info: {0} ({1})", ViewingInfoWeapon.Name, ViewingInfoWeapon.Category))
+
+        If ViewingInfoWeapon.Name IsNot Nothing And ViewingInfoWeapon.Power <> -1 And ViewingInfoWeapon.Techniques IsNot Nothing Then ViewingInfoWeapon = Nothing
     End Sub
 
-    <ArenaRegex("\[\x034Base Power\x0312 (?<Power>.*)\x031\] \[\x034Cost\x0312 (?<Cost>.*) black orb\(s\)\x031\] \[\x034Element of Weapon\x0312 (?<Element>.*)\x031\]")>
+    <ArenaRegex("\[\x034Base Power\x0312 (?<Power>.*)\x031\] \[\x034Cost\x0312 (?<Cost>.*) black orb\(?s?\)?\x031\] \[\x034Element of Weapon\x0312 (?<Element>.*)\x031\](?: \[\x034Is the weapon 2 Handed\?\x0312 (?<TwoHanded>yes|no)\x034\])?")>
     Public Sub OnViewInfoWeapon2(ByVal Connection As IRCConnection, ByVal Sender As String, ByVal Channel As String, ByVal Match As Match)
-        If Sender.Split("!"c)(0) <> ArenaNickname Then Return
-        If ViewingInfoWeapon = "" Then Return
-        Dim Name As String = ViewingInfoWeapon
+        If ViewingInfoWeapon Is Nothing Then
+            ViewingInfoWeapon = New WeaponData
+        ElseIf ViewingInfoWeapon.Power <> -1 Then
+            ViewingInfoWeapon = New WeaponData
+        End If
 
-        Weapons(Name).Power = Match.Groups("Power").Value
-        Weapons(Name).Cost = Match.Groups("Cost").Value
-        Weapons(Name).Element = Match.Groups("Element").Value
+        ViewingInfoWeapon.Power = Match.Groups("Power").Value
+        ViewingInfoWeapon.Cost = Match.Groups("Cost").Value
+        ViewingInfoWeapon.Element = Match.Groups("Element").Value
+        ViewingInfoWeapon.IsTwoHanded = (Match.Groups("TwoHanded").Value = "yes")
 
-        WriteMessage(2, 10, String.Format("Registered weapon info for {0} from !view-info  Power: {1}  Cost: {2}  Element: {3}", Name, Weapons(Name).Power, Weapons(Name).Cost, Weapons(Name).Element))
+        WriteMessage(2, 10, String.Format("Registered weapon info for {0} from !view-info  Power: {1}  Cost: {2}  Element: {3}  Two handed: {4}", ViewingInfoWeapon.Name, ViewingInfoWeapon.Power, ViewingInfoWeapon.Cost, ViewingInfoWeapon.Element, If(ViewingInfoWeapon.IsTwoHanded, "yes", "no")))
+
+        If ViewingInfoWeapon.Name IsNot Nothing And ViewingInfoWeapon.Power <> -1 And ViewingInfoWeapon.Techniques IsNot Nothing Then ViewingInfoWeapon = Nothing
     End Sub
 
     <ArenaRegex("\[\x034Abilities of the Weapon\x0312 (?<Techniques>[^, ]+(, [^, ]+)*)?\x031\]")>
     Public Sub OnViewInfoWeapon3(ByVal Connection As IRCConnection, ByVal Sender As String, ByVal Channel As String, ByVal Match As Match)
-        If Sender.Split("!"c)(0) <> ArenaNickname Then Return
-        If ViewingInfoWeapon = "" Then Return
-        Dim Name As String = ViewingInfoWeapon
+        If ViewingInfoWeapon Is Nothing Then
+            ViewingInfoWeapon = New WeaponData
+        ElseIf ViewingInfoWeapon.Techniques IsNot Nothing Then
+            ViewingInfoWeapon = New WeaponData
+        End If
 
-        Weapons(Name).Techniques = New List(Of String)
+        ViewingInfoWeapon.Techniques = New List(Of String)
         For Each Technique In Match.Groups("Techniques").Value.Split({", "}, StringSplitOptions.RemoveEmptyEntries)
-            Weapons(Name).Techniques.Add(Technique)
+            ViewingInfoWeapon.Techniques.Add(Technique)
         Next
-        Weapons(Name).IsWellKnown = True
+        ViewingInfoWeapon.IsWellKnown = True
 
-        WriteMessage(2, 10, String.Format("Registered technique list for {0} from !view-info: {1}", Name, String.Join(", ", Weapons(Name).Techniques)))
+        WriteMessage(2, 10, String.Format("Registered technique list for {0} from !view-info: {1}", ViewingInfoWeapon.Name, String.Join(", ", ViewingInfoWeapon.Techniques)))
+
+        If ViewingInfoWeapon.Name IsNot Nothing And ViewingInfoWeapon.Power <> -1 And ViewingInfoWeapon.Techniques IsNot Nothing Then ViewingInfoWeapon = Nothing
     End Sub
 
-    <ArenaRegex("\[\x034Name\x0312 (?<Name>[^ \]]*)\x031\] \[\x034Target Type\x0312 (?<Type>[^\]]*)\x031\] \[\x034TP needed to use\x0312 (?<TP>\d+)\x031\]( \[\x034# of Hits\x0312 (?<Hits>[^\]]*)\x031\])?( \[\x034Stats Type\x0312 (?<Status>[^\]]*)\x031\])?(?<Magic> \[\x034Magic\x0312 Yes\x031\])?( \[\x034Ignore Target Defense by\x0312 (?<IgnoreDefense>[^\]]*)%\x031\])?")>
+    <ArenaRegex("^\[\x034Name\x0312 (?<Name>[^ \]]*)\x031\] \[\x034Target Type\x0312 (?<Type>[^\]]*)\x031\] \[\x034TP needed to use\x0312 (?<TP>\d+)\x031\](?: \[\x034# of Hits\x0312 (?<Hits>[^\]]*)\x031\])?(?: \[\x034Stats Type\x0312 (?<Status>[^\]]*)\x031\])?(?<Magic> \[\x034Magic\x0312 Yes\x031\])?(?: \[\x034Ignore Target Defense by\x0312 (?<IgnoreDefense>[^\]]*)%\x031\])?")>
     Public Sub OnViewInfoTechnique1(ByVal Connection As IRCConnection, ByVal Sender As String, ByVal Channel As String, ByVal Match As Match)
-        If Sender.Split("!"c)(0) <> ArenaNickname Then Return
+        If ViewingInfoTechnique Is Nothing Then
+            ViewingInfoTechnique = New TechniqueData
+        ElseIf ViewingInfoTechnique.Name IsNot Nothing Then
+            ViewingInfoTechnique = New TechniqueData
+        End If
+
         Dim Name As String = Match.Groups("Name").Value, Type As String = "None", TP As Short = Match.Groups("TP").Value, Status As String = Match.Groups("Status").Value, IsMagic As Boolean = Match.Groups("Magic").Success
         Select Case Match.Groups("Type").Value.ToLower
             Case "boost" : Type = "Boost"
@@ -2999,40 +3115,49 @@ NoDateFound:
 
         If Not Match.Groups("Status").Success Then Status = "None"
 
-        ViewingInfoTechnique = Name
+        ViewingInfoTechnique.Name = Name
+        Techniques(Name) = ViewingInfoTechnique
 
-        If Not Techniques.ContainsKey(Name) Then Techniques.Add(Name, New TechniqueData With {.Name = Name})
-        Techniques(Name).Type = Type
-        Techniques(Name).TP = TP
-        Techniques(Name).Status = Status
-        Techniques(Name).IsMagic = IsMagic
+        ViewingInfoTechnique.Type = Type
+        ViewingInfoTechnique.TP = TP
+        ViewingInfoTechnique.Status = Status
+        ViewingInfoTechnique.IsMagic = IsMagic
 
         If Match.Groups("Hits").Success Then
-            Techniques(Name).Hits = Match.Groups("Hits").Value
+            ViewingInfoTechnique.Hits = Match.Groups("Hits").Value
         Else
             'Legacy response: assume one hit.
-            Techniques(Name).Hits = 1
+            ViewingInfoTechnique.Hits = 1
         End If
 
         'If Techniques(Name).Type = "Buff" Then Techniques(Name).IsWellKnown = True
 
-        WriteMessage(2, 10, String.Format("Registered technique from !view-info: {0} ({1}  TP cost: {2}  Effect: {3}  Magic: {4})", Techniques(Name).Name, Techniques(Name).Type, Techniques(Name).TP, Techniques(Name).Status, If(Techniques(Name).IsMagic, "Yes", "No")))
+        WriteMessage(2, 10, String.Format("Registered technique from !view-info: {0} ({1}  TP cost: {2}  Effect: {3}  Magic: {4})", ViewingInfoTechnique.Name, ViewingInfoTechnique.Type, ViewingInfoTechnique.TP, ViewingInfoTechnique.Status, If(ViewingInfoTechnique.IsMagic, "Yes", "No")))
+        If ViewingInfoTechnique.Name IsNot Nothing And (ViewingInfoTechnique.Element IsNot Nothing Or ViewingInfoTechnique.Type = "Buff") Then ViewingInfoTechnique = Nothing
     End Sub
 
-    <ArenaRegex("\[\x034Base Power\x0312 (?<Power>\d*)\x031\] \[\x034Base Cost \(before Shop Level\)\x0312 (?<Cost>\d+) red orbs\x031\] \[\x034Element of Tech\x0312 (?<Element>[^\]]+)\x031\]")>
+    <ArenaRegex("^\[\x034Base Power\x0312 (?<Power>\d*)\x031\] \[\x034Base Cost \(before Shop Level\)\x0312 (?<Cost>\d+) red orbs\x031\] \[\x034Element of Tech\x0312 (?<Element>[^\]]*)\x031\](?: \[\x034Stat Modifier\x0312 (?<Attribute>STR|DEF|INT|SPD|HP|TP|IgnitionGauge)\x031\])?")>
     Public Sub OnViewInfoTechnique2(ByVal Connection As IRCConnection, ByVal Sender As String, ByVal Channel As String, ByVal Match As Match)
-        If Sender.Split("!"c)(0) <> ArenaNickname Then Return
-        If ViewingInfoTechnique = "" Then Return
-        Dim Name As String = ViewingInfoTechnique
+        If ViewingInfoTechnique Is Nothing Then
+            ViewingInfoTechnique = New TechniqueData
+        ElseIf ViewingInfoTechnique.Element IsNot Nothing Then
+            ViewingInfoTechnique = New TechniqueData
+        End If
 
-        Techniques(Name).Power = If(Match.Groups("Power").Value = "", 0, Match.Groups("Power").Value)
-        Techniques(Name).Cost = Match.Groups("Cost").Value
-        Techniques(Name).Element = Match.Groups("Element").Value
-        Techniques(Name).IsWellKnown = True
+        ViewingInfoTechnique.Power = If(Match.Groups("Power").Value = "", 0, Match.Groups("Power").Value)
+        ViewingInfoTechnique.Cost = Match.Groups("Cost").Value
+        ViewingInfoTechnique.Element = Match.Groups("Element").Value
 
-        WriteMessage(2, 10, String.Format("Registered technique info for {0} from !view-info  Power: {1}  Cost: {2}  Element: {3}", Name, Techniques(Name).Power, Techniques(Name).Cost, Techniques(Name).Element))
+        If Match.Groups("Attribute").Success Then
+            ViewingInfoTechnique.UsesINT = (Match.Groups("Attribute").Value.ToUpper = "INT")
+        Else
+            ViewingInfoTechnique.UsesINT = ViewingInfoTechnique.IsMagic
+        End If
 
-        ViewingInfoTechnique = ""
+        ViewingInfoTechnique.IsWellKnown = True
+
+        WriteMessage(2, 10, String.Format("Registered technique info for {0} from !view-info  Power: {1}  Cost: {2}  Element: {3}  Attribute: {4}", ViewingInfoTechnique.Name, ViewingInfoTechnique.Power, ViewingInfoTechnique.Cost, ViewingInfoTechnique.Element, If(ViewingInfoTechnique.UsesINT, "INT", "STR")))
+        If ViewingInfoTechnique.Name IsNot Nothing And ViewingInfoTechnique.Element IsNot Nothing Then ViewingInfoTechnique = Nothing
     End Sub
 
     <ArenaRegex("^\x034\x02(Error:\x02 )?Invalid (weapon|technique|item|skill|ignition)$")>
@@ -3076,7 +3201,7 @@ NoDateFound:
         End Select
 
         DoBattle("$k11A report on $b" & mc.Name & "$b.")
-        DoBattle(String.Format("$k12{0} has $b{1}$b HP " & If(Match.Groups("TP").Success, "and $b{2}$b TP ", "") & "left.", mc.GenderPronoun2, mb.HP, mb.TP))
+        DoBattle(String.Format("$k12{0} has $b{1}$b HP " & If(Match.Groups("TP").Success, "and $b{2}$b TP ", "") & "left.", mc.GenderWord3, mb.HP, mb.TP))
     End Sub
 
     <ArenaRegex("^\x033You also determine (?<Monster>.*) has the following stats: \[str:\x02 (?<STR>\d*)\x02\] \[def:\x02 (?<DEF>\d*)\x02\] \[int:\x02 (?<INT>\d*)\x02\] \[spd:\x02 (?<SPD>\d*)\x02\]$")>
@@ -3105,7 +3230,7 @@ NoDateFound:
         mc.bINT = Match.Groups("INT").Value
         mc.bSPD = Match.Groups("SPD").Value
 
-        DoBattle(String.Format("$k12{0} has $b{1}$b strength, $b{2}$b defense, $b{3}$b magical power, $b{4}$b speed.", mc.GenderPronoun2, mb.STR, mb.DEF, mb.INT, mb.SPD))
+        DoBattle(String.Format("$k12{0} has $b{1}$b strength, $b{2}$b defense, $b{3}$b magical power, $b{4}$b speed.", mc.GenderWord3, mb.STR, mb.DEF, mb.INT, mb.SPD))
     End Sub
 
     <ArenaRegex("^\x033(?<Monster>.*) is also (resistant|strong) against the following weapon types:\x02 (?<RWeapons>[^\x02]*) \x02and is (resistant|strong) against the following elements:\x02 (?<RElements>[^\x02]*)( \x02\| [^\x02]* is weak against the following weapon types:\x02 (?<WWeapons>[^\x02]*) \x02and weak against the following elements:\x02 (?<WElements>[^\x02]*))?$")>
@@ -3133,24 +3258,24 @@ NoDateFound:
         End If
 
         If Match.Groups("RWeapons").Value = "none" And Match.Groups("RElements").Value = "none" Then
-            DoBattle(String.Format("$k12{0} has no resistances.", mc.GenderPronoun2))
+            DoBattle(String.Format("$k12{0} has no resistances.", mc.GenderWord3))
         ElseIf Match.Groups("RWeapons").Value = "none" And Match.Groups("RElements").Value <> "none" Then
-            DoBattle(String.Format("$k12{0} is resistant to $b{1}$b.", mc.GenderPronoun2, String.Join(", ", mc.ElementalResistances)))
+            DoBattle(String.Format("$k12{0} is resistant to $b{1}$b.", mc.GenderWord3, String.Join(", ", mc.ElementalResistances)))
         ElseIf Match.Groups("RWeapons").Value <> "none" And Match.Groups("RElements").Value = "none" Then
-            DoBattle(String.Format("$k12{0} is resistant to $b{1}$b attacks.", mc.GenderPronoun2, String.Join(", ", mc.WeaponResistances)))
+            DoBattle(String.Format("$k12{0} is resistant to $b{1}$b attacks.", mc.GenderWord3, String.Join(", ", mc.WeaponResistances)))
         Else
-            DoBattle(String.Format("$k12{0} is resistant to $b{1}$b, and also to $b{2}$b attacks.", mc.GenderPronoun2, String.Join(", ", mc.ElementalResistances), String.Join(", ", mc.WeaponResistances)))
+            DoBattle(String.Format("$k12{0} is resistant to $b{1}$b, and also to $b{2}$b attacks.", mc.GenderWord3, String.Join(", ", mc.ElementalResistances), String.Join(", ", mc.WeaponResistances)))
         End If
 
         If Match.Groups("WElements").Success Then
             If Match.Groups("WWeapons").Value = "none" And Match.Groups("WElements").Value = "none" Then
-                DoBattle(String.Format("$k12{0} has no weaknesses.", mc.GenderPronoun2))
+                DoBattle(String.Format("$k12{0} has no weaknesses.", mc.GenderWord3))
             ElseIf Match.Groups("WWeapons").Value = "none" And Match.Groups("WElements").Value <> "none" Then
-                DoBattle(String.Format("$k12{0} is weak against $b{1}$b.", mc.GenderPronoun2, String.Join(", ", mc.ElementalWeaknesses)))
+                DoBattle(String.Format("$k12{0} is weak against $b{1}$b.", mc.GenderWord3, String.Join(", ", mc.ElementalWeaknesses)))
             ElseIf Match.Groups("WWeapons").Value <> "none" And Match.Groups("WElements").Value = "none" Then
-                DoBattle(String.Format("$k12{0} is weak against $b{1}$b attacks.", mc.GenderPronoun2, String.Join(", ", mc.WeaponWeaknesses)))
+                DoBattle(String.Format("$k12{0} is weak against $b{1}$b attacks.", mc.GenderWord3, String.Join(", ", mc.WeaponWeaknesses)))
             Else
-                DoBattle(String.Format("$k12{0} is weak against $b{1}$b, and also against $b{2}$b attacks.", mc.GenderPronoun2, String.Join(", ", mc.ElementalWeaknesses), String.Join(", ", mc.WeaponWeaknesses)))
+                DoBattle(String.Format("$k12{0} is weak against $b{1}$b, and also against $b{2}$b attacks.", mc.GenderWord3, String.Join(", ", mc.ElementalWeaknesses), String.Join(", ", mc.WeaponWeaknesses)))
             End If
         End If
 
@@ -3176,7 +3301,7 @@ NoDateFound:
         mc.ElementalImmunities = New List(Of String)(If(Match.Groups("IElements").Value = "none", {}, Match.Groups("IElements").Value.Split(", ")))
 
         If Match.Groups("IElements").Value <> "none" Then _
-            DoBattle(String.Format("$k12{0} is immune to $b{1}$b.", mc.GenderPronoun2, String.Join(", ", mc.ElementalImmunities)))
+            DoBattle(String.Format("$k12{0} is immune to $b{1}$b.", mc.GenderWord3, String.Join(", ", mc.ElementalImmunities)))
     End Sub
 
     <ArenaRegex("^\x033(?<Monster>.*) will( absorb and)? be healed by the following elements:\x02 (?<AElements>.*)$")>
@@ -3198,7 +3323,7 @@ NoDateFound:
         mc.ElementalAbsorbs = New List(Of String)(If(Match.Groups("AElements").Value = "none", {}, Match.Groups("AElements").Value.Split(", ")))
 
         If Match.Groups("AElements").Value <> "none" Then _
-             DoBattle(String.Format("$k12{0} can absorb $b{1}$b.", mc.GenderPronoun2, String.Join(", ", mc.ElementalAbsorbs)))
+             DoBattle(String.Format("$k12{0} can absorb $b{1}$b.", mc.GenderWord3, String.Join(", ", mc.ElementalAbsorbs)))
     End Sub
 #End Region
 
@@ -4055,6 +4180,11 @@ NoDateFound:
         MyBase.OnChannelMessage(Connection, Sender, Channel, Message)
     End Sub
 
+    Public Overrides Sub OnPrivateMessage(Connection As IRCConnection, Sender As String, Message As String)
+        RunArenaRegex(Connection, Sender, Nick(Connection), Message)
+        MyBase.OnPrivateMessage(Connection, Sender, Message)
+    End Sub
+
     <ArenaRegex("^\x0314\x02What a horrible night for a curse!$")>
     Public Sub OnCurse(ByVal Connection As IRCConnection, ByVal Sender As String, ByVal Channel As String, ByVal Match As Match, ByRef Handled As Boolean)
         If Sender.Split("!"c)(0) <> ArenaNickname Then Return
@@ -4124,7 +4254,7 @@ NoDateFound:
     '    End If
     'End Sub
 
-    <ArenaRegex("^\x034\x02(?<Attacker>.*) \x02performs an? (?<Hits>double|triple|four hit|five hit|six hit|seven hit|eight hit) attack( against\x02 (?<Target>.*)\x02)?!$")>
+    <ArenaRegex("^\x034\x02(?<Attacker>.*) \x02performs an? (?<Hits>double|triple|four hit|five hit|six hit|seven hit|eight hit) attack( against\x02 (?<Target>.*) ?\x02)?")>
     Public Sub OnAttackMultiHit(ByVal Connection As IRCConnection, ByVal Sender As String, ByVal Channel As String, ByVal Match As Match, ByRef Handled As Boolean)
         If Sender.Split("!"c)(0) <> ArenaNickname Then Return
         CurrentTurn = FindShortName(Match.Groups("Attacker").Value, True)
@@ -4498,108 +4628,117 @@ Found:
         If Not EnableAnalysis Then Return
 
         CurrentAction = ""
+        CurrentTarget = Nothing
         If Match.Groups("Name").Value = "Demon Portal" Then SlainCharacters.Clear()
 
         ' Make sure I tracked the person whose turn it is.
+        Dim IsKnown As Boolean
         For Each uName In UnmatchedFullNames
-            If uName.Name = Match.Groups("Name").Value Then GoTo 2
-        Next
-        For Each Character In Characters
-            If Character.Value.Name = Match.Groups("Name").Value Then
-                CurrentTurn = Character.Key
-                GoTo 1
+            If uName.Name = Match.Groups("Name").Value Then
+                IsKnown = True
+                Exit For
             End If
         Next
-
-        ' I haven't.
-        ' Check for clones.
-        If Match.Groups("Name").Value.StartsWith("Clone of ") Then
-            For Each Character In BattleList
-                If Character.Value.Name = Match.Groups("Name").Value.Substring(9) Then
-                    ' It is a clone. Register it as such.
-                    RegisterClone(Character.Key, Match.Groups("Name").Value)
-                    CurrentTurn = Character.Key & "_clone"
-                    GoTo 1
+        If Not IsKnown Then
+            For Each Character In Characters
+                If Character.Value.Name = Match.Groups("Name").Value Then
+                    IsKnown = True
+                    CurrentTurn = Character.Key
+                    Exit For
                 End If
             Next
         End If
 
-        ' I'll need to find them in the battle list.
-        UnmatchedFullNames.Add(New UnmatchedName With {.Name = Match.Groups("Name").Value, .Category = -1})
-2:      If IsNPCBattle Then Return
-        Dim newCharacter = New CharacterData With {.Name = Match.Groups("Name").Value, .ShortName = "*" & Match.Groups("Name").Value}
-        Characters.Add("*" & Match.Groups("Name").Value, newCharacter)
-        BattleList.Add("*" & Match.Groups("Name").Value, New Combatant(newCharacter))
-        'Say(Connection, Channel, "!bat info")
-        Return
-
-1:
-        If Not BattleList.ContainsKey(CurrentTurn) Then
-            Dim c = Characters(CurrentTurn)
-            BattleList.Add(CurrentTurn, New Combatant(c))
-        End If
-
-        BattleList(CurrentTurn).TurnNumber += 1
-        If TurnNumber < BattleList(CurrentTurn).TurnNumber Then
-            TurnNumber += 1
-            If TurnsToDarkness > 0 Then TurnsToDarkness -= 1
-            If HolyAuraTurns > 0 Then HolyAuraTurns -= 1
-        ElseIf TurnNumber > BattleList(CurrentTurn).TurnNumber Then
-            BattleList(CurrentTurn).TurnNumber = TurnNumber
-        End If
-
-        ' Check health.
-        Dim Health As String = IRCConnection.RemoveCodes(Match.Groups("Health").Value)
-        BattleList(CurrentTurn).Health = Health
-
-        ' Check status.
-        Dim Status As String = IRCConnection.RemoveCodes(Match.Groups("Status").Value)
-        BattleList(CurrentTurn).Status = {}
-        If Status <> "none" And Status <> "Normal" Then
-            BattleList(CurrentTurn).Status = Status.Split(" | ")
-        End If
-
-        ' Count the character's TP.
-        If Not BattleList(CurrentTurn).Status.Contains("cursed") Then
-            BattleList(CurrentTurn).TP += 5
-            If Characters(LoggedIn).Skills IsNot Nothing AndAlso Characters(LoggedIn).Skills.ContainsKey("Zen") Then
-                BattleList(CurrentTurn).TP += Characters(LoggedIn).Skills("Zen") * 5
-            End If
-            If BattleList(CurrentTurn).TP > Characters(CurrentTurn).bTP Then BattleList(CurrentTurn).TP = Characters(CurrentTurn).bTP
-            'If CurrentTurn = LoggedIn Then DoBattle(Chr(3) & "4[TP" & Chr(3) & "12 " & BattleList(CurrentTurn).TP & Chr(3) & "4]")
-        End If
-
-        ' Check that there are monsters in the battle.
-        If Not IsPVPBattle Then
-            If NoMonsterFix And currentMonsters.Count = 0 Then
-                For Each Entry In BattleList
-                    If Entry.Value.Category = Nothing Then GoTo MonsterFound
+        If Not IsKnown Then
+            ' I haven't.
+            ' Check for clones.
+            If Match.Groups("Name").Value.StartsWith("Clone of ") Then
+                For Each Character In BattleList
+                    If Character.Value.Name = Match.Groups("Name").Value.Substring(9) Then
+                        ' It is a clone. Register it as such.
+                        RegisterClone(Character.Key, Match.Groups("Name").Value)
+                        CurrentTurn = Character.Key & "_clone"
+                        IsKnown = True
+                        Exit For
+                    End If
                 Next
-                If WaitingForRegistration Is Nothing And UnmatchedFullNames.Count = 0 Then
-                    WaitingForRegistration = {CurrentTurn, BattleList(CurrentTurn).Health, String.Join(", ", BattleList(CurrentTurn).Status)}
-                    Dim RecheckThread = New Threading.Thread(AddressOf RecheckList)
-                    RecheckThread.Start()
-                    Return
+            End If
+        End If
+
+        If Not IsKnown Then
+            ' I'll need to find them in the battle list.
+            UnmatchedFullNames.Add(New UnmatchedName With {.Name = Match.Groups("Name").Value, .Category = -1})
+            'If IsNPCBattle Then Return
+            Dim newCharacter = New CharacterData With {.Name = Match.Groups("Name").Value, .ShortName = "*" & Match.Groups("Name").Value}
+            Characters.Add(newCharacter.ShortName, newCharacter)
+            BattleList.Add(newCharacter.ShortName, New Combatant(newCharacter))
+            'Say(Connection, Channel, "!bat info")
+        Else
+            If Not BattleList.ContainsKey(CurrentTurn) Then
+                Dim c = Characters(CurrentTurn)
+                BattleList.Add(CurrentTurn, New Combatant(c))
+            End If
+
+            ' Count the turn.
+            BattleList(CurrentTurn).TurnNumber += 1
+            If TurnNumber < BattleList(CurrentTurn).TurnNumber Then
+                TurnNumber += 1
+                If TurnsToDarkness > 0 Then TurnsToDarkness -= 1
+                If HolyAuraTurns > 0 Then HolyAuraTurns -= 1
+            ElseIf TurnNumber > BattleList(CurrentTurn).TurnNumber Then
+                BattleList(CurrentTurn).TurnNumber = TurnNumber
+            End If
+
+            ' Check health.
+            Dim Health As String = IRCConnection.RemoveCodes(Match.Groups("Health").Value)
+            BattleList(CurrentTurn).Health = Health
+
+            ' Check status.
+            Dim Status As String = IRCConnection.RemoveCodes(Match.Groups("Status").Value)
+            BattleList(CurrentTurn).Status = {}
+            If Status <> "none" And Status <> "Normal" Then
+                BattleList(CurrentTurn).Status = Status.Split(" | ")
+            End If
+
+            ' Count the character's TP.
+            If Not BattleList(CurrentTurn).Status.Contains("cursed") Then
+                BattleList(CurrentTurn).TP += 5 + Characters(CurrentTurn).SkillLevel("Zen") * 5
+                If BattleList(CurrentTurn).TP > Characters(CurrentTurn).bTP Then BattleList(CurrentTurn).TP = Characters(CurrentTurn).bTP
+                'If CurrentTurn = LoggedIn Then DoBattle(Chr(3) & "4[TP" & Chr(3) & "12 " & BattleList(CurrentTurn).TP & Chr(3) & "4]")
+            End If
+
+            ' Check that there are monsters in the battle.
+            Dim NoMonsters = False
+            If Not IsPVPBattle Then
+                If NoMonsterFix And currentMonsters.Count = 0 Then
+                    NoMonsters = True
+                    For Each Entry In BattleList
+                        If Entry.Value.Category = Nothing Then
+                            NoMonsters = False
+                            Exit For
+                        End If
+                    Next
+                    'If WaitingForRegistration Is Nothing And UnmatchedFullNames.Count = 0 Then
+                    '    WaitingForRegistration = {CurrentTurn, BattleList(CurrentTurn).Health, String.Join(", ", BattleList(CurrentTurn).Status)}
+                    '    Dim RecheckThread = New Threading.Thread(AddressOf RecheckList)
+                    '    RecheckThread.Start()
+                    '    Return
+                    'End If
                 End If
             End If
+
+            If Not NoMonsters Then
+                ' Control the character. But first, check that they're actually able to act.
+                For Each Effect In BattleList(CurrentTurn).Status
+                    If Effect = "staggered" Or Effect = "blind" Or Effect = "petrified" Or Effect = "evolving" Or
+                        Effect = "intimidated" Or Effect = "asleep" Or Effect = "stunned" Or Effect = "frozen in time" Or
+                        Effect = "charmed" Or Effect = "confused" Or Effect = "paralyzed" Or Effect = "bored" Or
+                        Effect = "drunk" Then Return
+                Next
+
+                If ShouldAct() Then AITurn()
+            End If
         End If
-MonsterFound:
-
-        ' Control the character. But first, check that they're actually able to act.
-        If BattleList(CurrentTurn).Status.Contains("staggered") Or
-            BattleList(CurrentTurn).Status.Contains("blind") Or
-            BattleList(CurrentTurn).Status.Contains("petrified") Or
-            BattleList(CurrentTurn).Status.Contains("evolving") Or
-            BattleList(CurrentTurn).Status.Contains("intimidated") Or
-            BattleList(CurrentTurn).Status.Contains("asleep") Or
-            BattleList(CurrentTurn).Status.Contains("stunned") Or
-            BattleList(CurrentTurn).Status.Contains("frozen in time") Or
-            BattleList(CurrentTurn).Status.Contains("charmed") Or
-            BattleList(CurrentTurn).Status.Contains("confused") Or
-            BattleList(CurrentTurn).Status.Contains("paralyzed") Or
-            BattleList(CurrentTurn).Status.Contains("bored") Then Return
-
-        If ShouldAct() Then AITurn()
     End Sub
 
     Private Sub RecheckList()
@@ -4667,21 +4806,30 @@ MonsterFound:
     End Sub
 
     <ArenaRegex({"^\x034\x02(?<Name>.*)(?: \x02|\x02 )has been defeated by\x02 (?<Killer>.*)\x02!(?<Overkill> \x037\<\<\x02OVERKILL\x02\>\>)?$"})>
-    Public Sub OnDefeat(ByVal Connection As IRCConnection, ByVal Sender As String, ByVal Channel As String, ByVal Match As Match)
-        If Sender.Split("!"c)(0) <> ArenaNickname Then Return
+    Public Sub OnDefeatNormal(ByVal Connection As IRCConnection, ByVal Sender As String, ByVal Channel As String, ByVal Match As Match)
         If Not EnableAnalysis Then Return
+        Dim Victim As String = FindShortName(Match.Groups("Name").Value, True)
+        OnDefeat(Victim, Match.Groups("Overkill").Success)
+    End Sub
 
-        Dim CharacterAlias As String = FindShortName(Match.Groups("Name").Value, True)
+    <ArenaRegex({"^\x034\x02(?<Name>.*)\x02 .*"})>
+    Public Sub OnDefeatCustom(ByVal Connection As IRCConnection, ByVal Sender As String, ByVal Channel As String, ByVal Match As Match)
+        If Not EnableAnalysis Then Return
+        Dim Victim As String = FindShortName(Match.Groups("Name").Value, True)
+        If Victim Is Nothing Then Return
+        OnDefeat(Victim, Match.Value.EndsWith(ChrW(3) & "7<<" & ChrW(2) & "OVERKILL" & ChrW(2) & ">>"))
+    End Sub
 
-        WriteMessage(2, 8, Match.Groups("Name").Value & " is defeated.")
+    Public Sub OnDefeat(Victim As String, Overkill As Boolean)
+        WriteMessage(2, 8, BattleList(Victim).Name & " is defeated.")
 
-        currentPlayers.Remove(CharacterAlias)
-        currentMonsters.Remove(CharacterAlias)
-        currentAllies.Remove(CharacterAlias)
+        currentPlayers.Remove(Victim)
+        currentMonsters.Remove(Victim)
+        currentAllies.Remove(Victim)
 
         If MissingPlayers.Count > 0 Then
-            If BattleList.ContainsKey(CharacterAlias) Then
-                Select Case BattleList(CharacterAlias).Category
+            If BattleList.ContainsKey(Victim) Then
+                Select Case BattleList(Victim).Category
                     Case CharacterCategory.Player
                         'TODO: Something
                 End Select
@@ -4689,34 +4837,70 @@ MonsterFound:
         End If
 
         If IsNPCBattle Then Return
-        BattleList.Remove(CharacterAlias)
+        BattleList.Remove(Victim)
 
-        SlainCharacters.Add(CharacterAlias)
+        SlainCharacters.Add(Victim)
     End Sub
 
-    <ArenaRegex("^(?:\x033\x02|\x02\x033)(?<Character>.*) \x02has equipped\x02 (?<Weapon>[^ ]*)$")>
+    <ArenaRegex("^(?:\x033\x02|\x02\x033)(?<Character>.*) \x02has equipped\x02 (?<Weapon>[^ .]*)(?:(?<Old>$)|\.|\x02 in (?<Gender>\w*) (?<Hand>left|right) hand\.)")>
     Public Sub OnEquip(ByVal Connection As IRCConnection, ByVal Sender As String, ByVal Channel As String, ByVal Match As Match)
         If Sender.Split("!"c)(0) <> ArenaNickname Then Return
         Dim c As CharacterData = Nothing
 
         For Each c In Characters.Values
             If c.Name = Match.Groups("Character").Value Then
-                c.EquippedWeapon = Match.Groups("Weapon").Value
-                c.EquippedWeaponTechs = New List(Of String)
-
-                If c.Techniques Is Nothing Then Return
-
-                If Weapons.ContainsKey(c.EquippedWeapon) Then
-                    For Each Technique In Weapons(c.EquippedWeapon).Techniques
-                        If c.Techniques.ContainsKey(Technique) Then c.EquippedWeaponTechs.Add(Technique)
-                    Next
+                If Match.Groups("Hand").Success Then
+                    If Match.Groups("Hand").Value = "left" Then
+                        c.EquippedWeapon2 = Match.Groups("Weapon").Value
+                    Else
+                        c.EquippedWeapon = Match.Groups("Weapon").Value
+                    End If
                 Else
-                    Weapons.Add(c.EquippedWeapon, New WeaponData With {.Name = c.EquippedWeapon, .Techniques = New List(Of String)})
+                    c.EquippedWeapon = Match.Groups("Weapon").Value
+                    c.EquippedWeapon2 = Nothing
                 End If
 
+                c.EquippedWeaponTechs = New List(Of String)
+                If c.Techniques Is Nothing Then Return
+
+                If Not Weapons.ContainsKey(c.EquippedWeapon) Then _
+                    Weapons.Add(c.EquippedWeapon, New WeaponData With {.Name = c.EquippedWeapon, .Techniques = New List(Of String), .IsTwoHanded = Not Match.Groups("Hand").Success})
+                If c.EquippedWeapon2 IsNot Nothing AndAlso Not Weapons.ContainsKey(c.EquippedWeapon2) Then _
+                    Weapons.Add(c.EquippedWeapon2, New WeaponData With {.Name = c.EquippedWeapon2, .Techniques = New List(Of String), .IsTwoHanded = False})
+                GetEquippedTechniques(c)
                 Return
             End If
         Next
+    End Sub
+
+    <ArenaRegex("^(?:\x033\x02|\x02\x033)(?<Character>.*) \x02unequipped the \w+( and the \w+)?")>
+    Public Sub OnUnequip(ByVal Connection As IRCConnection, ByVal Sender As String, ByVal Channel As String, ByVal Match As Match)
+        Dim c As CharacterData = Nothing
+
+        For Each c In Characters.Values
+            If c.Name = Match.Groups("Character").Value Then
+                c.EquippedWeapon = Nothing
+                c.EquippedWeapon2 = Nothing
+                Return
+            End If
+        Next
+    End Sub
+
+    Public Sub GetEquippedTechniques(c As CharacterData)
+        c.EquippedWeaponTechs = New List(Of String)
+
+        If c.Techniques Is Nothing Then Return
+
+        If c.EquippedWeapon IsNot Nothing AndAlso Weapons.ContainsKey(c.EquippedWeapon) Then
+            For Each Technique In Weapons(c.EquippedWeapon).Techniques
+                If c.Techniques.ContainsKey(Technique) Then c.EquippedWeaponTechs.Add(Technique)
+            Next
+        End If
+        If c.EquippedWeapon2 IsNot Nothing AndAlso Weapons.ContainsKey(c.EquippedWeapon2) Then
+            For Each Technique In Weapons(c.EquippedWeapon2).Techniques
+                If c.Techniques.ContainsKey(Technique) Then c.EquippedWeaponTechs.Add(Technique)
+            Next
+        End If
     End Sub
 
     <ArenaRegex({"^\x034\x02Darkness\x02 will overcome the battlefield in 5 minutes\.",

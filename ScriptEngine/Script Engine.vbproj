@@ -52,7 +52,7 @@
     <DebugSymbols>true</DebugSymbols>
     <DefineDebug>true</DefineDebug>
     <DefineTrace>true</DefineTrace>
-    <OutputPath>bin\x86\Debug\</OutputPath>
+    <OutputPath>bin\Debug\</OutputPath>
     <DocumentationFile>ScriptEngine.xml</DocumentationFile>
     <NoWarn>41999,42016,42017,42018,42019,42020,42021,42022,42030,42032,42036,42104,42108,42109</NoWarn>
     <DebugType>full</DebugType>
@@ -62,7 +62,7 @@
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)' == 'Release|x86'">
     <DefineTrace>true</DefineTrace>
-    <OutputPath>bin\x86\Release\</OutputPath>
+    <OutputPath>bin\Release\</OutputPath>
     <DocumentationFile>ScriptEngine.xml</DocumentationFile>
     <Optimize>true</Optimize>
     <NoWarn>41999,42016,42017,42018,42019,42020,42021,42022,42030,42032,42036,42104,42108,42109</NoWarn>
@@ -91,12 +91,12 @@
   </ItemGroup>
   <ItemGroup>
     <Compile Include="Commands.vb" />
-    <Compile Include="IRCEvents.vb" />
+    <None Include="IRCEvents.vb" />
     <Compile Include="Expressions.vb" />
     <Compile Include="Functions.vb" />
     <Compile Include="OpCode.vb" />
     <Compile Include="OperatorType.vb" />
-    <Compile Include="ScriptPointer.vb" />
+    <Compile Include="Script.vb" />
     <Compile Include="Scripting.vb" />
     <Compile Include="My Project\AssemblyInfo.vb" />
     <Compile Include="My Project\Application.Designer.vb">
@@ -113,6 +113,7 @@
       <DependentUpon>Settings.settings</DependentUpon>
       <DesignTimeSharedInput>True</DesignTimeSharedInput>
     </Compile>
+    <Compile Include="Tokeniser.vb" />
     <Compile Include="TokenType.vb" />
   </ItemGroup>
   <ItemGroup>

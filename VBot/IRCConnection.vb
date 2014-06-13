@@ -1,5 +1,5 @@
 ﻿' **** CompuChat - IRC Connection Module ****
-' by Andrea Giannone (Andrio Celos)
+' by Andrio Celos
 ' Monday 20 August 2012
 '
 ' This module contains the IRCConnection and related classes, which manage a connection

@@ -1,4 +1,6 @@
 ﻿Public Enum OperatorType As Byte
+    oNone = 0
+
     oAnd = &H10
     oOr = &H11
     oXor = &H12
@@ -21,15 +23,20 @@
     oDivisionInteger = &H70
     oMultiplication = &H80
     oDivision = &H81
-    oExponentiation = &HA0
-    oNegation = &H98
     oNot = &H18
-    oFactorial = &HA8
+    oNegation = &H98
+    oFactorial = &HAC
     oIncrementPrefix = &HC8
-    oIncrementPostfix = &HB8
+    oIncrementPostfix = &HBC
     oDecrementPrefix = &HC9
-    oDecrementPostfix = &HB9
+    oDecrementPostfix = &HBD
 
     oMinus = &H1
-End Enum
+    oAmpersand = &H2
+    oIncrement = &H8
+    oDecrement = &H9
+    oExclamationMark = &HA
 
+    oUnaryOperator = &H8
+    oPostfixUnaryOperator = &HC
+End Enum
