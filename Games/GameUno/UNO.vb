@@ -171,7 +171,7 @@ Public Class UNOPlugin
         ''' <summary>The player's name.</summary>
         Public Name As String
         ''' <summary>The number of points the player has won overall.</summary>
-        Public Points As ULong
+        Public Points As Long
         ''' <summary>The player's rank.</summary>
         Public Rank As UShort
         ''' <summary>The number of games the player has entered.</summary>
@@ -1143,6 +1143,7 @@ Public Class UNOPlugin
             CurrentGame.Players.Add(Sender.Split("!"c)(0), New Player)
             CurrentGame.PlayerCount += 1
             Say(Connection, Channel, "$k13$b" & Sender.Split("!")(0) & "$b is starting a game of UNO!")
+            AddHandler CurrentGame.GameTimer.Elapsed, AddressOf GameClose
 
             ' Alert players.
             Dim message As String = ""
@@ -1153,7 +1154,6 @@ Public Class UNOPlugin
 
             Say(Connection, Channel, "$k12Starting in $b" & EntryPeriod & "$b seconds; $k12say $k11$cujoin$k12 if you wish to join the game.")
             'AddHandler CurrentGame.GameTimer.Elapsed, AddressOf PrepareAITimer
-            AddHandler CurrentGame.GameTimer.Elapsed, AddressOf GameClose
         ElseIf Not CurrentGame.IsOpen Then
             ' The game has already started...
             Reply(Connection, Channel, Sender.Split("!"c)(0), "Sorry " & Sender.Split("!")(0) & ", but this game has already started. Feel free to join the next game, though.")
@@ -1239,10 +1239,10 @@ Public Class UNOPlugin
             Game.Players.Remove(Nickname)
             Game.PlayerCount -= 1
 
-            If Game.Players.Count = 2 And Game.Players.ContainsKey(Game.Connection.Nickname) Then
-                Game.LongTimer = True
-                Game.GameTimer.Interval *= 2
-            End If
+            'If Game.Players.Count = 2 And Game.Players.ContainsKey(Game.Connection.Nickname) Then
+            '    Game.LongTimer = True
+            '    Game.GameTimer.Interval *= 2
+            'End If
 
             ' If there's only one player left, declare them the winner.
             If Not Game.IsOpen And Game.PlayerCount <= 1 Then
@@ -1378,10 +1378,10 @@ Nothing, CommandAttribute.CommandScope.Channel)>
                 Threading.Thread.Sleep(600)
                 .GameTimer.Interval = If(TurnTimeLimit <= 0, 60000, TurnTimeLimit * 1000)  ' Set the turn timer.
                 ' Set the long timer if it's a duel with the bot.
-                If .Players.Count = 2 And .Players.ContainsKey(.Connection.Nickname) Then
-                    .LongTimer = True
-                    .GameTimer.Interval *= 2
-                End If
+                'If .Players.Count = 2 And .Players.ContainsKey(.Connection.Nickname) Then
+                '    .LongTimer = True
+                '    .GameTimer.Interval *= 2
+                'End If
 
 DrawUpCard:
                 ' Draw the first card.
@@ -2368,10 +2368,10 @@ NextCard:
                     .GameTimer.Stop()
 
                     Say(.Connection, .Channel, Chr(2) & .Players.Keys(.IdleTurn) & "$b " & Choose("has been idle for too long", "is taking too long") & ".")
-                    If .LongTimer Then
-                        RemovePlayer(CurrentGame, .Players.Keys(.IdleTurn))
-                        Return
-                    End If
+                    'If .LongTimer Then
+                    '    RemovePlayer(CurrentGame, .Players.Keys(.IdleTurn))
+                    '    Return
+                    'End If
 
                     Dim NextPlayer = .IdleTurn
 

@@ -12,7 +12,7 @@ Imports System.Runtime.InteropServices
 <Assembly: AssemblyDescription("")> 
 <Assembly: AssemblyCompany("Andrio Celos")> 
 <Assembly: AssemblyProduct("UNO plugin for VBot")> 
-<Assembly: AssemblyCopyright("2012-3 Andrio Celos")> 
+<Assembly: AssemblyCopyright("2012-4 Andrio Celos")> 
 <Assembly: AssemblyTrademark("")> 
 
 <Assembly: ComVisible(False)>
@@ -31,5 +31,5 @@ Imports System.Runtime.InteropServices
 ' by using the '*' as shown below:
 ' <Assembly: AssemblyVersion("1.0.*")> 
 
-<Assembly: AssemblyVersion("1.6.3.0")> 
-<Assembly: AssemblyFileVersion("1.6.3.0")> 
+<Assembly: AssemblyVersion("1.6.4.0")> 
+<Assembly: AssemblyFileVersion("1.6.4.0")> 
