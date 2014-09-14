@@ -171,7 +171,7 @@ Public Class BashPlugin
         Console.WriteLine("Parsing data...")
 
         ' Run the regular expression
-        Dim Regex = New System.Text.RegularExpressions.Regex("<p class=""quote""><a (?>[^>]*)><b>#(\d+)</b>.*?\((-?\d+)\).*?<p class=""qt"">((?>[^<]*)(?:<br />(?>[^<]*))*)</p>", System.Text.RegularExpressions.RegexOptions.IgnoreCase Or Text.RegularExpressions.RegexOptions.Singleline)
+        Dim Regex = New System.Text.RegularExpressions.Regex("<p class=""quote""><a (?>[^>]*)><b>#(\d+)</b>.*?\((?:<font (?>[^>]*)>)?(-?\d+)(?:</font>)?\).*?<p class=""qt"">((?>[^<]*)(?:<br />(?>[^<]*))*)</p>", System.Text.RegularExpressions.RegexOptions.IgnoreCase Or Text.RegularExpressions.RegexOptions.Singleline)
         Dim Matches = Regex.Matches(bData.ToString())
         Dim Match As System.Text.RegularExpressions.Match
         Quotes2 = New SortedDictionary(Of Integer, Quote)
