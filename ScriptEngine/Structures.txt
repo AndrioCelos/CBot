@@ -1,6 +1,0 @@
-﻿if (<expression>) <command> [else <command>]
-if <expression> { <commands> } [else { <commands> }]
-for (variable;start;end;step) <command>|{ <commands> }
-while (<expression>) { <commands> }
-on <event> { <commands> }
-function <name> { <commands> }
