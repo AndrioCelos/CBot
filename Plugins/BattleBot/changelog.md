@@ -1,3 +1,9 @@
+Version 2.7.1 – 25 September 2014
+---------------------------------
+
+* **Fix:** The plugin no longer crashes on startup if a network name or address is specified in its channel list.
+* **Fix:** The Arena level is now tracked correctly.
+
 Version 2.7 – 24 September 2014
 -------------------------------
 

@@ -117,27 +117,29 @@ namespace BattleBot
             get { return base.Channels; }
             set {
                 base.Channels = value;
-                if (value.Length != 0) {
-                    foreach (string channel in value) {
-                        string[] fields = channel.Split(new char[] { '/' }, 2);
-                        this.ArenaConnection = null;
-                        this.ArenaChannel = null;
-                        if (fields.Length == 1)
-                            fields = new string[] { null, fields[0] };
-                        if (fields[1] == "*") continue;
-                        foreach (IRCClient client in Bot.Connections) {
-                            if (client.Address == "!Console") continue;
-                            if (client.Address.StartsWith("!" + MyKey)) continue;
-                            if (fields[0] == null || fields[0] == "*" ||
-                                client.Address.Equals(fields[0], StringComparison.OrdinalIgnoreCase) ||
-                                client.NetworkName.Equals(fields[0], StringComparison.OrdinalIgnoreCase)) {
-                                    this.ArenaConnection = client;
-                                    this.ArenaChannel = fields[1];
-                                    return;
-                            }
+                this.CheckChannels();
+            }
+        }
 
-                        }
+        private void CheckChannels() {
+            foreach (string channel in this.Channels) {
+                string[] fields = channel.Split(new char[] { '/' }, 2);
+                this.ArenaConnection = null;
+                this.ArenaChannel = null;
+                if (fields.Length == 1)
+                    fields = new string[] { null, fields[0] };
+                if (fields[1] == "*") continue;
+                foreach (IRCClient client in Bot.Connections) {
+                    if (client.Address == "!Console") continue;
+                    if (client is DCCClient) continue;
+                    if (fields[0] == null || fields[0] == "*" ||
+                        client.Address.Equals(fields[0], StringComparison.OrdinalIgnoreCase) ||
+                        (client.NetworkName != null && client.NetworkName.Equals(fields[0], StringComparison.OrdinalIgnoreCase))) {
+                            this.ArenaConnection = client;
+                            this.ArenaChannel = fields[1];
+                            return;
                     }
+
                 }
             }
         }
@@ -174,6 +176,8 @@ namespace BattleBot
         }
 
         public override void OnChannelJoinSelf(IRCClient Connection, string Sender, string Channel) {
+            if (this.ArenaConnection == null) this.CheckChannels();
+
             if (this.ArenaConnection == Connection && Connection.CaseMappingComparer.Equals(this.ArenaChannel, Channel)) {
                 if (this.OwnCharacters.ContainsKey(Connection.Nickname)) {
                     // Identify to the Arena bot.
@@ -4347,12 +4351,12 @@ namespace BattleBot
             }
         }
 
-        [ArenaRegex(@"^\x0312The forces of good have won this battle \(level\x02 (\d*)\x02\) in (\d*) ?turn\(s\)! \[Current record is: (\d*)\]")]
+        [ArenaRegex(@"^\x0312The forces of good have won this battle \(level\x02 (\d*)\x02\) in (\d*) ?turn\(?s?\)?! \[Current record is: (\d*)\]")]
         internal void OnBattleVictory(object sender, RegexEventArgs e) {
             this.Level = int.Parse(e.Match.Groups[1].Value) + 1;
         }
 
-        [ArenaRegex(@"^\x0312The forces of evil have won this battle \(level\x02 (\d*)\x02\) after (\d*) ?turn\(s\)! The heroes have lost\x02 (\d*) \x02battle\(s\) in a row!")]
+        [ArenaRegex(@"^\x0312The forces of evil have won this battle \(level\x02 (\d*)\x02\) after (\d*) ?turn\(?s?\)?! The heroes have lost\x02 (\d*) \x02battle\(s\) in a row!")]
         internal void OnBattleDefeat(object sender, RegexEventArgs e) {
             this.Level = -int.Parse(e.Match.Groups[3].Value);
         }

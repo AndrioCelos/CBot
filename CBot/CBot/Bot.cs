@@ -2711,19 +2711,12 @@ namespace CBot {
                         Thread.Sleep(1000);
                         Connection.Send("NICK {0}", Connection.Nicknames[0]);
                     }
-
-                    Thread.Sleep(3000);
                 }
 
                 // Join channels.
-                if (Bot.AutoJoinChannels.ContainsKey(Connection.Address)) {
-                    string[] array = Bot.AutoJoinChannels[Connection.Address.ToLower()];
-                    for (int i = 0; i < array.Length; ++i) {
-                        string c = array[i];
-                        ConsoleUtils.WriteLine("%cGRAYTrying to join the channel %cWHITE{0}%cGRAY on %cWHITE{1}%r", c, Connection.Address);
-                        Connection.Send("JOIN :{0}", c);
-                    }
-                }
+                Thread autoJoinThread = new Thread(Bot.AutoJoin);
+                autoJoinThread.Start(Connection);
+
             } else if (Numeric == "604") {  // Watched user is online
                 Identification id;
                 if (Bot.Identifications.TryGetValue(Connection.Address + "/" + Parameters[1], out id))
@@ -2770,6 +2763,21 @@ namespace CBot {
 				Hops,
 				FullName
 			});
+        }
+
+        private static void AutoJoin(object _client) {
+            IRCClient client = (IRCClient) _client;
+            Thread.Sleep(5000);
+            if (client.IsConnected) {
+                if (Bot.AutoJoinChannels.ContainsKey(client.Address)) {
+                    string[] array = Bot.AutoJoinChannels[client.Address.ToLower()];
+                    for (int i = 0; i < array.Length; ++i) {
+                        string c = array[i];
+                        ConsoleUtils.WriteLine("%cGRAYTrying to join the channel %cWHITE{0}%cGRAY on %cWHITE{1}%r", c, client.Address);
+                        client.Send("JOIN :{0}", c);
+                    }
+                }
+            }
         }
     }
 }

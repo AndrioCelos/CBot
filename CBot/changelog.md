@@ -1,3 +1,8 @@
+Version 3.0.1 – 25 September 2014
+---------------------------------
+
+* Auto-joining channels is now done by a separate thread from the one receiving messages.
+
 Version 3.0 – 24 September 2014 (The Great Rewrite)
 ---------------------------------------------------
 
