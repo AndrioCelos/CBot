@@ -1,3 +1,8 @@
+Version 2.7.2 – 25 September 2014
+---------------------------------
+
+* Now compatible with Battle Arena 2.6 September 24 beta
+
 Version 2.7.1 – 25 September 2014
 ---------------------------------
 

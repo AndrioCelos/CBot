@@ -1989,7 +1989,7 @@ namespace BattleBot
             this.ViewingStatsCharacter.ShortName = e.Match.Groups[1].Value;
         }
 
-        [ArenaRegex(@"^\[\x034HP\x0312 (\d*)\x031/\x0312(\d*)\x031\] \[\x034TP\x0312 (\d*)\x031/\x0312(\d*)\x031\](?: \[\x034Ignition Gauge\x0312 (\d*)\x031/\x0312(\d*)\x031\])? \[\x034Status\x0312 \x033(.*)\x031\](?: \[\x034Royal Guard Meter\x0312 (\d*)\x031\])?")]
+        [ArenaRegex(@"^\[\x034HP\x0312 (\d*)\x031/\x0312(\d*)(?:\x03\d{0,2}|\x0F)\] \[\x034TP\x0312 (\d*)\x031/\x0312(\d*)(?:\x03\d{0,2}|\x0F)\](?: \[\x034Ignition Gauge\x0312 (\d*)\x031/\x0312(\d*)(?:\x03\d{0,2}|\x0F)\])? \[\x034Status\x0312 \x033(.*)(?:\x03\d{0,2}|\x0F)\](?: \[\x034Royal Guard Meter\x0312 (\d*)(?:\x03\d{0,2}|\x0F)\])?")]
         internal void OnStats1(object sender, RegexEventArgs e) {
             if (this.ViewingStatsCharacter == null) {
                 this.ViewingStatsCharacter = new Character();
@@ -2015,7 +2015,7 @@ namespace BattleBot
             this.viewInfoStatsCheck();
         }
 
-        [ArenaRegex(@"^\[\x034Strength\x0312 (\d*)\x031\] \[\x034Defense\x0312 (\d*)\x031\] \[\x034Intelligence\x0312 (\d*)\x031\] \[\x034Speed\x0312 (\d*)\x031\]")]
+        [ArenaRegex(@"^\[\x034Strength\x0312 (\d*)(?:\x03\d{0,2}|\x0F)\] \[\x034Defense\x0312 (\d*)(?:\x03\d{0,2}|\x0F)\] \[\x034Intelligence\x0312 (\d*)(?:\x03\d{0,2}|\x0F)\] \[\x034Speed\x0312 (\d*)(?:\x03\d{0,2}|\x0F)\]")]
         internal void OnStats2(object sender, RegexEventArgs e) {
             if (this.ViewingStatsCharacter == null) {
                 this.ViewingStatsCharacter = new Character();
@@ -2036,7 +2036,7 @@ namespace BattleBot
             this.viewInfoStatsCheck();
         }
 
-        [ArenaRegex(@"^\[\x034Current Weapons? Equipped ?\x0312 ?([^ ]*) (?:\x034and\x0312 ([^ ]*))?\x031\](?: \[\x034Current Accessory(?: Equipped)? \x0312([^ ]*)\x031\](?: \[\x034Current Head Armor \x0312([^ ]*)\x031\] \[\x034Current Body Armor \x0312([^ ]*)\x031\] \[\x034Current Leg Armor \x0312([^ ]*)\x031\] \[\x034Current Feet Armor \x0312([^ ]*)\x031\] \[\x034Current Hand Armor \x0312([^ ]*)\x031\])?)?")]
+        [ArenaRegex(@"^\[\x034Current Weapons? Equipped ?\x0312 ?([^ ]*) (?:\x034and\x0312 ([^ ]*))?(?:\x03\d{0,2}|\x0F)\](?: \[\x034Current Accessory(?: Equipped)? \x0312([^ ]*)(?:\x03\d{0,2}|\x0F)\](?: \[\x034Current Head Armor \x0312([^ ]*)(?:\x03\d{0,2}|\x0F)\] \[\x034Current Body Armor \x0312([^ ]*)(?:\x03\d{0,2}|\x0F)\] \[\x034Current Leg Armor \x0312([^ ]*)(?:\x03\d{0,2}|\x0F)\] \[\x034Current Feet Armor \x0312([^ ]*)(?:\x03\d{0,2}|\x0F)\] \[\x034Current Hand Armor \x0312([^ ]*)(?:\x03\d{0,2}|\x0F)\])?)?")]
         internal void OnStats3(object sender, RegexEventArgs e) {
             if (this.ViewingStatsCharacter == null) {
                 this.ViewingStatsCharacter = new Character();
@@ -2447,7 +2447,7 @@ namespace BattleBot
         }
 
 #region !view-info
-        [ArenaRegex(@"\[\x034Name\x0312 ([^]]*)\x031\] \[\x034Weapon Type\x0312 ([^]]*)\x031\] (?:\[\x034Weapon Size\x0312 (?:(small)|(medium)|(large))\x031\] )?\[\x034# of Hits ?\x0312 ([^]]*)\x031\]")]
+        [ArenaRegex(@"\[\x034Name\x0312 ([^]]*)(?:\x03\d{0,2}|\x0F)\] \[\x034Weapon Type\x0312 ([^]]*)(?:\x03\d{0,2}|\x0F)\] (?:\[\x034Weapon Size\x0312 (?:(small)|(medium)|(large))(?:\x03\d{0,2}|\x0F)\] )?\[\x034# of Hits ?\x0312 ([^]]*)(?:\x03\d{0,2}|\x0F)\]")]
         internal void OnViewInfoWeapon1(object sender, RegexEventArgs e) {
             if (this.ViewingWeapon == null)
                 this.ViewingWeapon = new Weapon();
@@ -2488,7 +2488,7 @@ namespace BattleBot
             this.viewInfoWeaponCheck();
         }
 
-        [ArenaRegex(@"\[\x034Base Power\x0312 (.*)\x031\] \[\x034Cost\x0312 (.*) black orb\(?s?\)?\x031\] \[\x034Element of Weapon\x0312 (.*)\x031\](?: \[\x034Is the weapon 2 Handed\?\x0312 (?:(yes)|(no))\x034\])?")]
+        [ArenaRegex(@"\[\x034Base Power\x0312 (.*)(?:\x03\d{0,2}|\x0F)\] \[\x034Cost\x0312 (.*) black orb\(?s?\)?(?:\x03\d{0,2}|\x0F)\] \[\x034Element of Weapon\x0312 (.*)(?:\x03\d{0,2}|\x0F)\](?: \[\x034Is the weapon 2 Handed\?\x0312 (?:(yes)|(no))\x034\])?")]
         internal void OnViewInfoWeapon2(object sender, RegexEventArgs e) {
             if (this.ViewingWeapon == null)
                 this.ViewingWeapon = new Weapon();
@@ -2505,7 +2505,7 @@ namespace BattleBot
             this.viewInfoWeaponCheck();
         }
 
-        [ArenaRegex(@"\[\x034Abilities of the Weapon\x0312 ([^, ]+(?:, [^, ]+)*)?\x031\]")]
+        [ArenaRegex(@"\[\x034Abilities of the Weapon\x0312 ([^, ]+(?:, [^, ]+)*)?(?:\x03\d{0,2}|\x0F)\]")]
         internal void OnViewInfoWeapon3(object sender, RegexEventArgs e) {
             if (this.ViewingWeapon == null)
                 this.ViewingWeapon = new Weapon();
@@ -2526,7 +2526,7 @@ namespace BattleBot
             }
         }
 
-        [ArenaRegex(@"^\[\x034Name\x0312 ([^ \]]*)\x031\] \[\x034Target Type\x0312 (?i:(Single|Status)|(AoE)|(Heal)|(Heal-AoE)|(Suicide)|(Suicide-AoE)|(StealPower)|(Boost)|(FinalGetsuga)|(Buff)|ClearStatus(?:(Negative)|(Positive)))\x031\] \[\x034TP needed to use\x0312 (\d+)\x031\](?: \[\x034# of Hits\x0312 ([^\]]*)\x031\])?(?: \[\x034Stats Type\x0312 ([^\]]*)\x031\])?( \[\x034Magic\x0312 Yes\x031\])?(?: \[\x034Ignore Target Defense by\x0312 ([^\]]*)%\x031\])?")]
+        [ArenaRegex(@"^\[\x034Name\x0312 ([^ \]]*)(?:\x03\d{0,2}|\x0F)\] \[\x034Target Type\x0312 (?i:(Single|Status)|(AoE)|(Heal)|(Heal-AoE)|(Suicide)|(Suicide-AoE)|(StealPower)|(Boost)|(FinalGetsuga)|(Buff)|ClearStatus(?:(Negative)|(Positive)))(?:\x03\d{0,2}|\x0F)\] \[\x034TP needed to use\x0312 (\d+)(?:\x03\d{0,2}|\x0F)\](?: \[\x034# of Hits\x0312 ([^\]]*)(?:\x03\d{0,2}|\x0F)\])?(?: \[\x034Stats Type\x0312 ([^\]]*)(?:\x03\d{0,2}|\x0F)\])?( \[\x034Magic\x0312 Yes(?:\x03\d{0,2}|\x0F)\])?(?: \[\x034Ignore Target Defense by\x0312 ([^\]]*)%(?:\x03\d{0,2}|\x0F)\])?")]
         internal void OnViewInfoTechnique1(object sender, RegexEventArgs e) {
             if (this.ViewingTechnique == null)
                 this.ViewingTechnique = new Technique();
@@ -2581,7 +2581,7 @@ namespace BattleBot
             this.viewInfoTechniqueCheck();
         }
 
-        [ArenaRegex(@"^\[\x034Base Power\x0312 (\d*)\x031\] \[\x034Base Cost \(before Shop Level\)\x0312 (\d+) red orbs\x031\] \[\x034Element of Tech\x0312 ([^\]]*)\x031\](?: \[\x034Stat Modifier\x0312 (?i:(STR)|(DEF)|(INT)|(SPD)|(HP)|(TP)|(IgnitionGauge))\x031\])?")]
+        [ArenaRegex(@"^\[\x034Base Power\x0312 (\d*)(?:\x03\d{0,2}|\x0F)\] \[\x034Base Cost \(before Shop Level\)\x0312 (\d+) red orbs(?:\x03\d{0,2}|\x0F)\] \[\x034Element of Tech\x0312 ([^\]]*)(?:\x03\d{0,2}|\x0F)\](?: \[\x034Stat Modifier\x0312 (?i:(STR)|(DEF)|(INT)|(SPD)|(HP)|(TP)|(IgnitionGauge))(?:\x03\d{0,2}|\x0F)\])?")]
         internal void OnViewInfoTechnique2(object sender, RegexEventArgs e) {
             if (this.ViewingTechnique == null)
                 this.ViewingTechnique = new Technique();
