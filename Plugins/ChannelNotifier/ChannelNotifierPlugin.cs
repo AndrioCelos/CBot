@@ -11,7 +11,7 @@ using IRC;
 
 namespace ChannelNotifier
 {
-    [APIVersion(3, 0)]
+    [APIVersion(3, 1)]
     public class ChannelNotifierPlugin : Plugin
     {
         public List<string> Targets;
@@ -75,73 +75,99 @@ namespace ChannelNotifier
             writer.Close();
         }
 
-        public void SendCheck(string message) {
+        public void SendCheck(string message, IRCClient originConnection, string originChannel) {
             foreach (string channelName in this.Targets) {
                 string[] fields = channelName.Split(new char[] { '/' }, 2);
                 if (fields.Length == 1)
                     fields = new string[] { "*", fields[0] };
 
-                IEnumerable<IRCClient> connections;
-                if (fields[0] == "*") connections = Bot.Connections;
+                IEnumerable<ClientEntry> clients;
+                if (fields[0] == "*") clients = Bot.Clients;
                 else {
-                    IRCClient connection = Bot.Connections.FirstOrDefault(c => fields[0].Equals(c.NetworkName, StringComparison.OrdinalIgnoreCase) || fields[0].Equals(c.Address, StringComparison.OrdinalIgnoreCase));
-                    if (connection == default(IRCClient)) return;
-                    connections = new IRCClient[] { connection };
+                    ClientEntry client = Bot.Clients.FirstOrDefault(c => fields[0].Equals(c.Client.NetworkName, StringComparison.OrdinalIgnoreCase) || fields[0].Equals(c.Client.Address, StringComparison.OrdinalIgnoreCase));
+                    if (client == default(ClientEntry)) return;
+                    clients = new ClientEntry[] { client };
                 }
 
-                foreach (IRCClient connection in connections) {
+                foreach (ClientEntry clientEntry in clients) {
+                    IRCClient client = clientEntry.Client;
                     if (fields[1] == "*") {
-                        foreach (Channel channel in connection.Channels)
-                            channel.Say(message);
-                    } else if (connection.IsChannel(fields[1])) {
-                        connection.Send("PRIVMSG " + fields[1] + " :" + message);
+                        if (client == originConnection) {
+                            foreach (Channel channel in client.Channels.Where(_channel => _channel.Name != originChannel))
+                                channel.Say(message);
+                        } else {
+                            foreach (Channel channel in client.Channels)
+                                channel.Say(message);
+                        }
+                    } else if (client.IsChannel(fields[1]) && (client != originConnection || !client.CaseMappingComparer.Equals(fields[1], originChannel))) {
+                        client.Send("PRIVMSG " + fields[1] + " :" + message);
                     } else {
-                        if (Bot.UserHasPermission(connection, null, fields[1], MyKey + ".receive"))
-                            connection.Send("PRIVMSG " + fields[1] + " :" + message);
+                        if ((client != originConnection || !client.CaseMappingComparer.Equals(fields[1], originChannel)) && Bot.UserHasPermission(client, null, fields[1], MyKey + ".receive"))
+                            client.Send("PRIVMSG " + fields[1] + " :" + message);
                     }
                 }
             }
         }
 
-        public override void OnChannelJoin(IRCClient Connection, string Sender, string Channel) {
-            this.SendCheck(string.Format("\u000315[\u000F{0}\u000315] {1}{2}\u000F joined.", Channel, IRC.Colours.NicknameColour(Sender.Split(new char[] { '!' }, 2)[0]), Sender.Split(new char[] { '!' }, 2)[0]));
-            base.OnChannelJoin(Connection, Sender, Channel);
+        public override bool OnChannelJoin(object sender, ChannelJoinEventArgs e) {
+            this.SendCheck(string.Format("\u000315[\u000F{0}\u000315] {1}{2}\u000F joined.", e.Channel, IRC.Colours.NicknameColour(e.Sender.Nickname), e.Sender.Nickname), (IRCClient) sender, e.Channel);
+            return base.OnChannelJoin(sender, e);
         }
 
-        public override void OnChannelJoinSelf(IRCClient Connection, string Sender, string Channel) {
-            this.SendCheck(string.Format("\u000315[\u000F{0}\u000315] {1}{2}\u000F joined.", Channel, IRC.Colours.NicknameColour(Sender.Split(new char[] { '!' }, 2)[0]), Sender.Split(new char[] { '!' }, 2)[0]));
-            base.OnChannelJoinSelf(Connection, Sender, Channel);
+        public override bool OnChannelJoinSelf(object sender, ChannelJoinEventArgs e) {
+            this.SendCheck(string.Format("\u000315[\u000F{0}\u000315] {1}{2}\u000F joined.", e.Channel, IRC.Colours.NicknameColour(e.Sender.Nickname), e.Sender.Nickname), (IRCClient) sender, e.Channel);
+            return base.OnChannelJoinSelf(sender, e);
         }
 
-        public override void OnChannelExit(IRCClient Connection, string Sender, string Channel, string Reason) {
-            this.SendCheck(string.Format("\u000315[\u000F{0}\u000315] {1}{2}\u000F left: {3}.", Channel, IRC.Colours.NicknameColour(Sender.Split(new char[] { '!' }, 2)[0]), Sender.Split(new char[] { '!' }, 2)[0], Reason));
-            base.OnChannelExit(Connection, Sender, Channel, Reason);
+        public override bool OnChannelLeave(object sender, ChannelPartEventArgs e) {
+            this.SendCheck(string.Format("\u000315[\u000F{0}\u000315] {1}{2}\u000F left: {3}.", e.Channel, IRC.Colours.NicknameColour(e.Sender.Nickname), e.Sender.Nickname, e.Message), (IRCClient) sender, e.Channel);
+            return base.OnChannelLeave(sender, e);
         }
 
-        public override void OnChannelExitSelf(IRCClient Connection, string Sender, string Channel, string Reason) {
-            this.SendCheck(string.Format("\u000315[\u000F{0}\u000315] {1}{2}\u000F left: {3}.", Channel, IRC.Colours.NicknameColour(Sender.Split(new char[] { '!' }, 2)[0]), Sender.Split(new char[] { '!' }, 2)[0], Reason));
-            base.OnChannelExit(Connection, Sender, Channel, Reason);
+        public override bool OnChannelLeaveSelf(object sender, ChannelPartEventArgs e) {
+            this.SendCheck(string.Format("\u000315[\u000F{0}\u000315] {1}{2}\u000F left: {3}.", e.Channel, IRC.Colours.NicknameColour(e.Sender.Nickname), e.Sender.Nickname, e.Message), (IRCClient) sender, e.Channel);
+            return base.OnChannelLeaveSelf(sender, e);
         }
 
-        public override void OnChannelMessage(IRCClient Connection, string Sender, string Channel, string Message) {
-            this.SendCheck(string.Format("\u000315[\u000F{0}\u000315] {1}{2}\u000F: {3}.", Channel, IRC.Colours.NicknameColour(Sender.Split(new char[] { '!' }, 2)[0]), Sender.Split(new char[] { '!' }, 2)[0], Message));
-            base.OnChannelMessage(Connection, Sender, Channel, Message);
+        public override bool OnChannelMessage(object sender, ChannelMessageEventArgs e) {
+            this.SendCheck(string.Format("\u000315[\u000F{0}\u000315] {1}{2}\u000F: {3}", e.Channel, IRC.Colours.NicknameColour(e.Sender.Nickname), e.Sender.Nickname, e.Message), (IRCClient) sender, e.Channel);
+            return base.OnChannelMessage(sender, e);
         }
 
-        public override void OnPrivateMessage(IRCClient Connection, string Sender, string Message) {
-            if (!Message.StartsWith("!"))
-                this.SendCheck(string.Format("\u000315[\u000312PM\u000315] {0}{1}\u000F: {2}.", IRC.Colours.NicknameColour(Sender.Split(new char[] { '!' }, 2)[0]), Sender.Split(new char[] { '!' }, 2)[0], Message));
-            base.OnPrivateMessage(Connection, Sender, Message);
+        public override bool OnChannelAction(object sender, ChannelMessageEventArgs e) {
+            this.SendCheck(string.Format("\u000315[\u000F{0}\u000315] {1}{2}\u000F {3}", e.Channel, IRC.Colours.NicknameColour(e.Sender.Nickname), e.Sender.Nickname, e.Message), (IRCClient) sender, e.Channel);
+            return base.OnChannelAction(sender, e);
         }
 
-        public override void OnPrivateAction(IRCClient Connection, string Sender, string Message) {
-            this.SendCheck(string.Format("\u000315[\u000312PM\u000315] {0}{1}\u000F {2}.", IRC.Colours.NicknameColour(Sender.Split(new char[] { '!' }, 2)[0]), Sender.Split(new char[] { '!' }, 2)[0], Message));
-            base.OnPrivateMessage(Connection, Sender, Message);
+        public override bool OnChannelNotice(object sender, ChannelMessageEventArgs e) {
+            this.SendCheck(string.Format("\u000315[\u00038{0}\u000315] {1}{2}\u00038:\u000F {3}", e.Channel, IRC.Colours.NicknameColour(e.Sender.Nickname), e.Sender.Nickname, e.Message), (IRCClient) sender, e.Channel);
+            return base.OnChannelNotice(sender, e);
         }
 
-        public override void OnPrivateNotice(IRCClient Connection, string Sender, string Message) {
-            this.SendCheck(string.Format("\u000315[\u00038PM\u000315] {0}{1}\u00038:\u000F {2}.", IRC.Colours.NicknameColour(Sender.Split(new char[] { '!' }, 2)[0]), Sender.Split(new char[] { '!' }, 2)[0], Message));
-            base.OnPrivateMessage(Connection, Sender, Message);
+        public override bool OnPrivateMessage(object sender, PrivateMessageEventArgs e) {
+            if (base.OnPrivateMessage(sender, e)) return true;
+
+            string message;
+            // Don't relay the message if it's a command.
+            Match match = Regex.Match(e.Message, @"^" + Regex.Escape(((IRCClient) sender).Nickname) + @"\.*[:,-]? (.*)", RegexOptions.IgnoreCase);
+            if (match.Success)
+                message = match.Groups[1].Value;
+            else
+                message = e.Message;
+            if (!Bot.getCommandPrefixes((IRCClient) sender, e.Sender.Nickname).Contains(message[0].ToString()))
+                this.SendCheck(string.Format("\u000315[\u000312PM\u000315] {0}{1}\u000F: {2}", IRC.Colours.NicknameColour(e.Sender.Nickname), e.Sender.Nickname, e.Message), (IRCClient) sender, e.Sender.Nickname);
+            
+            return false;
+        }
+
+        public override bool OnPrivateAction(object sender, PrivateMessageEventArgs e) {
+            this.SendCheck(string.Format("\u000315[\u000312PM\u000315] {0}{1}\u000F {2}", IRC.Colours.NicknameColour(e.Sender.Nickname), e.Sender.Nickname, e.Message), (IRCClient) sender, e.Sender.Nickname);
+            return base.OnPrivateAction(sender, e);
+        }
+
+        public override bool OnPrivateNotice(object sender, PrivateMessageEventArgs e) {
+            this.SendCheck(string.Format("\u000315[\u00037PM\u000315] {0}{1}\u00038:\u000F {2}", IRC.Colours.NicknameColour(e.Sender.Nickname), e.Sender.Nickname, e.Message), (IRCClient) sender, e.Sender.Nickname);
+            return base.OnPrivateNotice(sender, e);
         }
     }
 }

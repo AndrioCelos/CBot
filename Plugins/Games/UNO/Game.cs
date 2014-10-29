@@ -95,7 +95,6 @@ namespace UNO {
             this.IdleTurn = this.Turn;
             this.Players[this.Turn].CanMove = true;
             this.DrawnCard = 255;
-            this.ShowTurn();
         }
 
         public int IndexOf(string nickname) {
@@ -104,10 +103,6 @@ namespace UNO {
                     return i;
             }
             return -1;
-        }
-
-        public void ShowTurn() {
-            CBot.Bot.Say(this.Connection, this.Channel, "\u00034Turn:\u000312 {0} \u000315| \u00034Idle turn:\u000312 {1} \u000315| \u00034Can move: \u000312{2}", this.Turn, this.IdleTurn, string.Join(", ", this.Players.Select(player => player.CanMove ? "yes" : "no")));
         }
     }
 }

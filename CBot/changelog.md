@@ -1,3 +1,11 @@
+Version 3.1 – 26 October 2014
+-----------------------------
+
+* All events in the IRC library, and in plugins, now use the standard EventHandler structure.
+* Added the ability to log in using a server password.
+* Bug fixes
+* **Fix:** Permissions are now recognised correctly for channel access matches ($o).
+
 Version 3.0.1 – 25 September 2014
 ---------------------------------
 

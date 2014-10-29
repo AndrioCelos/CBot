@@ -11,7 +11,7 @@ using IRC;
 
 namespace Gender
 {
-    [APIVersion(3, 0)]
+    [APIVersion(3, 1)]
     public class GenderPlugin : Plugin
     {
         public Dictionary<string, IRC.Gender> Gender;
@@ -183,19 +183,21 @@ namespace Gender
             int index = fields[1].IndexOf('!');
             int index2 = index == -1 ? 0 : fields[1].IndexOfAny(new char[] { '*', '?' }, 0, index);
             if (index2 == -1) {
-                foreach (IRCClient connection in Bot.Connections) {
-                    if (fields[0] == "*" || fields[0].Equals(connection.NetworkName, StringComparison.OrdinalIgnoreCase) || fields[0].Equals(connection.Address, StringComparison.OrdinalIgnoreCase)) {
+                foreach (ClientEntry clientEntry in Bot.Clients) {
+                    IRCClient client = clientEntry.Client;
+                    if (fields[0] == "*" || fields[0].Equals(client.NetworkName, StringComparison.OrdinalIgnoreCase) || fields[0].Equals(client.Address, StringComparison.OrdinalIgnoreCase)) {
                         User user;
-                        if (connection.Users.TryGetValue(fields[1].Substring(0, index), out user)) {
+                        if (client.Users.TryGetValue(fields[1].Substring(0, index), out user)) {
                             if (Bot.MaskCheck(user.ToString(), fields[1]))
                                 user.Gender = gender;
                         }
                     }
                 }
             } else {
-                foreach (IRCClient connection in Bot.Connections) {
-                    if (fields[0] == "*" || fields[0].Equals(connection.NetworkName, StringComparison.OrdinalIgnoreCase) || fields[0].Equals(connection.Address, StringComparison.OrdinalIgnoreCase)) {
-                        foreach (User user in connection.Users) {
+                foreach (ClientEntry clientEntry in Bot.Clients) {
+                    IRCClient client = clientEntry.Client;
+                    if (fields[0] == "*" || fields[0].Equals(client.NetworkName, StringComparison.OrdinalIgnoreCase) || fields[0].Equals(client.Address, StringComparison.OrdinalIgnoreCase)) {
+                        foreach (User user in client.Users) {
                             if (Bot.MaskCheck(user.ToString(), fields[1]))
                                 user.Gender = gender;
                         }
@@ -219,25 +221,27 @@ namespace Gender
                 int index = fields[1].IndexOf('!');
                 int index2 = index == -1 ? 0 : fields[1].IndexOfAny(new char[] { '*', '?' }, 0, index);
                 if (index2 == -1) {
-                    foreach (IRCClient connection in Bot.Connections) {
-                        if (fields[0] == "*" || fields[0].Equals(connection.NetworkName, StringComparison.OrdinalIgnoreCase) || fields[0].Equals(connection.Address, StringComparison.OrdinalIgnoreCase)) {
+                    foreach (ClientEntry clientEntry in Bot.Clients) {
+                        IRCClient client = clientEntry.Client;
+                        if (fields[0] == "*" || fields[0].Equals(client.NetworkName, StringComparison.OrdinalIgnoreCase) || fields[0].Equals(client.Address, StringComparison.OrdinalIgnoreCase)) {
                             User user;
-                            if (connection.Users.TryGetValue(fields[1].Substring(0, index), out user)) {
+                            if (client.Users.TryGetValue(fields[1].Substring(0, index), out user)) {
                                 if (Bot.MaskCheck(user.ToString(), fields[1])) {
                                     gender = user.Gender;
-                                    header = user.Nickname + "\u0002 on \u0002" + connection.NetworkName;
+                                    header = user.Nickname + "\u0002 on \u0002" + client.NetworkName;
                                     break;
                                 }
                             }
                         }
                     }
                 } else {
-                    foreach (IRCClient connection in Bot.Connections) {
-                        if (fields[0] == "*" || fields[0].Equals(connection.NetworkName, StringComparison.OrdinalIgnoreCase) || fields[0].Equals(connection.Address, StringComparison.OrdinalIgnoreCase)) {
-                            foreach (User user in connection.Users) {
+                    foreach (ClientEntry clientEntry in Bot.Clients) {
+                        IRCClient client = clientEntry.Client;
+                        if (fields[0] == "*" || fields[0].Equals(client.NetworkName, StringComparison.OrdinalIgnoreCase) || fields[0].Equals(client.Address, StringComparison.OrdinalIgnoreCase)) {
+                            foreach (User user in client.Users) {
                                 if (Bot.MaskCheck(user.ToString(), fields[1])) {
                                     gender = user.Gender;
-                                    header = user.Nickname + "\u0002 on \u0002" + connection.NetworkName;
+                                    header = user.Nickname + "\u0002 on \u0002" + client.NetworkName;
                                     break;
                                 }
                             }
@@ -273,7 +277,7 @@ namespace Gender
                             Bot.Say(e.Connection, e.Channel, "WHO requests \u00034are not\u000F being sent.", 0);
                         break;
                     default:
-                        this.Say(e.Connection, e.Sender.Nickname, string.Format("I don't manage a setting named \u0002{0}\u0002.", e.Parameters[1]));
+                        Bot.Say(e.Connection, e.Sender.Nickname, string.Format("I don't manage a setting named \u0002{0}\u0002.", e.Parameters[1]));
                         break;
                 }
             } else {
@@ -294,99 +298,95 @@ namespace Gender
                             else
                                 Bot.Say(e.Connection, e.Sender.Nickname, "The number cannot be negative.", value);
                         } else
-                            this.Say(e.Connection, e.Sender.Nickname, string.Format("That's not a valid integer.", e.Parameters[1]));
+                            Bot.Say(e.Connection, e.Sender.Nickname, string.Format("That's not a valid integer.", e.Parameters[1]));
                         break;
                     default:
-                        this.Say(e.Connection, e.Sender.Nickname, string.Format("I don't manage a setting named \u0002{0}\u0002.", e.Parameters[1]));
+                        Bot.Say(e.Connection, e.Sender.Nickname, string.Format("I don't manage a setting named \u0002{0}\u0002.", e.Parameters[1]));
                         break;
                 }
             }
         }
 
-
-        public override void OnChannelJoin(IRCClient Connection, string Sender, string Channel) {
-            base.OnChannelJoin(Connection, Sender, Channel);
-
+        public override bool OnChannelJoin(object sender, ChannelJoinEventArgs e) {
             foreach (KeyValuePair<string, IRC.Gender> entry in this.Gender) {
                 string[] fields = entry.Key.Split(new char[] { '/' }, 2);
                 if (fields.Length == 1)
                     fields = new string[] { "*", fields[0] };
                 int index = fields[1].IndexOf('!');
                 int index2 = index == -1 ? -1 : fields[1].IndexOfAny(new char[] { '*', '?' }, 0, index);
-                if (fields[0] == "*" || fields[0].Equals(Connection.NetworkName, StringComparison.OrdinalIgnoreCase) || fields[0].Equals(Connection.Address, StringComparison.OrdinalIgnoreCase)) {
-                    if (Bot.MaskCheck(Sender, fields[1])) {
-                        Connection.Users[Sender.Split(new char[] { '!' }, 2)[0]].Gender = entry.Value;
-                        return;
+                if (fields[0] == "*" || fields[0].Equals(((IRCClient) sender).NetworkName, StringComparison.OrdinalIgnoreCase) || fields[0].Equals(((IRCClient) sender).Address, StringComparison.OrdinalIgnoreCase)) {
+                    if (Bot.MaskCheck(e.Sender.ToString(), fields[1])) {
+                        e.Sender.Gender = entry.Value;
+                        return base.OnChannelJoin(sender, e);
                     }
                 }
             }
+            return base.OnChannelJoin(sender, e);
         }
 
-        public override void OnChannelJoinSelf(IRCClient Connection, string Sender, string Channel) {
-            base.OnChannelJoinSelf(Connection, Sender, Channel);
-
+        public override bool OnChannelJoinSelf(object sender, ChannelJoinEventArgs e) {
             foreach (KeyValuePair<string, IRC.Gender> entry in this.Gender) {
                 string[] fields = entry.Key.Split(new char[] { '/' }, 2);
                 if (fields.Length == 1)
                     fields = new string[] { "*", fields[0] };
                 int index = fields[1].IndexOf('!');
                 int index2 = index == -1 ? -1 : fields[1].IndexOfAny(new char[] { '*', '?' }, 0, index);
-                if (fields[0] == "*" || fields[0].Equals(Connection.NetworkName, StringComparison.OrdinalIgnoreCase) || fields[0].Equals(Connection.Address, StringComparison.OrdinalIgnoreCase)) {
-                    if (Bot.MaskCheck(Sender, fields[1])) {
-                        Connection.Users[Sender.Split(new char[] { '!' }, 2)[0]].Gender = entry.Value;
-                        return;
+                if (fields[0] == "*" || fields[0].Equals(((IRCClient) sender).NetworkName, StringComparison.OrdinalIgnoreCase) || fields[0].Equals(((IRCClient) sender).Address, StringComparison.OrdinalIgnoreCase)) {
+                    if (Bot.MaskCheck(e.Sender.ToString(), fields[1])) {
+                        e.Sender.Gender = entry.Value;
+                        return base.OnChannelJoinSelf(sender, e);
                     }
                 }
             }
+            return base.OnChannelJoinSelf(sender, e);
         }
 
-        public override void OnWhoList(IRCClient Connection, string Channel, string Username, string Address, string Server, string Nickname, string Flags, int Hops, string FullName) {
-            base.OnWhoList(Connection, Channel, Username, Address, Server, Nickname, Flags, Hops, FullName);
-
+        public override bool OnWhoList(object sender, WhoListEventArgs e) {
             foreach (KeyValuePair<string, IRC.Gender> entry in this.Gender) {
                 string[] fields = entry.Key.Split(new char[] { '/' }, 2);
                 if (fields.Length == 1)
                     fields = new string[] { "*", fields[0] };
                 int index = fields[1].IndexOf('!');
                 int index2 = index == -1 ? -1 : fields[1].IndexOfAny(new char[] { '*', '?' }, 0, index);
-                if (fields[0] == "*" || fields[0].Equals(Connection.NetworkName, StringComparison.OrdinalIgnoreCase) || fields[0].Equals(Connection.Address, StringComparison.OrdinalIgnoreCase)) {
-                    if (Bot.MaskCheck(Nickname + "!" + Username + "@" + Address, fields[1])) {
-                        Connection.Users[Nickname].Gender = entry.Value;
-                        return;
+                if (fields[0] == "*" || fields[0].Equals(((IRCClient) sender).NetworkName, StringComparison.OrdinalIgnoreCase) || fields[0].Equals(((IRCClient) sender).Address, StringComparison.OrdinalIgnoreCase)) {
+                    if (Bot.MaskCheck(e.Nickname + "!" + e.Username + "@" + e.Host, fields[1])) {
+                        ((IRCClient) sender).Users[e.Nickname].Gender = entry.Value;
+                        return base.OnWhoList(sender, e);
                     }
                 }
             }
+            return base.OnWhoList(sender, e);
         }
 
-        void WhoTimer_Elapsed(object sender, ElapsedEventArgs e) {
+        private void WhoTimer_Elapsed(object sender, ElapsedEventArgs e) {
             // Find the next channel.
-            if (this.CheckingConnection >= Bot.Connections.Count) {
+            if (this.CheckingConnection >= Bot.Clients.Count) {
                 this.CheckingConnection = 1;
                 this.CheckingChannel = -1;
-                if (this.CheckingConnection >= Bot.Connections.Count)
+                if (this.CheckingConnection >= Bot.Clients.Count)
                     return;
             }
 
             int startingConnection = this.CheckingConnection; bool looped = false;
 
             ++this.CheckingChannel;
-            if (this.CheckingChannel >= Bot.Connections[this.CheckingConnection].Channels.Count) {
+            if (this.CheckingChannel >= Bot.Clients[this.CheckingConnection].Client.Channels.Count) {
                 do {
                     ++this.CheckingConnection;
                     this.CheckingChannel = 0;
                     if (looped && this.CheckingConnection == startingConnection) return;
-                    if (this.CheckingConnection >= Bot.Connections.Count) {
+                    if (this.CheckingConnection >= Bot.Clients.Count) {
                         this.CheckingConnection = 1;
                         this.CheckingChannel = 0;
                         looped = true;
-                        if (this.CheckingConnection >= Bot.Connections.Count)
+                        if (this.CheckingConnection >= Bot.Clients.Count)
                             return;
                     }
-                } while (this.CheckingChannel >= Bot.Connections[this.CheckingConnection].Channels.Count);
+                } while (this.CheckingChannel >= Bot.Clients[this.CheckingConnection].Client.Channels.Count);
             }
 
             // Send the WHO request.
-            Bot.Connections[this.CheckingConnection].Send("WHO {0}", Bot.Connections[this.CheckingConnection].Channels[this.CheckingChannel].Name);
+            Bot.Clients[this.CheckingConnection].Client.Send("WHO {0}", Bot.Clients[this.CheckingConnection].Client.Channels[this.CheckingChannel].Name);
         }
 
 

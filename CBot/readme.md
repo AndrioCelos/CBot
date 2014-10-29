@@ -1,4 +1,4 @@
-VBot
+CBot
 ====
 
 The framework itself. This, CBot.exe, is what you start to run the bot. It also provides the interactive setup wizard.

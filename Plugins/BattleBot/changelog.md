@@ -1,3 +1,8 @@
+Version 2.7.3 – 11 October 2014
+-------------------------------
+
+* **Fix:** The AI should no longer spam Analysis.
+
 Version 2.7.2 – 25 September 2014
 ---------------------------------
 

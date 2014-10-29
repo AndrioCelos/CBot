@@ -8,7 +8,7 @@ using CBot;
 using IRC;
 
 namespace IdentifyPlugin {
-    [APIVersion(3, 0)]
+    [APIVersion(3, 1)]
     public class IdentifyPlugin : Plugin {
         public override string Name {
             get {
@@ -18,8 +18,8 @@ namespace IdentifyPlugin {
 
         [Command(new string[] { "id", "identify", "login" }, 1, 2, "id [username] <password>", "Identifies you to me using a password")]
         public void CommandIdentify(object sender, CommandEventArgs e) {
-            if (e.Channel.StartsWith("#")) {  // A channel message. Identification should (obviously) be done privately.
-                this.Say(e.Connection, e.Sender.Nickname, Bot.Choose(Bot.Choose("Hey ", "") + e.Sender.Nickname + ", ", "") + Bot.Choose("I think " + Bot.Choose("that ", "")) + Bot.Choose("you should probably ", "you'll want to ") + Bot.Choose("run ", "use ", "invoke ") + "that command in a PM to me, " + Bot.Choose("not in a channel.", "rather than in a channel."), SayOptions.Capitalise);
+            if (e.Connection.IsChannel(e.Channel)) {  // A channel message. Identification should (obviously) be done privately.
+                Bot.Say(e.Connection, e.Sender.Nickname, Bot.Choose(Bot.Choose("Hey ", "") + e.Sender.Nickname + ", ", "") + Bot.Choose("I think " + Bot.Choose("that ", "")) + Bot.Choose("you should probably ", "you'll want to ") + Bot.Choose("run ", "use ", "invoke ") + "that command in a PM to me, " + Bot.Choose("not in a channel.", "rather than in a channel."), SayOptions.Capitalise);
                 // TODO: Prompt the user to change their password.
             }
 
@@ -33,7 +33,7 @@ namespace IdentifyPlugin {
                     }
                 }
                 if (!found) {
-                    this.Say(e.Connection, e.Sender.Nickname, Bot.Choose("You need to ", "You must ") + "be in " + Bot.Choose("at least one ", "a ") + "channel with me to identify yourself" + Bot.Choose(", " + e.Sender.Nickname, "") + ".");
+                    Bot.Say(e.Connection, e.Sender.Nickname, Bot.Choose("You need to ", "You must ") + "be in " + Bot.Choose("at least one ", "a ") + "channel with me to identify yourself" + Bot.Choose(", " + e.Sender.Nickname, "") + ".");
                     return;
                 }
             }
@@ -53,7 +53,7 @@ namespace IdentifyPlugin {
                 if (e.Connection.SupportsWatch) e.Connection.Send("WATCH +{0}", e.Sender.Nickname);
             }
 
-            this.Say(e.Connection, e.Sender.Nickname, message);
+            Bot.Say(e.Connection, e.Sender.Nickname, message);
         }
     }
 }

@@ -26,6 +26,7 @@ namespace BattleBot {
             this.IP = IP;
             this.Port = port;
             this.Address = "!" + plugin.MyKey + ".DCC";
+            this.NetworkName = "!" + plugin.MyKey + ".DCC";
             this.Nickname = plugin.ArenaConnection.Nickname;
         }
 
@@ -126,7 +127,12 @@ namespace BattleBot {
             this.client = null;
             this.messageBuilder = null;
             this.plugin.WriteLine(1, 4, "DCC connection closed: {0}", reason);
-            Bot.Connections.Remove(this);
+            for (int i = 1; i < Bot.Clients.Count; ++i) {
+                if (Bot.Clients[i].Client == this) {
+                    Bot.Clients.RemoveAt(i);
+                    break;
+                }
+            }
         }
     }
 }

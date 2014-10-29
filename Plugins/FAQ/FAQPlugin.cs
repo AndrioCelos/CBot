@@ -11,7 +11,7 @@ using IRC;
 
 namespace FAQ
 {
-    [APIVersion(3, 0)]
+    [APIVersion(3, 1)]
     public class FAQPlugin : Plugin
     {
         public List<string> NoShortcutChannels;
@@ -293,7 +293,7 @@ namespace FAQ
                         fields3[0].Equals("PART", StringComparison.InvariantCultureIgnoreCase) ||
                         fields3[0].Equals("KICK", StringComparison.InvariantCultureIgnoreCase) ||
                         fields3[0].Equals("QUIT", StringComparison.InvariantCultureIgnoreCase) ||
-                        fields3[0].Equals("EXIT", StringComparison.InvariantCultureIgnoreCase) ||
+                        fields3[0].Equals("LEAVE", StringComparison.InvariantCultureIgnoreCase) ||
                         fields3[0].Equals("NICK", StringComparison.InvariantCultureIgnoreCase)) {
                         matchAction = fields3[0];
                         if (!matchAction.Equals(action, StringComparison.InvariantCultureIgnoreCase))
@@ -405,44 +405,44 @@ namespace FAQ
             }
         }
 
-        public override void OnChannelMessage(IRCClient Connection, string Sender, string Channel, string Message) {
-            this.ExpressionCheck(Connection, Channel, new User(Sender), "MSG", Message);
-            base.OnChannelMessage(Connection, Sender, Channel, Message);
+        public override bool OnChannelMessage(object sender, ChannelMessageEventArgs e) {
+            this.ExpressionCheck((IRCClient) sender, e.Channel, e.Sender, "MSG", e.Message);
+            return base.OnChannelMessage(sender, e);
         }
 
-        public override void OnChannelAction(IRCClient Connection, string Sender, string Channel, string Message) {
-            this.ExpressionCheck(Connection, Channel, new User(Sender), "ACTION", Message);
-            base.OnChannelAction(Connection, Sender, Channel, Message);
+        public override bool OnChannelAction(object sender, ChannelMessageEventArgs e) {
+            this.ExpressionCheck((IRCClient) sender, e.Channel, e.Sender, "ACTION", e.Message);
+            return base.OnChannelAction(sender, e);
         }
 
-        public override void OnChannelJoin(IRCClient Connection, string Sender, string Channel) {
-            this.ExpressionCheck(Connection, Channel, new User(Sender), "JOIN", null);
-            base.OnChannelJoin(Connection, Sender, Channel);
+        public override bool OnChannelJoin(object sender, ChannelJoinEventArgs e) {
+            this.ExpressionCheck((IRCClient) sender, e.Channel, e.Sender, "JOIN", null);
+            return base.OnChannelJoin(sender, e);
         }
 
-        public override void OnChannelPart(IRCClient Connection, string Sender, string Channel, string Reason) {
-            this.ExpressionCheck(Connection, Channel, new User(Sender), "PART", Reason);
-            base.OnChannelPart(Connection, Sender, Channel, Reason);
+        public override bool OnChannelPart(object sender, ChannelPartEventArgs e) {
+            this.ExpressionCheck((IRCClient) sender, e.Channel, e.Sender, "PART", e.Message);
+            return base.OnChannelPart(sender, e);
         }
 
-        public override void OnChannelKick(IRCClient Connection, string Sender, string Channel, string Target, string Reason) {
-            this.ExpressionCheck(Connection, Channel, new User(Sender), "KICK", Target + ":" + Reason);
-            base.OnChannelKick(Connection, Sender, Channel, Target, Reason);
+        public override bool OnChannelKick(object sender, ChannelKickEventArgs e) {
+            this.ExpressionCheck((IRCClient) sender, e.Channel, e.Sender, "KICK", e.Target + ":" + e.Reason);
+            return base.OnChannelKick(sender, e);
         }
 
-        public override void OnQuit(IRCClient Connection, string Sender, string Reason) {
-            this.ExpressionCheck(Connection, null, new User(Sender), "QUIT", Reason);
-            base.OnQuit(Connection, Sender, Reason);
+        public override bool OnQuit(object sender, QuitEventArgs e) {
+            this.ExpressionCheck((IRCClient) sender, null, e.Sender, "QUIT", e.Message);
+            return base.OnQuit(sender, e);
         }
 
-        public override void OnChannelExit(IRCClient Connection, string Sender, string Channel, string Reason) {
-            this.ExpressionCheck(Connection, Channel, new User(Sender), "EXIT", Reason);
-            base.OnChannelExit(Connection, Sender, Channel, Reason);
+        public override bool OnNicknameChange(object sender, NicknameChangeEventArgs e) {
+            this.ExpressionCheck((IRCClient) sender, null, e.Sender, "NICK", e.NewNickname);
+            return base.OnNicknameChange(sender, e);
         }
 
-        public override void OnNicknameChange(IRCClient sender, string User, string NewNick) {
-            this.ExpressionCheck(sender, null, new User(User), "NICK", NewNick);
-            base.OnNicknameChange(sender, User, NewNick);
+        public override bool OnChannelLeave(object sender, ChannelPartEventArgs e) {
+            this.ExpressionCheck((IRCClient) sender, e.Channel, e.Sender, "LEAVE", e.Message);
+            return base.OnChannelLeave(sender, e);
         }
 
         public Factoid FindFactoid(IRCClient connection, string channel, User sender, ref string request) {
@@ -511,14 +511,13 @@ namespace FAQ
             if (key == null) throw new ArgumentNullException("key");
             string result;
             int pos = key.Length - 1;
-            if (pos > 0) {
-                while (true) {
-                    pos = key.LastIndexOf('/', pos);
-                    if (pos == -1) break;
-                    result = key.Substring(0, pos);
-                    if (this.Contexts.ContainsKey(result))
-                        return new string[] { result, key.Substring(pos + 1) };
-                }
+            while (pos > 0) {
+                pos = key.LastIndexOf('/', pos);
+                if (pos == -1) break;
+                result = key.Substring(0, pos);
+                if (this.Contexts.ContainsKey(result))
+                    return new string[] { result, key.Substring(pos + 1) };
+                --pos;
             }
             return new string[] { null, key };
         }
@@ -570,17 +569,17 @@ namespace FAQ
             try {
                 factoid = this.FindFactoid(e.Connection, e.Channel, e.Sender, ref key);
             } catch (KeyNotFoundException) {
-                this.Say(e.Connection, e.Sender.Nickname, "That factoid isn't defined.");
+                Bot.Say(e.Connection, e.Sender.Nickname, "That factoid isn't defined.");
                 return;
             } catch (BrokenAliasException) {
                 if (key == ".")
-                    this.Say(e.Connection, e.Sender.Nickname, "You haven't yet set a target for the dot.");
+                    Bot.Say(e.Connection, e.Sender.Nickname, "You haven't yet set a target for the dot.");
                 else
-                    this.Say(e.Connection, e.Sender.Nickname, string.Format("The alias \u0002{0}\u0002 seems to be broken.", key));
+                    Bot.Say(e.Connection, e.Sender.Nickname, string.Format("The alias \u0002{0}\u0002 seems to be broken.", key));
                 return;
             } catch (MultipleContextException ex) {
-                this.Say(e.Connection, e.Sender.Nickname, string.Format("Multiple maching factoids were found.", key));
-                this.Say(e.Connection, e.Sender.Nickname, string.Format("Please specify one of:\u0002 {0}\u0002.", string.Join("\u0002, \u0002", ex.matches)));
+                Bot.Say(e.Connection, e.Sender.Nickname, string.Format("Multiple maching factoids were found.", key));
+                Bot.Say(e.Connection, e.Sender.Nickname, string.Format("Please specify one of:\u0002 {0}\u0002.", string.Join("\u0002, \u0002", ex.matches)));
                 return;
             }
 
@@ -607,7 +606,7 @@ namespace FAQ
                     string context = this.FindContext(e.Connection, e.Channel);
                     this.CommandFactoidList(sender, new CommandEventArgs(e.Connection, e.Channel, e.Sender, new string[] { context }));
                 } catch (KeyNotFoundException) {
-                    this.Say(e.Connection, e.Sender.Nickname, "There is no FAQ context assigned to this channel.");
+                    Bot.Say(e.Connection, e.Sender.Nickname, "There is no FAQ context assigned to this channel.");
                     return;
                 } catch (MultipleContextException ex) {
                     foreach (string context in ex.matches)
@@ -616,11 +615,11 @@ namespace FAQ
                 }
             } else {
                 if (!this.Contexts.ContainsKey(e.Parameters[0])) {
-                    this.Say(e.Connection, e.Sender.Nickname, "That context isn't defined.");
+                    Bot.Say(e.Connection, e.Sender.Nickname, "That context isn't defined.");
                     return;
                 }
                 if (!Bot.UserHasPermission(e.Connection, e.Channel, e.Sender.Nickname, MyKey + ".list." + e.Parameters[0].Replace('/', '.'))) {
-                    this.Say(e.Connection, e.Sender.Nickname, string.Format("You don't have permission to list the context of \u0002{0}\u0002.", e.Parameters[0]));
+                    Bot.Say(e.Connection, e.Sender.Nickname, string.Format("You don't have permission to list the context of \u0002{0}\u0002.", e.Parameters[0]));
                     return;
                 }
                 bool listHidden = Bot.UserHasPermission(e.Connection, e.Channel, e.Sender.Nickname, MyKey + ".listhidden." + e.Parameters[0].Replace('/', '.'));
@@ -637,10 +636,10 @@ namespace FAQ
                 }
 
                 if (matches.Count == 0) {
-                    this.Say(e.Connection, e.Sender.Nickname, string.Format("There are no factoids in the context of \u0002{0}\u0002.", e.Parameters[0]));
+                    Bot.Say(e.Connection, e.Sender.Nickname, string.Format("There are no factoids in the context of \u0002{0}\u0002.", e.Parameters[0]));
                 } else {
-                    this.Say(e.Connection, e.Sender.Nickname, string.Format("The following factoids have been set for the context of \u0002{0}\u0002:", e.Parameters[0]));
-                    this.Say(e.Connection, e.Sender.Nickname, string.Join(", ", matches));
+                    Bot.Say(e.Connection, e.Sender.Nickname, string.Format("The following factoids have been set for the context of \u0002{0}\u0002:", e.Parameters[0]));
+                    Bot.Say(e.Connection, e.Sender.Nickname, string.Join(", ", matches));
                 }
             }
         }
@@ -660,7 +659,7 @@ namespace FAQ
                 dotTarget = true;
                 userKey = e.Connection.NetworkName + "/" + e.Sender.Nickname;
                 if (!this.Targets.TryGetValue(userKey, out key)) {
-                    this.Say(e.Connection, e.Sender.Nickname, "You haven't yet set a target for the dot.");
+                    Bot.Say(e.Connection, e.Sender.Nickname, "You haven't yet set a target for the dot.");
                     return;
                 }
             } else
@@ -672,11 +671,11 @@ namespace FAQ
                     fields[0] = this.FindContext(e.Connection, e.Channel);
                     key = fields[0] + "/" + fields[1];
                 } catch (KeyNotFoundException) {
-                    this.Say(e.Connection, e.Sender.Nickname, "There is no FAQ context assigned to this channel.");
+                    Bot.Say(e.Connection, e.Sender.Nickname, "There is no FAQ context assigned to this channel.");
                     return;
                 } catch (MultipleContextException ex) {
-                    this.Say(e.Connection, e.Sender.Nickname, "There is more than one FAQ context assigned to this channel.");
-                    this.Say(e.Connection, e.Sender.Nickname, string.Format("Please specify one of: \u000307{0}\u000F.", string.Join("\u000F, \u000307", ex.matches.Select(s => s + "/\u000308" + key))));
+                    Bot.Say(e.Connection, e.Sender.Nickname, "There is more than one FAQ context assigned to this channel.");
+                    Bot.Say(e.Connection, e.Sender.Nickname, string.Format("Please specify one of: \u000307{0}\u000F.", string.Join("\u000F, \u000307", ex.matches.Select(s => s + "/\u000308" + key))));
                     return;
                 }
             }
@@ -684,11 +683,11 @@ namespace FAQ
             Factoid factoid;
             if (this.Factoids.TryGetValue(key, out factoid)) {
                 factoid.Data += "\r\n" + e.Parameters[1];
-                this.Say(e.Connection, e.Sender.Nickname, string.Format("Appended text to the factoid \u000307{0}/\u000308{1}\u000F.", fields[0], fields[1]));
+                Bot.Say(e.Connection, e.Sender.Nickname, string.Format("Appended text to the factoid \u000307{0}/\u000308{1}\u000F.", fields[0], fields[1]));
             } else {
                 factoid = new Factoid() { Data = e.Parameters[1] };
                 this.Factoids.Add(key, factoid);
-                this.Say(e.Connection, e.Sender.Nickname, string.Format("Added a factoid \u000307{0}/\u000308{1}\u000F.", fields[0], fields[1]));
+                Bot.Say(e.Connection, e.Sender.Nickname, string.Format("Added a factoid \u000307{0}/\u000308{1}\u000F.", fields[0], fields[1]));
             }
 
             if (!dotTarget) {
@@ -710,13 +709,13 @@ namespace FAQ
             bool dotTarget = false; string userKey = null; string key; string target;
             if (e.Parameters[0] == ".") {
                 if (e.Parameters[1] == ".") {
-                    this.Say(e.Connection, e.Sender.Nickname, "You can't use two dots like this.");
+                    Bot.Say(e.Connection, e.Sender.Nickname, "You can't use two dots like this.");
                     return;
                 }
                 dotTarget = true;
                 userKey = e.Connection.NetworkName + "/" + e.Sender.Nickname;
                 if (!this.Targets.TryGetValue(userKey, out key)) {
-                    this.Say(e.Connection, e.Sender.Nickname, "You haven't yet set a target for the dot.");
+                    Bot.Say(e.Connection, e.Sender.Nickname, "You haven't yet set a target for the dot.");
                     return;
                 }
                 target = e.Parameters[1];
@@ -726,7 +725,7 @@ namespace FAQ
                 if (e.Parameters[1] == ".") {
                     userKey = e.Connection.NetworkName + "/" + e.Sender.Nickname;
                     if (!this.Targets.TryGetValue(userKey, out target)) {
-                        this.Say(e.Connection, e.Sender.Nickname, "You haven't yet set a target for the dot.");
+                        Bot.Say(e.Connection, e.Sender.Nickname, "You haven't yet set a target for the dot.");
                         return;
                     }
                 } else
@@ -739,11 +738,11 @@ namespace FAQ
                     fields[0] = this.FindContext(e.Connection, e.Channel);
                     key = fields[0] + "/" + fields[1];
                 } catch (KeyNotFoundException) {
-                    this.Say(e.Connection, e.Sender.Nickname, "There is no FAQ context assigned to this channel.");
+                    Bot.Say(e.Connection, e.Sender.Nickname, "There is no FAQ context assigned to this channel.");
                     return;
                 } catch (MultipleContextException ex) {
-                    this.Say(e.Connection, e.Sender.Nickname, "There is more than one FAQ context assigned to this channel.");
-                    this.Say(e.Connection, e.Sender.Nickname, string.Format("Please specify one of: \u000307{0}\u000F.", string.Join("\u000F, \u000307", ex.matches.Select(s => s + "/\u000308" + key))));
+                    Bot.Say(e.Connection, e.Sender.Nickname, "There is more than one FAQ context assigned to this channel.");
+                    Bot.Say(e.Connection, e.Sender.Nickname, string.Format("Please specify one of: \u000307{0}\u000F.", string.Join("\u000F, \u000307", ex.matches.Select(s => s + "/\u000308" + key))));
                     return;
                 }
             }
@@ -754,28 +753,28 @@ namespace FAQ
                     fields2[0] = this.FindContext(e.Connection, e.Channel);
                     target = fields2[0] + "/" + fields2[1];
                 } catch (KeyNotFoundException) {
-                    this.Say(e.Connection, e.Sender.Nickname, "There is no FAQ context assigned to this channel.");
+                    Bot.Say(e.Connection, e.Sender.Nickname, "There is no FAQ context assigned to this channel.");
                     return;
                 } catch (MultipleContextException ex) {
-                    this.Say(e.Connection, e.Sender.Nickname, "There is more than one FAQ context assigned to this channel.");
-                    this.Say(e.Connection, e.Sender.Nickname, string.Format("Please specify one of: \u000307{0}\u000F.", string.Join("\u000F, \u000307", ex.matches.Select(s => s + "/\u000308" + key))));
+                    Bot.Say(e.Connection, e.Sender.Nickname, "There is more than one FAQ context assigned to this channel.");
+                    Bot.Say(e.Connection, e.Sender.Nickname, string.Format("Please specify one of: \u000307{0}\u000F.", string.Join("\u000F, \u000307", ex.matches.Select(s => s + "/\u000308" + key))));
                     return;
                 }
             }
             if (!this.Factoids.ContainsKey(target)) {
-                this.Say(e.Connection, e.Sender.Nickname, string.Format("The factoid \u000307{0}/\u000308{1}\u000F isn't defined.", fields2[0], fields2[1]));
+                Bot.Say(e.Connection, e.Sender.Nickname, string.Format("The factoid \u000307{0}/\u000308{1}\u000F isn't defined.", fields2[0], fields2[1]));
                 return;
             }
 
             if (this.Factoids.ContainsKey(key)) {
-                this.Say(e.Connection, e.Sender.Nickname, string.Format("A factoid \u000307{0}/\u000308{1}\u000F already exists.", fields[0], fields[1]));
+                Bot.Say(e.Connection, e.Sender.Nickname, string.Format("A factoid \u000307{0}/\u000308{1}\u000F already exists.", fields[0], fields[1]));
                 return;
             } else if (this.Aliases.ContainsKey(key)) {
-                this.Say(e.Connection, e.Sender.Nickname, string.Format("An alias \u000307{0}/\u000308{1}\u000F already exists.", fields[0], fields[1]));
+                Bot.Say(e.Connection, e.Sender.Nickname, string.Format("An alias \u000307{0}/\u000308{1}\u000F already exists.", fields[0], fields[1]));
                 return;
             } else {
                 this.Aliases.Add(key, e.Parameters[1]);
-                this.Say(e.Connection, e.Sender.Nickname, string.Format("Added an alias \u000307{0}/\u000308{1}\u000F.", fields[0], fields[1]));
+                Bot.Say(e.Connection, e.Sender.Nickname, string.Format("Added an alias \u000307{0}/\u000308{1}\u000F.", fields[0], fields[1]));
             }
 
             if (!dotTarget) {
@@ -808,13 +807,13 @@ namespace FAQ
                     found = false;
                 } catch (BrokenAliasException) {
                     if (target == ".")
-                        this.Say(e.Connection, e.Sender.Nickname, "You haven't yet set a target for the dot.");
+                        Bot.Say(e.Connection, e.Sender.Nickname, "You haven't yet set a target for the dot.");
                     else
-                        this.Say(e.Connection, e.Sender.Nickname, string.Format("The alias \u0002{0}\u0002 seems to be broken.", target));
+                        Bot.Say(e.Connection, e.Sender.Nickname, string.Format("The alias \u0002{0}\u0002 seems to be broken.", target));
                     return;
                 } catch (MultipleContextException ex) {
-                    this.Say(e.Connection, e.Sender.Nickname, string.Format("Multiple maching factoids were found."));
-                    this.Say(e.Connection, e.Sender.Nickname, string.Format("Please specify one of:\u0002 {0}\u0002.", string.Join("\u0002, \u0002", ex.matches)));
+                    Bot.Say(e.Connection, e.Sender.Nickname, string.Format("Multiple maching factoids were found."));
+                    Bot.Say(e.Connection, e.Sender.Nickname, string.Format("Please specify one of:\u0002 {0}\u0002.", string.Join("\u0002, \u0002", ex.matches)));
                     return;
                 }
 
@@ -841,10 +840,10 @@ namespace FAQ
                         displayKey = "\u000308" + fields[1] + "\u000F";
 
                     if (matches.Count == 0) {
-                        this.Say(e.Connection, e.Sender.Nickname, string.Format("{0} has no aliases.", string.Join(", ", matches)));
+                        Bot.Say(e.Connection, e.Sender.Nickname, string.Format("{0} has no aliases.", string.Join(", ", matches)));
                     } else {
-                        this.Say(e.Connection, e.Sender.Nickname, string.Format("{0} has the following aliases:", displayKey));
-                        this.Say(e.Connection, e.Sender.Nickname, string.Join(", ", matches));
+                        Bot.Say(e.Connection, e.Sender.Nickname, string.Format("{0} has the following aliases:", displayKey));
+                        Bot.Say(e.Connection, e.Sender.Nickname, string.Join(", ", matches));
                     }
                     return;
                 }
@@ -855,23 +854,23 @@ namespace FAQ
                 try {
                     target = this.FindContext(e.Connection, e.Channel);
                 } catch (KeyNotFoundException) {
-                    this.Say(e.Connection, e.Sender.Nickname, "There is no FAQ context assigned to this channel.");
+                    Bot.Say(e.Connection, e.Sender.Nickname, "There is no FAQ context assigned to this channel.");
                     return;
                 } catch (MultipleContextException ex) {
-                    this.Say(e.Connection, e.Sender.Nickname, "There is more than one FAQ context assigned to this channel.");
-                    this.Say(e.Connection, e.Sender.Nickname, string.Format("Please specify one of: \u000307{0}\u000F.", string.Join("\u000F, \u000307", ex.matches)));
+                    Bot.Say(e.Connection, e.Sender.Nickname, "There is more than one FAQ context assigned to this channel.");
+                    Bot.Say(e.Connection, e.Sender.Nickname, string.Format("Please specify one of: \u000307{0}\u000F.", string.Join("\u000F, \u000307", ex.matches)));
                     return;
                 }
             } else {
                 target = e.Parameters[0];
                 if (!this.Contexts.ContainsKey(target)) {
-                    this.Say(e.Connection, e.Sender.Nickname, "That context isn't defined.");
+                    Bot.Say(e.Connection, e.Sender.Nickname, "That context isn't defined.");
                     return;
                 }
             }
 
             if (!Bot.UserHasPermission(e.Connection, e.Channel, e.Sender.Nickname, MyKey + ".list." + target.Replace('/', '.'))) {
-                this.Say(e.Connection, e.Sender.Nickname, string.Format("You don't have permission to list the context of \u0002{0}\u0002.", target));
+                Bot.Say(e.Connection, e.Sender.Nickname, string.Format("You don't have permission to list the context of \u0002{0}\u0002.", target));
                 return;
             }
             bool listHidden = Bot.UserHasPermission(e.Connection, e.Channel, e.Sender.Nickname, MyKey + ".listhidden." + target.Replace('/', '.'));
@@ -893,10 +892,10 @@ namespace FAQ
             }
 
             if (matches.Count == 0) {
-                this.Say(e.Connection, e.Sender.Nickname, string.Format("There are no aliases in the context of \u0002{0}\u0002.", target));
+                Bot.Say(e.Connection, e.Sender.Nickname, string.Format("There are no aliases in the context of \u0002{0}\u0002.", target));
             } else {
-                this.Say(e.Connection, e.Sender.Nickname, string.Format("The following aliases have been set for the context of \u0002{0}\u0002:", target));
-                this.Say(e.Connection, e.Sender.Nickname, string.Join(", ", matches));
+                Bot.Say(e.Connection, e.Sender.Nickname, string.Format("The following aliases have been set for the context of \u0002{0}\u0002:", target));
+                Bot.Say(e.Connection, e.Sender.Nickname, string.Join(", ", matches));
             }
         }
 
@@ -915,20 +914,20 @@ namespace FAQ
             try {
                 factoid = this.FindFactoid(e.Connection, e.Channel, e.Sender, ref target);
             } catch (KeyNotFoundException) {
-                this.Say(e.Connection, e.Sender.Nickname, "That factoid isn't defined.");
+                Bot.Say(e.Connection, e.Sender.Nickname, "That factoid isn't defined.");
                 return;
             } catch (BrokenAliasException) {
                 if (target == ".")
-                    this.Say(e.Connection, e.Sender.Nickname, "You haven't yet set a target for the dot.");
+                    Bot.Say(e.Connection, e.Sender.Nickname, "You haven't yet set a target for the dot.");
                 return;
             } catch (MultipleContextException ex) {
-                this.Say(e.Connection, e.Sender.Nickname, string.Format("Multiple maching factoids were found."));
-                this.Say(e.Connection, e.Sender.Nickname, string.Format("Please specify one of:\u0002 {0}\u0002.", string.Join("\u0002, \u0002", ex.matches)));
+                Bot.Say(e.Connection, e.Sender.Nickname, string.Format("Multiple maching factoids were found."));
+                Bot.Say(e.Connection, e.Sender.Nickname, string.Format("Please specify one of:\u0002 {0}\u0002.", string.Join("\u0002, \u0002", ex.matches)));
                 return;
             }
             string[] fields = this.GetContextAndKey(target);
             if (!Bot.UserHasPermission(e.Connection, e.Channel, e.Sender.Nickname, MyKey + ".delete." + fields[0].Replace('/', '.'))) {
-                this.Say(e.Connection, e.Sender.Nickname, string.Format("You don't have permission to delete from the context of \u0002{0}\u0002.", fields[0]));
+                Bot.Say(e.Connection, e.Sender.Nickname, string.Format("You don't have permission to delete from the context of \u0002{0}\u0002.", fields[0]));
                 return;
             }
             this.Factoids.Remove(target);
@@ -938,7 +937,7 @@ namespace FAQ
                 displayKey = "\u000307" + fields[0] + "/\u000308" + fields[1] + "\u000F";
             else
                 displayKey = "\u000308" + fields[1] + "\u000F";
-            this.Say(e.Connection, e.Sender.Nickname, string.Format("Deleted the factoid {0}.", displayKey));
+            Bot.Say(e.Connection, e.Sender.Nickname, string.Format("Deleted the factoid {0}.", displayKey));
         }
 
         [Regex(@"^\?@-\s+(\S+)", ".delete")]
@@ -955,7 +954,7 @@ namespace FAQ
                 dotTarget = true;
                 userKey = e.Connection.NetworkName + "/" + e.Sender.Nickname;
                 if (!this.Targets.TryGetValue(userKey, out target)) {
-                    this.Say(e.Connection, e.Sender.Nickname, "You haven't yet set a target for the dot.");
+                    Bot.Say(e.Connection, e.Sender.Nickname, "You haven't yet set a target for the dot.");
                     return;
                 }
             } else
@@ -966,19 +965,19 @@ namespace FAQ
                 try {
                     fields[0] = this.FindContext(e.Connection, e.Channel);
                 } catch (KeyNotFoundException) {
-                    this.Say(e.Connection, e.Sender.Nickname, "There is no FAQ context assigned to this channel.");
+                    Bot.Say(e.Connection, e.Sender.Nickname, "There is no FAQ context assigned to this channel.");
                     return;
                 } catch (MultipleContextException ex) {
-                    this.Say(e.Connection, e.Sender.Nickname, "There is more than one FAQ context assigned to this channel.");
-                    this.Say(e.Connection, e.Sender.Nickname, string.Format("Please specify one of: \u000307{0}\u000F.", string.Join("\u000F, \u000307", ex.matches.Select(s => s + "/\u000308" + fields[1]))));
+                    Bot.Say(e.Connection, e.Sender.Nickname, "There is more than one FAQ context assigned to this channel.");
+                    Bot.Say(e.Connection, e.Sender.Nickname, string.Format("Please specify one of: \u000307{0}\u000F.", string.Join("\u000F, \u000307", ex.matches.Select(s => s + "/\u000308" + fields[1]))));
                     return;
                 }
             }
 
             if (this.Aliases.Remove(target)) {
-                this.Say(e.Connection, e.Sender.Nickname, string.Format("Removed the alias \u000307{0}/\u000308{1}\u000F.", fields[0], fields[1]));
+                Bot.Say(e.Connection, e.Sender.Nickname, string.Format("Removed the alias \u000307{0}/\u000308{1}\u000F.", fields[0], fields[1]));
             } else {
-                this.Say(e.Connection, e.Sender.Nickname, string.Format("The alias \u000307{0}/\u000308{1}\u000F isn't defined.", fields[0], fields[1]));
+                Bot.Say(e.Connection, e.Sender.Nickname, string.Format("The alias \u000307{0}/\u000308{1}\u000F isn't defined.", fields[0], fields[1]));
                 return;
             }
 
@@ -997,20 +996,20 @@ namespace FAQ
             try {
                 factoid = this.FindFactoid(e.Connection, e.Channel, e.Sender, ref target);
             } catch (KeyNotFoundException) {
-                this.Say(e.Connection, e.Sender.Nickname, "That factoid isn't defined.");
+                Bot.Say(e.Connection, e.Sender.Nickname, "That factoid isn't defined.");
                 return;
             } catch (BrokenAliasException) {
                 if (target == ".")
-                    this.Say(e.Connection, e.Sender.Nickname, "You haven't yet set a target for the dot.");
+                    Bot.Say(e.Connection, e.Sender.Nickname, "You haven't yet set a target for the dot.");
                 return;
             } catch (MultipleContextException ex) {
-                this.Say(e.Connection, e.Sender.Nickname, string.Format("Multiple maching factoids were found."));
-                this.Say(e.Connection, e.Sender.Nickname, string.Format("Please specify one of:\u0002 {0}\u0002.", string.Join("\u0002, \u0002", ex.matches)));
+                Bot.Say(e.Connection, e.Sender.Nickname, string.Format("Multiple maching factoids were found."));
+                Bot.Say(e.Connection, e.Sender.Nickname, string.Format("Please specify one of:\u0002 {0}\u0002.", string.Join("\u0002, \u0002", ex.matches)));
                 return;
             }
             string[] fields = this.GetContextAndKey(target);
             if (!Bot.UserHasPermission(e.Connection, e.Channel, e.Sender.Nickname, MyKey + ".set." + fields[0].Replace('/', '.'))) {
-                this.Say(e.Connection, e.Sender.Nickname, string.Format("You don't have permission to modify factoids in the context of \u0002{0}\u0002.", fields[0]));
+                Bot.Say(e.Connection, e.Sender.Nickname, string.Format("You don't have permission to modify factoids in the context of \u0002{0}\u0002.", fields[0]));
                 return;
             }
 
@@ -1024,40 +1023,40 @@ namespace FAQ
                 switch (e.Parameters[1].ToUpperInvariant()) {
                     case "RATELIMITCOUNT":
                         if (factoid.RateLimitCount == 0)
-                            this.Say(e.Connection, e.Channel, string.Format("The rate limit for {0} is disabled.", displayKey, factoid.RateLimitCount));
+                            Bot.Say(e.Connection, e.Channel, string.Format("The rate limit for {0} is disabled.", displayKey, factoid.RateLimitCount));
                         else if (factoid.RateLimitCount == 1)
-                            this.Say(e.Connection, e.Channel, string.Format("The rate limit for {0} is set to \u0002{1}\u0002 trigger.", displayKey, factoid.RateLimitCount));
+                            Bot.Say(e.Connection, e.Channel, string.Format("The rate limit for {0} is set to \u0002{1}\u0002 trigger.", displayKey, factoid.RateLimitCount));
                         else
-                            this.Say(e.Connection, e.Channel, string.Format("The rate limit for {0} is set to \u0002{1}\u0002 triggers.", displayKey, factoid.RateLimitCount));
+                            Bot.Say(e.Connection, e.Channel, string.Format("The rate limit for {0} is set to \u0002{1}\u0002 triggers.", displayKey, factoid.RateLimitCount));
                         break;
                     case "RATELIMITTIME":
                         if (factoid.RateLimitTime == 0)
-                            this.Say(e.Connection, e.Channel, string.Format("The rate limit for {0} is disabled.", displayKey, factoid.RateLimitTime));
+                            Bot.Say(e.Connection, e.Channel, string.Format("The rate limit for {0} is disabled.", displayKey, factoid.RateLimitTime));
                         else if (factoid.RateLimitTime == 1)
-                            this.Say(e.Connection, e.Channel, string.Format("The rate limit for {0} is set to \u0002{1}\u0002 second.", displayKey, factoid.RateLimitTime));
+                            Bot.Say(e.Connection, e.Channel, string.Format("The rate limit for {0} is set to \u0002{1}\u0002 second.", displayKey, factoid.RateLimitTime));
                         else
-                            this.Say(e.Connection, e.Channel, string.Format("The rate limit for {0} is set to \u0002{1}\u0002 seconds.", displayKey, factoid.RateLimitTime));
+                            Bot.Say(e.Connection, e.Channel, string.Format("The rate limit for {0} is set to \u0002{1}\u0002 seconds.", displayKey, factoid.RateLimitTime));
                         break;
                     case "HIDELABEL":
                         if (factoid.HideLabel)
-                            this.Say(e.Connection, e.Channel, string.Format("{0} is set to \u00039hide\u000F the label when it is triggered.", displayKey));
+                            Bot.Say(e.Connection, e.Channel, string.Format("{0} is set to \u00039hide\u000F the label when it is triggered.", displayKey));
                         else
-                            this.Say(e.Connection, e.Channel, string.Format("{0} is set to \u00034show\u000F the label when it is triggered.", displayKey));
+                            Bot.Say(e.Connection, e.Channel, string.Format("{0} is set to \u00034show\u000F the label when it is triggered.", displayKey));
                         break;
                     case "HIDDEN":
                         if (factoid.HideLabel)
-                            this.Say(e.Connection, e.Channel, string.Format("{0} is \u00039hidden\u000F.", displayKey));
+                            Bot.Say(e.Connection, e.Channel, string.Format("{0} is \u00039hidden\u000F.", displayKey));
                         else
-                            this.Say(e.Connection, e.Channel, string.Format("{0} is \u00034listed\u000F.", displayKey));
+                            Bot.Say(e.Connection, e.Channel, string.Format("{0} is \u00034listed\u000F.", displayKey));
                         break;
                     case "NOTICEONJOIN":
                         if (factoid.HideLabel)
-                            this.Say(e.Connection, e.Channel, string.Format("{0} is set to \u00039NOTICE the user\u000F when triggered by joins.", displayKey));
+                            Bot.Say(e.Connection, e.Channel, string.Format("{0} is set to \u00039NOTICE the user\u000F when triggered by joins.", displayKey));
                         else
-                            this.Say(e.Connection, e.Channel, string.Format("{0} is set to \u00034PRIVMSG the channel\u000F when triggered by joins.", displayKey));
+                            Bot.Say(e.Connection, e.Channel, string.Format("{0} is set to \u00034PRIVMSG the channel\u000F when triggered by joins.", displayKey));
                         break;
                     default:
-                        this.Say(e.Connection, e.Sender.Nickname, string.Format("I don't manage a setting named \u0002{0}\u0002 for factoids.", e.Parameters[1]));
+                        Bot.Say(e.Connection, e.Sender.Nickname, string.Format("I don't manage a setting named \u0002{0}\u0002 for factoids.", e.Parameters[1]));
                         break;
                 }
             } else {
@@ -1066,63 +1065,63 @@ namespace FAQ
                     case "RATELIMITCOUNT":
                         if (int.TryParse(e.Parameters[2], out value)) {
                             if (value < 0)
-                                this.Say(e.Connection, e.Channel, string.Format("That's not a valid value. Use a non-negative number.", displayKey, value));
+                                Bot.Say(e.Connection, e.Channel, string.Format("That's not a valid value. Use a non-negative number.", displayKey, value));
                             else {
                                 factoid.RateLimitCount = value;
                                 if (value == 0)
-                                    this.Say(e.Connection, e.Channel, string.Format("The rate limit for {0} is now disabled.", displayKey, value));
+                                    Bot.Say(e.Connection, e.Channel, string.Format("The rate limit for {0} is now disabled.", displayKey, value));
                                 else if (value == 1)
-                                    this.Say(e.Connection, e.Channel, string.Format("The rate limit for {0} is now set to \u0002{1}\u0002 trigger.", displayKey, value));
+                                    Bot.Say(e.Connection, e.Channel, string.Format("The rate limit for {0} is now set to \u0002{1}\u0002 trigger.", displayKey, value));
                                 else
-                                    this.Say(e.Connection, e.Channel, string.Format("The rate limit for {0} is now set to \u0002{1}\u0002 triggers.", displayKey, value));
+                                    Bot.Say(e.Connection, e.Channel, string.Format("The rate limit for {0} is now set to \u0002{1}\u0002 triggers.", displayKey, value));
                             }
                         } else
-                            this.Say(e.Connection, e.Channel, string.Format("That's not a valid integer.", displayKey, value));
+                            Bot.Say(e.Connection, e.Channel, string.Format("That's not a valid integer.", displayKey, value));
                         break;
                     case "RATELIMITTIME":
                         if (int.TryParse(e.Parameters[2], out value)) {
                             if (value < 0)
-                                this.Say(e.Connection, e.Channel, string.Format("That's not a valid value. Use a non-negative number.", displayKey, value));
+                                Bot.Say(e.Connection, e.Channel, string.Format("That's not a valid value. Use a non-negative number.", displayKey, value));
                             else {
                                 factoid.RateLimitTime = value;
                                 if (value == 0)
-                                    this.Say(e.Connection, e.Channel, string.Format("The rate limit for {0} is now disabled.", displayKey, value));
+                                    Bot.Say(e.Connection, e.Channel, string.Format("The rate limit for {0} is now disabled.", displayKey, value));
                                 else if (value == 1)
-                                    this.Say(e.Connection, e.Channel, string.Format("The rate limit for {0} is now set to \u0002{1}\u0002 second.", displayKey, value));
+                                    Bot.Say(e.Connection, e.Channel, string.Format("The rate limit for {0} is now set to \u0002{1}\u0002 second.", displayKey, value));
                                 else
-                                    this.Say(e.Connection, e.Channel, string.Format("The rate limit for {0} is now set to \u0002{1}\u0002 seconds.", displayKey, value));
+                                    Bot.Say(e.Connection, e.Channel, string.Format("The rate limit for {0} is now set to \u0002{1}\u0002 seconds.", displayKey, value));
                             }
                         }
                         break;
                     case "HIDELABEL":
                         if (Bot.TryParseBoolean(e.Parameters[2], out factoid.HideLabel)) {
                             if (factoid.HideLabel)
-                                this.Say(e.Connection, e.Channel, string.Format("{0} is now set to \u00039hide\u000F the label when it is triggered.", displayKey));
+                                Bot.Say(e.Connection, e.Channel, string.Format("{0} is now set to \u00039hide\u000F the label when it is triggered.", displayKey));
                             else
-                                this.Say(e.Connection, e.Channel, string.Format("{0} is now set to \u00034show\u000F the label when it is triggered.", displayKey));
+                                Bot.Say(e.Connection, e.Channel, string.Format("{0} is now set to \u00034show\u000F the label when it is triggered.", displayKey));
                         } else
-                            this.Say(e.Connection, e.Sender.Nickname, string.Format("I don't recognise '{0}' as a Boolean value. Please enter 'true' or 'false'.", e.Parameters[2]));
+                            Bot.Say(e.Connection, e.Sender.Nickname, string.Format("I don't recognise '{0}' as a Boolean value. Please enter 'true' or 'false'.", e.Parameters[2]));
                         break;
                     case "HIDDEN":
                         if (Bot.TryParseBoolean(e.Parameters[2], out factoid.Hidden)) {
                             if (factoid.Hidden)
-                                this.Say(e.Connection, e.Channel, string.Format("{0} is now \u00039hidden\u000F.", displayKey));
+                                Bot.Say(e.Connection, e.Channel, string.Format("{0} is now \u00039hidden\u000F.", displayKey));
                             else
-                                this.Say(e.Connection, e.Channel, string.Format("{0} is now \u00034listed\u000F.", displayKey));
+                                Bot.Say(e.Connection, e.Channel, string.Format("{0} is now \u00034listed\u000F.", displayKey));
                         } else
-                            this.Say(e.Connection, e.Sender.Nickname, string.Format("I don't recognise '{0}' as a Boolean value. Please enter 'true' or 'false'.", e.Parameters[2]));
+                            Bot.Say(e.Connection, e.Sender.Nickname, string.Format("I don't recognise '{0}' as a Boolean value. Please enter 'true' or 'false'.", e.Parameters[2]));
                         break;
                     case "NOTICEONJOIN":
                         if (Bot.TryParseBoolean(e.Parameters[2], out factoid.HideLabel)) {
                             if (factoid.NoticeOnJoin)
-                                this.Say(e.Connection, e.Channel, string.Format("{0} is now set to \u00039NOTICE the user\u000F when triggered by joins.", displayKey));
+                                Bot.Say(e.Connection, e.Channel, string.Format("{0} is now set to \u00039NOTICE the user\u000F when triggered by joins.", displayKey));
                             else
-                                this.Say(e.Connection, e.Channel, string.Format("{0} is now set to \u00034PRIVMSG the channel\u000F when triggered by joins.", displayKey));
+                                Bot.Say(e.Connection, e.Channel, string.Format("{0} is now set to \u00034PRIVMSG the channel\u000F when triggered by joins.", displayKey));
                         } else
-                            this.Say(e.Connection, e.Sender.Nickname, string.Format("I don't recognise '{0}' as a Boolean value. Please enter 'true' or 'false'.", e.Parameters[2]));
+                            Bot.Say(e.Connection, e.Sender.Nickname, string.Format("I don't recognise '{0}' as a Boolean value. Please enter 'true' or 'false'.", e.Parameters[2]));
                         break;
                     default:
-                        this.Say(e.Connection, e.Sender.Nickname, string.Format("I don't manage a setting named \u0002{0}\u0002 for factoids.", e.Parameters[1]));
+                        Bot.Say(e.Connection, e.Sender.Nickname, string.Format("I don't manage a setting named \u0002{0}\u0002 for factoids.", e.Parameters[1]));
                         break;
                 }
             }
@@ -1134,11 +1133,11 @@ namespace FAQ
             List<string> channels = new List<string>();
 
             if (e.Parameters[0] == ".") {
-                this.Say(e.Connection, e.Sender.Nickname, "You can't use the dot here.");
+                Bot.Say(e.Connection, e.Sender.Nickname, "You can't use the dot here.");
                 return;
             }
             if (this.Contexts.ContainsKey(e.Parameters[0]))
-                this.Say(e.Connection, e.Sender.Nickname, string.Format("The context\u00037 {0}\u000F has already been set. Changing its associated channels.", e.Parameters[0]));
+                Bot.Say(e.Connection, e.Sender.Nickname, string.Format("The context\u00037 {0}\u000F has already been set. Changing its associated channels.", e.Parameters[0]));
 
             if (e.Parameters.Length == 1)
                 channels.Add("*");
@@ -1146,7 +1145,7 @@ namespace FAQ
                 channels.AddRange(e.Parameters[1].Split(new char[] { ',', ' ' }, StringSplitOptions.RemoveEmptyEntries));
 
             this.Contexts[e.Parameters[0]] = channels.ToArray();
-            this.Say(e.Connection, e.Sender.Nickname, string.Format("Added a context \u0002{0}\u0002.", e.Parameters[0]));
+            Bot.Say(e.Connection, e.Sender.Nickname, string.Format("Added a context \u0002{0}\u0002.", e.Parameters[0]));
         }
 
         [Command("contextlist", 0, 1, "contextlist [name]", "Lists all FAQ contexts, or all channels associated with a given context.",
@@ -1155,14 +1154,14 @@ namespace FAQ
             if (e.Parameters.Length == 1) {
                 string[] channels;
                 if (this.Contexts.TryGetValue(e.Parameters[0], out channels))
-                    this.Say(e.Connection, e.Sender.Nickname, string.Format("\u0002{0}\u0002 is assigned to: \u000307{1}", e.Parameters[0], string.Join("\u000F, \u000307", channels)));
+                    Bot.Say(e.Connection, e.Sender.Nickname, string.Format("\u0002{0}\u0002 is assigned to: \u000307{1}", e.Parameters[0], string.Join("\u000F, \u000307", channels)));
                 else
-                    this.Say(e.Connection, e.Sender.Nickname, string.Format("\u0002{0}\u0002 hasn't been defined.", e.Parameters[0]));
+                    Bot.Say(e.Connection, e.Sender.Nickname, string.Format("\u0002{0}\u0002 hasn't been defined.", e.Parameters[0]));
             } else {
                 if (this.Contexts.Count == 0) {
-                    this.Say(e.Connection, e.Sender.Nickname, "No contexts have been defined.");
+                    Bot.Say(e.Connection, e.Sender.Nickname, "No contexts have been defined.");
                 } else {
-                    this.Say(e.Connection, e.Sender.Nickname, "The following contexts have been defined:");
+                    Bot.Say(e.Connection, e.Sender.Nickname, "The following contexts have been defined:");
 
                     IEnumerator<KeyValuePair<string, string[]>> enumerator = this.Contexts.GetEnumerator();
                     StringBuilder messageBuilder = new StringBuilder();
@@ -1183,7 +1182,7 @@ namespace FAQ
                                 break;
                             }
                         }
-                        this.Say(e.Connection, e.Sender.Nickname, messageBuilder.ToString());
+                        Bot.Say(e.Connection, e.Sender.Nickname, messageBuilder.ToString());
                     }
                 }
             }
@@ -1193,9 +1192,9 @@ namespace FAQ
             ".contextdelete")]
         public void CommandContextDelete(object sender, CommandEventArgs e) {
             if (this.Contexts.Remove(e.Parameters[0]))
-                this.Say(e.Connection, e.Sender.Nickname, string.Format("Deleted the context \u0002{0}\u0002.", e.Parameters[0]));
+                Bot.Say(e.Connection, e.Sender.Nickname, string.Format("Deleted the context \u0002{0}\u0002.", e.Parameters[0]));
             else
-                this.Say(e.Connection, e.Sender.Nickname, string.Format("\u0002{0}\u0002 hasn't been defined.", e.Parameters[0]));
+                Bot.Say(e.Connection, e.Sender.Nickname, string.Format("\u0002{0}\u0002 hasn't been defined.", e.Parameters[0]));
         }
 
         [Regex(@"^\?=\s+(\S+)(?:\s+(\+?\d+)(?:\s+(.*))?)?")]
@@ -1230,24 +1229,24 @@ namespace FAQ
             try {
                 factoid = this.FindFactoid(e.Connection, e.Channel, e.Sender, ref target);
             } catch (KeyNotFoundException) {
-                this.Say(e.Connection, e.Sender.Nickname, "That factoid isn't defined.");
+                Bot.Say(e.Connection, e.Sender.Nickname, "That factoid isn't defined.");
                 return;
             } catch (BrokenAliasException) {
                 if (target == ".")
-                    this.Say(e.Connection, e.Sender.Nickname, "You haven't yet set a target for the dot.");
+                    Bot.Say(e.Connection, e.Sender.Nickname, "You haven't yet set a target for the dot.");
                 else
-                    this.Say(e.Connection, e.Sender.Nickname, string.Format("The alias \u0002{0}\u0002 seems to be broken.", target));
+                    Bot.Say(e.Connection, e.Sender.Nickname, string.Format("The alias \u0002{0}\u0002 seems to be broken.", target));
                 return;
             } catch (MultipleContextException ex) {
-                this.Say(e.Connection, e.Sender.Nickname, string.Format("Multiple maching factoids were found.", target));
-                this.Say(e.Connection, e.Sender.Nickname, string.Format("Please specify one of:\u0002 {0}\u0002.", string.Join("\u0002, \u0002", ex.matches)));
+                Bot.Say(e.Connection, e.Sender.Nickname, string.Format("Multiple maching factoids were found.", target));
+                Bot.Say(e.Connection, e.Sender.Nickname, string.Format("Please specify one of:\u0002 {0}\u0002.", string.Join("\u0002, \u0002", ex.matches)));
                 return;
             }
 
             string[] lines = factoid.Data.Split(new string[] { "\r\n", "\n", "\r" }, StringSplitOptions.RemoveEmptyEntries);
             string[] fields = this.GetContextAndKey(target);
             if (!Bot.UserHasPermission(e.Connection, e.Channel, e.Sender.Nickname, MyKey + ".edit." + fields[0].Replace('/', '.'))) {
-                this.Say(e.Connection, e.Sender.Nickname, string.Format("You don't have permission to edit factoids in the context of \u0002{0}\u0002.", fields[0]));
+                Bot.Say(e.Connection, e.Sender.Nickname, string.Format("You don't have permission to edit factoids in the context of \u0002{0}\u0002.", fields[0]));
                 return;
             }
 
@@ -1258,9 +1257,9 @@ namespace FAQ
                 displayKey = "\u000308" + fields[1] + "\u000F";
 
             if (e.Parameters.Length == 1) {
-                this.Say(e.Connection, e.Sender.Nickname, displayKey + ":");
+                Bot.Say(e.Connection, e.Sender.Nickname, displayKey + ":");
                 for (int i = 0; i < lines.Length; ++i) {
-                    this.Say(e.Connection, e.Sender.Nickname, "\u000308" + i + "\u00037:\u000F " + lines[i]);
+                    Bot.Say(e.Connection, e.Sender.Nickname, "\u000308" + i + "\u00037:\u000F " + lines[i]);
                     System.Threading.Thread.Sleep(600);
                 }
             } else if (e.Parameters.Length == 2) {
@@ -1274,12 +1273,12 @@ namespace FAQ
                                 factoid.Data += lines[i];
                             }
                         }
-                        this.Say(e.Connection, e.Sender.Nickname, string.Format("Removed line {1} from {0}.", displayKey, e.Parameters[1]));
+                        Bot.Say(e.Connection, e.Sender.Nickname, string.Format("Removed line {1} from {0}.", displayKey, e.Parameters[1]));
                     } else {
-                        this.Say(e.Connection, e.Sender.Nickname, string.Format("{0} has no line number {1}.", displayKey, e.Parameters[1]));
+                        Bot.Say(e.Connection, e.Sender.Nickname, string.Format("{0} has no line number {1}.", displayKey, e.Parameters[1]));
                     }
                 } else
-                    this.Say(e.Connection, e.Sender.Nickname, string.Format("That's not a valid integer.", e.Parameters[1]));
+                    Bot.Say(e.Connection, e.Sender.Nickname, string.Format("That's not a valid integer.", e.Parameters[1]));
             } else {
                 string lineString = e.Parameters[1];
                 bool insert; int line;
@@ -1306,7 +1305,7 @@ namespace FAQ
                                     factoid.Data += lines[i];
                                 }
                             }
-                            this.Say(e.Connection, e.Sender.Nickname, string.Format("Added text as line {1} to {0}.", displayKey, e.Parameters[1]));
+                            Bot.Say(e.Connection, e.Sender.Nickname, string.Format("Added text as line {1} to {0}.", displayKey, e.Parameters[1]));
                         } else {
                             for (int i = 0; i < lines.Length; ++i) {
                                 if (i == line) {
@@ -1317,13 +1316,13 @@ namespace FAQ
                                     factoid.Data += lines[i];
                                 }
                             }
-                            this.Say(e.Connection, e.Sender.Nickname, string.Format("Changed line {1} to {0}.", displayKey, e.Parameters[1]));
+                            Bot.Say(e.Connection, e.Sender.Nickname, string.Format("Changed line {1} to {0}.", displayKey, e.Parameters[1]));
                         }
                     } else {
-                        this.Say(e.Connection, e.Sender.Nickname, string.Format("{0} doesn't have a line number {1}.", displayKey, e.Parameters[1]));
+                        Bot.Say(e.Connection, e.Sender.Nickname, string.Format("{0} doesn't have a line number {1}.", displayKey, e.Parameters[1]));
                     }
                 } else
-                    this.Say(e.Connection, e.Sender.Nickname, string.Format("That's not a valid integer.", e.Parameters[1]));
+                    Bot.Say(e.Connection, e.Sender.Nickname, string.Format("That's not a valid integer.", e.Parameters[1]));
             }
         }
 
@@ -1334,7 +1333,7 @@ namespace FAQ
                 e.Match.Groups[1].Value, e.Match.Groups[2].Value
             }));
         }
-        [Command("faqregexadd", 2, 2, "faqregexadd <key> [[MSG:|ACTION:|JOIN:|PART:|QUIT:|KICK:|EXIT:|NICK:]<user mask>:<channel mask>:<permission>]<regex>", "Assigns a regular expression to a FAQ entry. When someone sends a message to a channel within the FAQ's context that matches the regex, the FAQ data will be displayed in the channel.",
+        [Command("faqregexadd", 2, 2, "faqregexadd <key> [[MSG:|ACTION:|JOIN:|PART:|QUIT:|KICK:|LEAVE:|NICK:]<user mask>:<channel mask>:<permission>]<regex>", "Assigns a regular expression to a FAQ entry. When someone sends a message to a channel within the FAQ's context that matches the regex, the FAQ data will be displayed in the channel.",
             ".regex")]
         public void CommandFactoidRegexAdd(object sender, CommandEventArgs e) {
             string target;
@@ -1344,23 +1343,23 @@ namespace FAQ
             try {
                 factoid = this.FindFactoid(e.Connection, e.Channel, e.Sender, ref target);
             } catch (KeyNotFoundException) {
-                this.Say(e.Connection, e.Sender.Nickname, "That factoid isn't defined.");
+                Bot.Say(e.Connection, e.Sender.Nickname, "That factoid isn't defined.");
                 return;
             } catch (BrokenAliasException) {
                 if (target == ".")
-                    this.Say(e.Connection, e.Sender.Nickname, "You haven't yet set a target for the dot.");
+                    Bot.Say(e.Connection, e.Sender.Nickname, "You haven't yet set a target for the dot.");
                 else
-                    this.Say(e.Connection, e.Sender.Nickname, string.Format("The alias \u0002{0}\u0002 seems to be broken.", target));
+                    Bot.Say(e.Connection, e.Sender.Nickname, string.Format("The alias \u0002{0}\u0002 seems to be broken.", target));
                 return;
             } catch (MultipleContextException ex) {
-                this.Say(e.Connection, e.Sender.Nickname, string.Format("Multiple maching factoids were found.", target));
-                this.Say(e.Connection, e.Sender.Nickname, string.Format("Please specify one of:\u0002 {0}\u0002.", string.Join("\u0002, \u0002", ex.matches)));
+                Bot.Say(e.Connection, e.Sender.Nickname, string.Format("Multiple maching factoids were found.", target));
+                Bot.Say(e.Connection, e.Sender.Nickname, string.Format("Please specify one of:\u0002 {0}\u0002.", string.Join("\u0002, \u0002", ex.matches)));
                 return;
             }
 
             string[] fields = this.GetContextAndKey(target);
             if (!Bot.UserHasPermission(e.Connection, e.Channel, e.Sender.Nickname, MyKey + ".regex." + fields[0].Replace('/', '.'))) {
-                this.Say(e.Connection, e.Sender.Nickname, string.Format("You don't have permission to assign expressions to factoids in the context of \u0002{0}\u0002.", fields[0]));
+                Bot.Say(e.Connection, e.Sender.Nickname, string.Format("You don't have permission to assign expressions to factoids in the context of \u0002{0}\u0002.", fields[0]));
                 return;
             }
 
@@ -1371,7 +1370,7 @@ namespace FAQ
                 displayKey = "\u000308" + fields[1] + "\u000F";
 
             factoid.Expressions.Add(e.Parameters[1]);
-            this.Say(e.Connection, e.Sender.Nickname, string.Format("Added a regular expression {0}.", displayKey));
+            Bot.Say(e.Connection, e.Sender.Nickname, string.Format("Added a regular expression {0}.", displayKey));
         }
 
         [Regex(@"^\?\*:\s+(\S+)", ".regex")]
@@ -1391,23 +1390,23 @@ namespace FAQ
             try {
                 factoid = this.FindFactoid(e.Connection, e.Channel, e.Sender, ref target);
             } catch (KeyNotFoundException) {
-                this.Say(e.Connection, e.Sender.Nickname, "That factoid isn't defined.");
+                Bot.Say(e.Connection, e.Sender.Nickname, "That factoid isn't defined.");
                 return;
             } catch (BrokenAliasException) {
                 if (target == ".")
-                    this.Say(e.Connection, e.Sender.Nickname, "You haven't yet set a target for the dot.");
+                    Bot.Say(e.Connection, e.Sender.Nickname, "You haven't yet set a target for the dot.");
                 else
-                    this.Say(e.Connection, e.Sender.Nickname, string.Format("The alias \u0002{0}\u0002 seems to be broken.", target));
+                    Bot.Say(e.Connection, e.Sender.Nickname, string.Format("The alias \u0002{0}\u0002 seems to be broken.", target));
                 return;
             } catch (MultipleContextException ex) {
-                this.Say(e.Connection, e.Sender.Nickname, string.Format("Multiple maching factoids were found.", target));
-                this.Say(e.Connection, e.Sender.Nickname, string.Format("Please specify one of:\u0002 {0}\u0002.", string.Join("\u0002, \u0002", ex.matches)));
+                Bot.Say(e.Connection, e.Sender.Nickname, string.Format("Multiple maching factoids were found.", target));
+                Bot.Say(e.Connection, e.Sender.Nickname, string.Format("Please specify one of:\u0002 {0}\u0002.", string.Join("\u0002, \u0002", ex.matches)));
                 return;
             }
 
             string[] fields = this.GetContextAndKey(target);
             if (!Bot.UserHasPermission(e.Connection, e.Channel, e.Sender.Nickname, MyKey + ".regex." + fields[0].Replace('/', '.'))) {
-                this.Say(e.Connection, e.Sender.Nickname, string.Format("You don't have permission to assign expressions to factoids in the context of \u0002{0}\u0002.", fields[0]));
+                Bot.Say(e.Connection, e.Sender.Nickname, string.Format("You don't have permission to assign expressions to factoids in the context of \u0002{0}\u0002.", fields[0]));
                 return;
             }
 
@@ -1418,9 +1417,9 @@ namespace FAQ
                 displayKey = "\u000308" + fields[1] + "\u000F";
 
             if (factoid.Expressions.Count == 0)
-                this.Say(e.Connection, e.Channel, string.Format("{0} has no regular expressions.", displayKey));
+                Bot.Say(e.Connection, e.Channel, string.Format("{0} has no regular expressions.", displayKey));
             else {
-                this.Say(e.Connection, e.Channel, string.Format("The following regular expressions are assigned to {0}:", displayKey));
+                Bot.Say(e.Connection, e.Channel, string.Format("The following regular expressions are assigned to {0}:", displayKey));
                 int bound; int i;
                 if (e.Parameters.Length == 2) {
                     if (int.TryParse(e.Parameters[1], out bound))
@@ -1432,7 +1431,7 @@ namespace FAQ
                 i = bound;
                 bound += 8;
                 for (; i < factoid.Expressions.Count && i < bound; ++i)
-                    this.Say(e.Connection, e.Channel, "\u000308" + i + "\u000307:\u000F " + factoid.Expressions[i]);
+                    Bot.Say(e.Connection, e.Channel, "\u000308" + i + "\u000307:\u000F " + factoid.Expressions[i]);
             }
         }
 
@@ -1470,23 +1469,23 @@ namespace FAQ
             try {
                 factoid = this.FindFactoid(e.Connection, e.Channel, e.Sender, ref target);
             } catch (KeyNotFoundException) {
-                this.Say(e.Connection, e.Sender.Nickname, "That factoid isn't defined.");
+                Bot.Say(e.Connection, e.Sender.Nickname, "That factoid isn't defined.");
                 return;
             } catch (BrokenAliasException) {
                 if (target == ".")
-                    this.Say(e.Connection, e.Sender.Nickname, "You haven't yet set a target for the dot.");
+                    Bot.Say(e.Connection, e.Sender.Nickname, "You haven't yet set a target for the dot.");
                 else
-                    this.Say(e.Connection, e.Sender.Nickname, string.Format("The alias \u0002{0}\u0002 seems to be broken.", target));
+                    Bot.Say(e.Connection, e.Sender.Nickname, string.Format("The alias \u0002{0}\u0002 seems to be broken.", target));
                 return;
             } catch (MultipleContextException ex) {
-                this.Say(e.Connection, e.Sender.Nickname, string.Format("Multiple maching factoids were found.", target));
-                this.Say(e.Connection, e.Sender.Nickname, string.Format("Please specify one of:\u0002 {0}\u0002.", string.Join("\u0002, \u0002", ex.matches)));
+                Bot.Say(e.Connection, e.Sender.Nickname, string.Format("Multiple maching factoids were found.", target));
+                Bot.Say(e.Connection, e.Sender.Nickname, string.Format("Please specify one of:\u0002 {0}\u0002.", string.Join("\u0002, \u0002", ex.matches)));
                 return;
             }
 
             string[] fields = this.GetContextAndKey(target);
             if (!Bot.UserHasPermission(e.Connection, e.Channel, e.Sender.Nickname, MyKey + ".regex." + fields[0].Replace('/', '.'))) {
-                this.Say(e.Connection, e.Sender.Nickname, string.Format("You don't have permission to assign expressions to factoids in the context of \u0002{0}\u0002.", fields[0]));
+                Bot.Say(e.Connection, e.Sender.Nickname, string.Format("You don't have permission to assign expressions to factoids in the context of \u0002{0}\u0002.", fields[0]));
                 return;
             }
 
@@ -1501,28 +1500,28 @@ namespace FAQ
                 if (int.TryParse(e.Parameters[1], out line)) {
                     if (line >= 0 && line < factoid.Expressions.Count) {
                         factoid.Expressions.RemoveAt(line);
-                        this.Say(e.Connection, e.Sender.Nickname, string.Format("Removed expression {1} from {0}.", displayKey, e.Parameters[1]));
+                        Bot.Say(e.Connection, e.Sender.Nickname, string.Format("Removed expression {1} from {0}.", displayKey, e.Parameters[1]));
                     } else {
-                        this.Say(e.Connection, e.Sender.Nickname, string.Format("{0} has no expression number {1}.", displayKey, e.Parameters[1]));
+                        Bot.Say(e.Connection, e.Sender.Nickname, string.Format("{0} has no expression number {1}.", displayKey, e.Parameters[1]));
                     }
                 } else
-                    this.Say(e.Connection, e.Sender.Nickname, string.Format("That's not a valid integer.", e.Parameters[1]));
+                    Bot.Say(e.Connection, e.Sender.Nickname, string.Format("That's not a valid integer.", e.Parameters[1]));
             } else {
                 int line;
                 if (int.TryParse(e.Parameters[1], out line)) {
                     if (line >= 0 && line <= factoid.Expressions.Count) {
                         if (line == factoid.Expressions.Count) {
                             factoid.Expressions.Add(e.Parameters[2]);
-                            this.Say(e.Connection, e.Sender.Nickname, string.Format("Added an expression to {0}.", displayKey, e.Parameters[1]));
+                            Bot.Say(e.Connection, e.Sender.Nickname, string.Format("Added an expression to {0}.", displayKey, e.Parameters[1]));
                         } else {
                             factoid.Expressions[line] = e.Parameters[2];
-                            this.Say(e.Connection, e.Sender.Nickname, string.Format("Changed expression {1} to {0}.", displayKey, e.Parameters[1]));
+                            Bot.Say(e.Connection, e.Sender.Nickname, string.Format("Changed expression {1} to {0}.", displayKey, e.Parameters[1]));
                         }
                     } else {
-                        this.Say(e.Connection, e.Sender.Nickname, string.Format("{0} doesn't have an expression number {1}.", displayKey, e.Parameters[1]));
+                        Bot.Say(e.Connection, e.Sender.Nickname, string.Format("{0} doesn't have an expression number {1}.", displayKey, e.Parameters[1]));
                     }
                 } else
-                    this.Say(e.Connection, e.Sender.Nickname, string.Format("That's not a valid integer.", e.Parameters[1]));
+                    Bot.Say(e.Connection, e.Sender.Nickname, string.Format("That's not a valid integer.", e.Parameters[1]));
             }
         }
 
@@ -1548,23 +1547,23 @@ namespace FAQ
             try {
                 factoid = this.FindFactoid(e.Connection, e.Channel, e.Sender, ref target);
             } catch (KeyNotFoundException) {
-                this.Say(e.Connection, e.Sender.Nickname, "That factoid isn't defined.");
+                Bot.Say(e.Connection, e.Sender.Nickname, "That factoid isn't defined.");
                 return;
             } catch (BrokenAliasException) {
                 if (target == ".")
-                    this.Say(e.Connection, e.Sender.Nickname, "You haven't yet set a target for the dot.");
+                    Bot.Say(e.Connection, e.Sender.Nickname, "You haven't yet set a target for the dot.");
                 else
-                    this.Say(e.Connection, e.Sender.Nickname, string.Format("The alias \u0002{0}\u0002 seems to be broken.", target));
+                    Bot.Say(e.Connection, e.Sender.Nickname, string.Format("The alias \u0002{0}\u0002 seems to be broken.", target));
                 return;
             } catch (MultipleContextException ex) {
-                this.Say(e.Connection, e.Sender.Nickname, string.Format("Multiple maching factoids were found.", target));
-                this.Say(e.Connection, e.Sender.Nickname, string.Format("Please specify one of:\u0002 {0}\u0002.", string.Join("\u0002, \u0002", ex.matches)));
+                Bot.Say(e.Connection, e.Sender.Nickname, string.Format("Multiple maching factoids were found.", target));
+                Bot.Say(e.Connection, e.Sender.Nickname, string.Format("Please specify one of:\u0002 {0}\u0002.", string.Join("\u0002, \u0002", ex.matches)));
                 return;
             }
 
             string[] fields = this.GetContextAndKey(target);
             if (!Bot.UserHasPermission(e.Connection, e.Channel, e.Sender.Nickname, MyKey + ".regex." + fields[0].Replace('/', '.'))) {
-                this.Say(e.Connection, e.Sender.Nickname, string.Format("You don't have permission to assign expressions to factoids in the context of \u0002{0}\u0002.", fields[0]));
+                Bot.Say(e.Connection, e.Sender.Nickname, string.Format("You don't have permission to assign expressions to factoids in the context of \u0002{0}\u0002.", fields[0]));
                 return;
             }
 
@@ -1578,12 +1577,12 @@ namespace FAQ
                 if (int.TryParse(e.Parameters[1], out line)) {
                     if (line >= 0 && line < factoid.Expressions.Count) {
                         factoid.Expressions.RemoveAt(line);
-                        this.Say(e.Connection, e.Sender.Nickname, string.Format("Removed expression {1} from {0}.", displayKey, e.Parameters[1]));
+                        Bot.Say(e.Connection, e.Sender.Nickname, string.Format("Removed expression {1} from {0}.", displayKey, e.Parameters[1]));
                     } else {
-                        this.Say(e.Connection, e.Sender.Nickname, string.Format("{0} has no expression number {1}.", displayKey, e.Parameters[1]));
+                        Bot.Say(e.Connection, e.Sender.Nickname, string.Format("{0} has no expression number {1}.", displayKey, e.Parameters[1]));
                     }
                 } else
-                    this.Say(e.Connection, e.Sender.Nickname, string.Format("That's not a valid integer.", e.Parameters[1]));
+                    Bot.Say(e.Connection, e.Sender.Nickname, string.Format("That's not a valid integer.", e.Parameters[1]));
         }
 
         [Command(new string[] { "globalset", "set" }, 1, 2, "set [setting] [value]", "Changes settings for this plugin.",
@@ -1592,20 +1591,20 @@ namespace FAQ
             if (e.Parameters.Length == 1) {
                 switch (e.Parameters[0].ToUpperInvariant()) {
                     case "NOSHORTCUT":
-                        this.Say(e.Connection, e.Channel, string.Format("Shortcuts are disabled in the following channels: {0}", string.Join("\u0002, \u0002", this.NoShortcutChannels)));
+                        Bot.Say(e.Connection, e.Channel, string.Format("Shortcuts are disabled in the following channels: {0}", string.Join("\u0002, \u0002", this.NoShortcutChannels)));
                         break;
                     default:
-                        this.Say(e.Connection, e.Sender.Nickname, string.Format("I don't manage a setting named \u0002{0}\u0002.", e.Parameters[1]));
+                        Bot.Say(e.Connection, e.Sender.Nickname, string.Format("I don't manage a setting named \u0002{0}\u0002.", e.Parameters[1]));
                         break;
                 }
             } else {
                 switch (e.Parameters[0].ToUpperInvariant()) {
                     case "NOSHORTCUT":
                         this.NoShortcutChannels = new List<string>(e.Parameters[1].Split(new char[] { ',', ' ' }, StringSplitOptions.RemoveEmptyEntries));
-                        this.Say(e.Connection, e.Channel, string.Format("Shortcuts are now disabled in the following channels: {0}", string.Join("\u0002, \u0002", this.NoShortcutChannels)));
+                        Bot.Say(e.Connection, e.Channel, string.Format("Shortcuts are now disabled in the following channels: {0}", string.Join("\u0002, \u0002", this.NoShortcutChannels)));
                         break;
                     default:
-                        this.Say(e.Connection, e.Sender.Nickname, string.Format("I don't manage a setting named \u0002{0}\u0002.", e.Parameters[1]));
+                        Bot.Say(e.Connection, e.Sender.Nickname, string.Format("I don't manage a setting named \u0002{0}\u0002.", e.Parameters[1]));
                         break;
                 }
             }
@@ -1619,9 +1618,9 @@ namespace FAQ
                 this.Contexts.Clear();
                 this.Aliases.Clear();
                 this.LoadData(MyKey == "FAQ" ? "FAQ.ini" : "FAQ-" + MyKey + ".ini");
-                this.Say(e.Connection, e.Sender.Nickname, "FAQ data has been reloaded successfully.");
+                Bot.Say(e.Connection, e.Sender.Nickname, "FAQ data has been reloaded successfully.");
             } catch (Exception ex) {
-                this.Say(e.Connection, e.Sender.Nickname, string.Format("I couldn't reload FAQ data: {0}", ex.Message));
+                Bot.Say(e.Connection, e.Sender.Nickname, string.Format("I couldn't reload FAQ data: {0}", ex.Message));
             }
         }
 
@@ -1630,9 +1629,9 @@ namespace FAQ
         public void CommandSave(object sender, CommandEventArgs e) {
             try {
                 this.SaveData(MyKey == "FAQ" ? "FAQ.ini" : "FAQ-" + MyKey + ".ini");
-                this.Say(e.Connection, e.Sender.Nickname, "FAQ data has been saved successfully.");
+                Bot.Say(e.Connection, e.Sender.Nickname, "FAQ data has been saved successfully.");
             } catch (Exception ex) {
-                this.Say(e.Connection, e.Sender.Nickname, string.Format("I couldn't save FAQ data: {0}", ex.Message));
+                Bot.Say(e.Connection, e.Sender.Nickname, string.Format("I couldn't save FAQ data: {0}", ex.Message));
             }
         }
 #endregion

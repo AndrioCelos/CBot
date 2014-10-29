@@ -1,3 +1,20 @@
+Version 1.7.3 – 21 October 2014
+-------------------------------
+
+* The bot now writes stats to another file in JSON format.
+
+Version 1.7.2 – 19 October 2014
+-------------------------------
+
+* Added the `!ustart` command.
+* **Fix:** The possible typo `pl wdg` will no longer set the colour to green. There must now be a space separating the colour parameter.
+
+Version 1.7.1 – 13 October 2014
+-------------------------------
+
+* **Fix:** The bot no longer crashes when the deck runs out of cards.
+* **Fix:** Winning by default no longer ends your streak.
+
 Version 1.7 – 24 September 2014
 -------------------------------
 

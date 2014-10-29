@@ -39,6 +39,8 @@ namespace BattleBot {
         public List<string> ElementalAbsorbs;
         public List<string> ElementalImmunities;
         public List<string> StatusImmunities;
+        public List<string> RegularlyEffective;
+        public int EffectivenessKnown;
 
         public bool IsUndead;
         public bool IsElemental;

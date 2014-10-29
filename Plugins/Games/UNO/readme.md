@@ -18,6 +18,7 @@ Most commands from Marky's Color UNO work here too, for veterans of that bot (an
 * `!ujoin`
 * `!uquit` — if the game has already started, you can forfeit and leave.
 * `!aijoin` — makes the bot enter the game.
+* `!ustart` — starts the game immediately.
 * `!play <card>` or `pl <card>` — <card> can be in full ('Red 7') or abbreviated ('r7'). Action cards are '\*r'; '\*s'; '\*d' or '\*dt'; 'w'; 'wd'. If you play a Wild card, you can choose a colour in the one command with `!play Wild red`.
 * `!draw` or `dr`
 * `!pass` or `pa` — if you can't play the card you drew.

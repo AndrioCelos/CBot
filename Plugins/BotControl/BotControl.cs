@@ -8,42 +8,50 @@ using CBot;
 using IRC;
 
 namespace BotControl {
-    [APIVersion(3, 0)]
+    [APIVersion(3, 1)]
     public class BotControlPlugin : Plugin {
+        public override string Name {
+            get {
+                return "Bot Control";
+            }
+        }
+
         [Command("connect", 0, 1, "connect [server]", "Connects to a server, or, with no parameter, lists all servers I'm on.",
             "me.connect", CommandScope.Channel | CommandScope.PM | CommandScope.Global)]
         public void CommandConnect(object sender, CommandEventArgs e) {
             if (e.Parameters.Length == 0) {
-                this.Say(e.Connection, e.Channel, "I'm connected to the following servers:");
-                foreach (IRCClient client in Bot.Connections) {
+                Bot.Say(e.Connection, e.Channel, "I'm connected to the following servers:");
+                foreach (ClientEntry clientEntry in Bot.Clients) {
+                    IRCClient client = clientEntry.Client;
                     if (client.IsConnected) {
                         if (client.IsRegistered) {
                             if (client.Channels.Count > 1)
-                                this.Say(e.Connection, e.Channel, string.Format("{0} - \u00039online\u000F; on channels \u0002{1}\u000F.", client.Address, string.Join("\u000F, \u0002", client.Channels.Select(c => c.Name))));
+                                Bot.Say(e.Connection, e.Channel, string.Format("{0} - \u00039online\u000F; on channels \u0002{1}\u000F.", client.Address, string.Join("\u000F, \u0002", client.Channels.Select(c => c.Name))));
                             else if (client.Channels.Count == 1)
-                                this.Say(e.Connection, e.Channel, string.Format("{0} - \u00039online\u000F; on channel \u0002{1}\u000F.", client.Address, client.Channels[0].Name));
+                                Bot.Say(e.Connection, e.Channel, string.Format("{0} - \u00039online\u000F; on channel \u0002{1}\u000F.", client.Address, client.Channels[0].Name));
                             else
-                                this.Say(e.Connection, e.Channel, string.Format("{0} - \u00039online\u000F.", client.Address));
+                                Bot.Say(e.Connection, e.Channel, string.Format("{0} - \u00039online\u000F.", client.Address));
                         } else
-                            this.Say(e.Connection, e.Channel, string.Format("{0} - \u0003logging in\u000F.", client.Address));
+                            Bot.Say(e.Connection, e.Channel, string.Format("{0} - \u0003logging in\u000F.", client.Address));
                     } else
-                        this.Say(e.Connection, e.Channel, string.Format("{0} - \u00034offline\u000F.", client.Address));
+                        Bot.Say(e.Connection, e.Channel, string.Format("{0} - \u00034offline\u000F.", client.Address));
                 }
             } else {
-                foreach (IRCClient client in Bot.Connections) {
-                    if (client.Address.Equals(e.Parameters[0], StringComparison.OrdinalIgnoreCase) || client.NetworkName.Equals(e.Parameters[0], StringComparison.OrdinalIgnoreCase)) {
+                foreach (ClientEntry clientEntry in Bot.Clients) {
+                    IRCClient client = clientEntry.Client;
+                    if (client.Address.Equals(e.Parameters[0], StringComparison.OrdinalIgnoreCase) || (client.NetworkName != null && client.NetworkName.Equals(e.Parameters[0], StringComparison.OrdinalIgnoreCase))) {
                         if (client.IsConnected)
-                            this.Say(e.Connection, e.Channel, string.Format("I'm already connected to \u0002{0}\u000F.", client.Address));
+                            Bot.Say(e.Connection, e.Channel, string.Format("I'm already connected to \u0002{0}\u000F.", client.Address));
                         else {
-                            this.Say(e.Connection, e.Channel, string.Format("Reconnecting to \u0002{0}\u000F.", client.Address));
+                            Bot.Say(e.Connection, e.Channel, string.Format("Reconnecting to \u0002{0}\u000F.", client.Address));
                             client.Connect();
                         }
                         return;
                     }
                 }
-                this.Say(e.Connection, e.Channel, string.Format("Connecting to \u0002{0}\u000F.", e.Parameters[0]));
-                IRCClient newClient = Bot.NewClient(e.Parameters[0], 6667, e.Connection.Nicknames, e.Connection.Username, e.Connection.FullName);
-                newClient.Connect();
+                Bot.Say(e.Connection, e.Channel, string.Format("Connecting to \u0002{0}\u000F.", e.Parameters[0]));
+                ClientEntry newClient = Bot.NewClient(e.Parameters[0], e.Parameters[0], 6667, e.Connection.Nicknames, e.Connection.Username, e.Connection.FullName);
+                newClient.Client.Connect();
             }
         }
 
@@ -54,14 +62,15 @@ namespace BotControl {
 
             if (e.Parameters.Length == 2) {
                 targetConnection = null;
-                foreach (IRCClient connection in Bot.Connections) {
-                    if (connection.Address.Equals(e.Parameters[0], StringComparison.OrdinalIgnoreCase) || (connection.NetworkName ?? "").Equals(e.Parameters[0], StringComparison.OrdinalIgnoreCase)) {
-                        targetConnection = connection;
+                foreach (ClientEntry clientEntry in Bot.Clients) {
+                    IRCClient client = clientEntry.Client;
+                    if (client.Address.Equals(e.Parameters[0], StringComparison.OrdinalIgnoreCase) || (client.NetworkName ?? "").Equals(e.Parameters[0], StringComparison.OrdinalIgnoreCase)) {
+                        targetConnection = client;
                         break;
                     }
                 }
                 if (targetConnection == null) {
-                    this.Say(e.Connection, e.Channel, string.Format("I'm not connected to \u0002{0}\u0002.", e.Parameters[0]));
+                    Bot.Say(e.Connection, e.Channel, string.Format("I'm not connected to \u0002{0}\u0002.", e.Parameters[0]));
                     return;
                 }
                 targetChannel = e.Parameters[1];
@@ -71,18 +80,18 @@ namespace BotControl {
             }
 
             if (!targetConnection.IsConnected) {
-                this.Say(e.Connection, e.Channel, string.Format("My connection to \u0002{0}\u0002 is currently down.", targetConnection.Address));
+                Bot.Say(e.Connection, e.Channel, string.Format("My connection to \u0002{0}\u0002 is currently down.", targetConnection.Address));
                 return;
             }
             if (!targetConnection.IsRegistered) {
-                this.Say(e.Connection, e.Channel, string.Format("I'm not yet logged in to \u0002{0}\u0002.", targetConnection.Address));
+                Bot.Say(e.Connection, e.Channel, string.Format("I'm not yet logged in to \u0002{0}\u0002.", targetConnection.Address));
                 return;
             }
             if (targetConnection.Channels.Contains(targetChannel)) {
-                this.Say(e.Connection, e.Channel, "I'm already on that channel. ^_^");
+                Bot.Say(e.Connection, e.Channel, "I'm already on that channel. ^_^");
                 return;
             }
-            this.Say(e.Connection, e.Channel, string.Format("Attempting to join \u0002{1}\u0002 on \u0002{0}\u0002.", targetConnection.Address, targetChannel));
+            Bot.Say(e.Connection, e.Channel, string.Format("Attempting to join \u0002{1}\u0002 on \u0002{0}\u0002.", targetConnection.Address, targetChannel));
             targetConnection.Send("JOIN {0}", targetChannel);
         }
 
@@ -96,7 +105,7 @@ namespace BotControl {
                 targetChannel = e.Parameters[1];
                 message = e.Parameters[2];
             } else if (e.Parameters.Length == 2) {
-                if (e.Parameters[0].StartsWith("#")) {
+                if (((IRCClient) sender).IsChannel(e.Parameters[0])) {
                     targetAddress = null;
                     targetChannel = e.Parameters[0];
                     message = e.Parameters[1];
@@ -116,32 +125,33 @@ namespace BotControl {
                 targetConnection = e.Connection;
             else {
                 targetConnection = null;
-                foreach (IRCClient connection in Bot.Connections) {
-                    if (connection.Address.Equals(e.Parameters[0], StringComparison.OrdinalIgnoreCase) || (connection.NetworkName ?? "").Equals(e.Parameters[0], StringComparison.OrdinalIgnoreCase)) {
-                        targetConnection = connection;
+                foreach (ClientEntry clientEntry in Bot.Clients) {
+                    IRCClient client = clientEntry.Client;
+                    if (client.Address.Equals(e.Parameters[0], StringComparison.OrdinalIgnoreCase) || (client.NetworkName ?? "").Equals(e.Parameters[0], StringComparison.OrdinalIgnoreCase)) {
+                        targetConnection = client;
                         break;
                     }
                 }
                 if (targetConnection == null) {
-                    this.Say(e.Connection, e.Channel, string.Format("I'm not connected to \u0002{0}\u0002.", e.Parameters[0]));
+                    Bot.Say(e.Connection, e.Channel, string.Format("I'm not connected to \u0002{0}\u0002.", e.Parameters[0]));
                     return;
                 }
             }
 
             if (!targetConnection.IsConnected) {
-                this.Say(e.Connection, e.Channel, string.Format("My connection to \u0002{0}\u0002 is currently down.", targetConnection.Address));
+                Bot.Say(e.Connection, e.Channel, string.Format("My connection to \u0002{0}\u0002 is currently down.", targetConnection.Address));
                 return;
             }
             if (!targetConnection.IsRegistered) {
-                this.Say(e.Connection, e.Channel, string.Format("I'm not yet logged in to \u0002{0}\u0002.", targetConnection.Address));
+                Bot.Say(e.Connection, e.Channel, string.Format("I'm not yet logged in to \u0002{0}\u0002.", targetConnection.Address));
                 return;
             }
             if (!targetConnection.Channels.Contains(targetChannel)) {
-                this.Say(e.Connection, e.Channel, "I'm not on that channel.");
+                Bot.Say(e.Connection, e.Channel, "I'm not on that channel.");
                 return;
             }
 
-            this.Say(e.Connection, e.Channel, string.Format("Leaving \u0002{1}\u0002 on \u0002{0}\u0002.", targetConnection.Address, targetChannel));
+            Bot.Say(e.Connection, e.Channel, string.Format("Leaving \u0002{1}\u0002 on \u0002{0}\u0002.", targetConnection.Address, targetChannel));
             if (message == null)
                 targetConnection.Send("PART {0}", targetChannel);
             else
@@ -168,23 +178,24 @@ namespace BotControl {
                 targetConnection = e.Connection;
             else {
                 targetConnection = null;
-                foreach (IRCClient connection in Bot.Connections) {
-                    if (connection.Address.Equals(e.Parameters[0], StringComparison.OrdinalIgnoreCase) || (connection.NetworkName ?? "").Equals(e.Parameters[0], StringComparison.OrdinalIgnoreCase)) {
-                        targetConnection = connection;
+                foreach (ClientEntry clientEntry in Bot.Clients) {
+                    IRCClient client = clientEntry.Client;
+                    if (client.Address.Equals(e.Parameters[0], StringComparison.OrdinalIgnoreCase) || (client.NetworkName ?? "").Equals(e.Parameters[0], StringComparison.OrdinalIgnoreCase)) {
+                        targetConnection = client;
                         break;
                     }
                 }
                 if (targetConnection == null) {
-                    this.Say(e.Connection, e.Channel, string.Format("I'm not connected to \u0002{0}\u0002.", e.Parameters[0]));
+                    Bot.Say(e.Connection, e.Channel, string.Format("I'm not connected to \u0002{0}\u0002.", e.Parameters[0]));
                     return;
                 }
             }
 
             if (!targetConnection.IsConnected) {
-                this.Say(e.Connection, e.Channel, string.Format("My connection to \u0002{0}\u0002 is currently down.", targetConnection.Address));
+                Bot.Say(e.Connection, e.Channel, string.Format("My connection to \u0002{0}\u0002 is currently down.", targetConnection.Address));
                 return;
             }
-            this.Say(e.Connection, e.Channel, string.Format("Quitting \u0002{0}\u0002.", targetConnection.Address));
+            Bot.Say(e.Connection, e.Channel, string.Format("Quitting \u0002{0}\u0002.", targetConnection.Address));
             if (!targetConnection.IsRegistered) {
                 targetConnection.Disconnect();
             } else {
@@ -215,23 +226,24 @@ namespace BotControl {
                 targetConnection = e.Connection;
             else {
                 targetConnection = null;
-                foreach (IRCClient connection in Bot.Connections) {
-                    if (connection.Address.Equals(e.Parameters[0], StringComparison.OrdinalIgnoreCase) || (connection.NetworkName ?? "").Equals(e.Parameters[0], StringComparison.OrdinalIgnoreCase)) {
-                        targetConnection = connection;
+                foreach (ClientEntry clientEntry in Bot.Clients) {
+                    IRCClient client = clientEntry.Client;
+                    if (client.Address.Equals(e.Parameters[0], StringComparison.OrdinalIgnoreCase) || (client.NetworkName ?? "").Equals(e.Parameters[0], StringComparison.OrdinalIgnoreCase)) {
+                        targetConnection = client;
                         break;
                     }
                 }
                 if (targetConnection == null) {
-                    this.Say(e.Connection, e.Channel, string.Format("I'm not connected to \u0002{0}\u0002.", e.Parameters[0]));
+                    Bot.Say(e.Connection, e.Channel, string.Format("I'm not connected to \u0002{0}\u0002.", e.Parameters[0]));
                     return;
                 }
             }
 
             if (!targetConnection.IsConnected) {
-                this.Say(e.Connection, e.Channel, string.Format("My connection to \u0002{0}\u0002 is currently down.", targetConnection.Address));
+                Bot.Say(e.Connection, e.Channel, string.Format("My connection to \u0002{0}\u0002 is currently down.", targetConnection.Address));
                 return;
             }
-            this.Say(e.Connection, e.Channel, string.Format("Disconnecting from \u0002{0}\u0002.", targetConnection.Address));
+            Bot.Say(e.Connection, e.Channel, string.Format("Disconnecting from \u0002{0}\u0002.", targetConnection.Address));
             if (targetConnection.IsRegistered) {
                 if (message == null)
                     targetConnection.Send("QUIT");
@@ -258,25 +270,46 @@ namespace BotControl {
                 targetConnection = e.Connection;
             else {
                 targetConnection = null;
-                foreach (IRCClient connection in Bot.Connections) {
-                    if (connection.Address.Equals(e.Parameters[0], StringComparison.OrdinalIgnoreCase) || (connection.NetworkName ?? "").Equals(e.Parameters[0], StringComparison.OrdinalIgnoreCase)) {
-                        targetConnection = connection;
+                foreach (ClientEntry clientEntry in Bot.Clients) {
+                    IRCClient client = clientEntry.Client;
+                    if (client.Address.Equals(e.Parameters[0], StringComparison.OrdinalIgnoreCase) || (client.NetworkName ?? "").Equals(e.Parameters[0], StringComparison.OrdinalIgnoreCase)) {
+                        targetConnection = client;
                         break;
                     }
                 }
                 if (targetConnection == null) {
-                    this.Say(e.Connection, e.Channel, string.Format("I'm not connected to \u0002{0}\u0002.", e.Parameters[0]));
+                    Bot.Say(e.Connection, e.Channel, string.Format("I'm not connected to \u0002{0}\u0002.", e.Parameters[0]));
                     return;
                 }
             }
 
             if (!targetConnection.IsConnected) {
-                this.Say(e.Connection, e.Channel, string.Format("My connection to \u0002{0}\u0002 is currently down.", targetConnection.Address));
+                Bot.Say(e.Connection, e.Channel, string.Format("My connection to \u0002{0}\u0002 is currently down.", targetConnection.Address));
                 return;
             }
 
-            this.Say(e.Connection, e.Sender.Nickname, "Acknowledged.");
+            Bot.Say(e.Connection, e.Sender.Nickname, "Acknowledged.");
             targetConnection.Send(command);
+        }
+
+        [Command("die", 1, 1, "die [message]", "Shuts me down",
+            "me.die", CommandScope.Channel | CommandScope.PM | CommandScope.Global)]
+        public void CommandDie(object sender, CommandEventArgs e) {
+            string message;
+
+            if (e.Parameters.Length == 1) {
+                message = e.Parameters[0];
+            } else {
+                message = "Shutting down";
+            }
+            Bot.Say(e.Connection, e.Sender.Nickname, "Goodbye, {0}.", e.Sender.Nickname);
+            foreach (ClientEntry clientEntry in Bot.Clients) {
+                IRCClient client = clientEntry.Client;
+                if (client.IsConnected)
+                    client.Send("QUIT :{0}", message);
+            }
+            System.Threading.Thread.Sleep(2000);
+            System.Environment.Exit(0);
         }
     }
 }

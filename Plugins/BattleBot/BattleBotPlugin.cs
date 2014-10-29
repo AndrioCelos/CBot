@@ -13,13 +13,14 @@ using IRC;
 
 namespace BattleBot
 {
-    [APIVersion(3, 0)]
+    [APIVersion(3, 1)]
     public class BattleBotPlugin : Plugin
     {
         public string LoggedIn;
         public ArenaVersion Version;
+        public bool IsBattleDungeon;
         public bool VersionPreCTCP;
-
+        
         public int Level;
         public int TurnNumber;
 
@@ -122,24 +123,26 @@ namespace BattleBot
         }
 
         private void CheckChannels() {
+            this.ArenaConnection = null;
+            this.ArenaChannel = null;
             foreach (string channel in this.Channels) {
                 string[] fields = channel.Split(new char[] { '/' }, 2);
-                this.ArenaConnection = null;
-                this.ArenaChannel = null;
                 if (fields.Length == 1)
                     fields = new string[] { null, fields[0] };
                 if (fields[1] == "*") continue;
-                foreach (IRCClient client in Bot.Connections) {
+                foreach (ClientEntry clientEntry in Bot.Clients) {
+                    IRCClient client = clientEntry.Client;
                     if (client.Address == "!Console") continue;
                     if (client is DCCClient) continue;
                     if (fields[0] == null || fields[0] == "*" ||
                         client.Address.Equals(fields[0], StringComparison.OrdinalIgnoreCase) ||
                         (client.NetworkName != null && client.NetworkName.Equals(fields[0], StringComparison.OrdinalIgnoreCase))) {
-                            this.ArenaConnection = client;
-                            this.ArenaChannel = fields[1];
-                            return;
+                            if (client.Channels.Contains(fields[1])) {
+                                this.ArenaConnection = client;
+                                this.ArenaChannel = fields[1];
+                                return;
+                            }
                     }
-
                 }
             }
         }
@@ -175,63 +178,69 @@ namespace BattleBot
             this.SaveData();
         }
 
-        public override void OnChannelJoinSelf(IRCClient Connection, string Sender, string Channel) {
+        public override bool OnChannelJoinSelf(object sender, ChannelJoinEventArgs e) {
             if (this.ArenaConnection == null) this.CheckChannels();
 
-            if (this.ArenaConnection == Connection && Connection.CaseMappingComparer.Equals(this.ArenaChannel, Channel)) {
-                if (this.OwnCharacters.ContainsKey(Connection.Nickname)) {
+            if (this.ArenaConnection == sender && ((IRCClient) sender).CaseMappingComparer.Equals(this.ArenaChannel, e.Channel)) {
+                if (this.OwnCharacters.ContainsKey(((IRCClient) sender).Nickname)) {
                     // Identify to the Arena bot.
-                    this.Say(ArenaConnection, ArenaNickname, "!id " + this.OwnCharacters[ArenaConnection.Nickname].Password, SayOptions.NoticeNever);
+                    Bot.Say(ArenaConnection, ArenaNickname, "!id " + this.OwnCharacters[ArenaConnection.Nickname].Password, SayOptions.NoticeNever);
                 }
                 // Get the Arena bot version.
-                if (this.Version == null && !this.VersionPreCTCP)
-                    this.Say(Connection, ArenaNickname, "\u0001BOTVERSION\u0001", SayOptions.NoticeNever);
+                if (this.Version == default(ArenaVersion) && !this.VersionPreCTCP)
+                    Bot.Say((IRCClient) sender, ArenaNickname, "\u0001BOTVERSION\u0001", SayOptions.NoticeNever);
             }
-            base.OnChannelJoinSelf(Connection, Sender, Channel);
+            return base.OnChannelJoinSelf(sender, e);
         }
 
-        public override void OnNicknameChangeSelf(IRCClient sender, string User, string NewNick) {
-            if (this.ArenaConnection == sender && sender.Channels.Contains(this.ArenaChannel)) {
-                if (this.OwnCharacters.ContainsKey(sender.Nickname)) {
+        public override bool OnNicknameChangeSelf(object sender, NicknameChangeEventArgs e) {
+            if (this.ArenaConnection == sender && ((IRCClient) sender).Channels.Contains(this.ArenaChannel)) {
+                if (this.OwnCharacters.ContainsKey(e.NewNickname)) {
                     // Identify to the Arena bot.
-                    this.Say(ArenaConnection, ArenaNickname, "!id " + this.OwnCharacters[ArenaConnection.Nickname].Password, SayOptions.NoticeNever);
+                    Bot.Say(ArenaConnection, ArenaNickname, "!id " + this.OwnCharacters[ArenaConnection.Nickname].Password, SayOptions.NoticeNever);
                 }
             }
-            base.OnNicknameChangeSelf(sender, User, NewNick);
+            return base.OnNicknameChangeSelf(sender, e);
         }
 
-
-        public override void OnChannelMessage(IRCClient Connection, string Sender, string Channel, string Message) {
-            if (this.WaitingForBattleList && Regex.IsMatch(Message, @"(?x) ^\x03\d{1,2} [A-}](?>[0-9A-}]*) (,Â?\s \x03\d{1,2} [A-}](?>[0-9A-}]*) )* (?:Â?\s){0,2}")) {
+        public override bool OnChannelMessage(object sender, ChannelMessageEventArgs e) {
+            if (this.WaitingForBattleList && Regex.IsMatch(e.Message, @"(?x) ^\x03\d{1,2} [A-}](?>[0-9A-}]*) (,Â?\s \x03\d{1,2} [A-}](?>[0-9A-}]*) )* (?:Â?\s){0,2}")) {
                 this.WaitingForBattleList = false;
-                this.OnBattleListLegacy(Message);
+                this.OnBattleListLegacy(e.Message);
             } else {
-                if (Connection is DCCClient || (Connection == this.ArenaConnection && Connection.CaseMappingComparer.Equals(Channel, this.ArenaChannel)))
-                    this.RunArenaRegex(Connection, Channel, Sender, Message);
+                if (sender is DCCClient || (sender == this.ArenaConnection && ((IRCClient) sender).CaseMappingComparer.Equals(e.Channel, this.ArenaChannel) &&
+                                            ((IRCClient) sender).CaseMappingComparer.Equals(e.Sender.Nickname, this.ArenaNickname)))
+                    this.RunArenaRegex((IRCClient) sender, e.Channel, e.Sender, e.Message);
             }
-            base.OnChannelMessage(Connection, Sender, Channel, Message);
+            return base.OnChannelMessage(sender, e);
         }
 
-        public override void OnPrivateMessage(IRCClient Connection, string Sender, string Message) {
-            if (Connection is DCCClient || (Connection == this.ArenaConnection && Connection.CaseMappingComparer.Equals(Sender.Split(new char[] { '!' }, 2)[0], this.ArenaNickname)))
-                this.RunArenaRegex(Connection, Sender.Split(new char[] { '!' }, 2)[0], Sender, Message);
-            base.OnPrivateMessage(Connection, Sender, Message);
+        public override bool OnPrivateMessage(object sender, PrivateMessageEventArgs e) {
+            if (sender is DCCClient || (sender == this.ArenaConnection && ((IRCClient) sender).CaseMappingComparer.Equals(e.Sender.Nickname, this.ArenaNickname)))
+                this.RunArenaRegex((IRCClient) sender, e.Sender.Nickname, e.Sender, e.Message);
+            return base.OnPrivateMessage(sender, e);
         }
 
-        public override void OnPrivateNotice(IRCClient Connection, string Sender, string Message) {
-            if (Message.StartsWith("\u0001BOTVERSION ", StringComparison.OrdinalIgnoreCase)) {
-                this.Version = new ArenaVersion(Message.Substring(12).TrimEnd(new char[] { (char) 1 }));
+        public override bool OnPrivateNotice(object sender, PrivateMessageEventArgs e) {
+            if (e.Message.StartsWith("\u0001BOTVERSION ", StringComparison.InvariantCultureIgnoreCase)) {
+                if (e.Message.StartsWith("\u0001BOTVERSION Battle Dungeon ", StringComparison.InvariantCultureIgnoreCase)) {
+                    this.IsBattleDungeon = true;
+                    this.Version = new ArenaVersion(e.Message.Substring(27).TrimEnd(new char[] { (char) 1 }));
+                } else {
+                    this.IsBattleDungeon = false;
+                    this.Version = new ArenaVersion(e.Message.Substring(12).TrimEnd(new char[] { (char) 1 }));
+                }
                 this.VersionPreCTCP = false;
-                this.WriteLine(1, 12, string.Format("The Arena is running version {0}.", this.Version));
+                this.WriteLine(1, 12, string.Format("The Arena is running {0} version {1}.", this.IsBattleDungeon ? "Battle Dungeon" : "Battle Arena", this.Version));
             }
-            base.OnPrivateNotice(Connection, Sender, Message);
+            return base.OnPrivateNotice(sender, e);
         }
 
-        public override void OnPrivateCTCP(IRCClient Connection, string Sender, string Message) {
-            if (this.LoggedIn != null) return;
-            if (!Connection.CaseMappingComparer.Equals(Sender.Split(new char[] { '!' }, 2)[0], this.ArenaNickname)) return;
+        public override bool OnPrivateCTCP(object sender, PrivateMessageEventArgs e) {
+            if (this.LoggedIn != null) return false;
+            if (!((IRCClient) sender).CaseMappingComparer.Equals(e.Sender.Nickname, this.ArenaNickname)) return false;
 
-            Match match = Regex.Match(Message, @"DCC CHAT chat (\d+) (\d+)", RegexOptions.IgnoreCase);
+            Match match = Regex.Match(e.Message, @"DCC CHAT chat (\d+) (\d+)", RegexOptions.IgnoreCase);
             if (match.Success) {
                 long IPNumeric = long.Parse(match.Groups[1].Value);
                 System.Net.IPAddress IP = new System.Net.IPAddress(new byte[] { (byte) ((IPNumeric >> 24) & 255),
@@ -240,25 +249,27 @@ namespace BattleBot
                                                                                 (byte) ((IPNumeric      ) & 255) });
                 int port = int.Parse(match.Groups[2].Value);
 
-                this.WriteLine(1, 4, "Received a DCC CHAT request from {0}.  IP: {1}  Port: {2}", Sender.Split(new char[] { '!' }, 2)[0], IP, port);
+                this.WriteLine(1, 4, "Received a DCC CHAT request from {0}.  IP: {1}  Port: {2}", e.Sender.Nickname, IP, port);
                 // Create the DCC connection.
                 this.DCCClient = new DCCClient(this, IP, port);
-                Bot.Connections.Add(this.DCCClient);
+                ClientEntry newEntry = new ClientEntry("!" + MyKey, this.DCCClient);
+                Bot.Clients.Add(newEntry);
                 Bot.SetUpClientEvents(this.DCCClient);
                 try {
-                    ((DCCClient) this.DCCClient).Target = new User(Sender);
+                    ((DCCClient) this.DCCClient).Target = e.Sender;
                     ((DCCClient) this.DCCClient).Connect();
                     this.WriteLine(1, 4, "Connected to the DCC session successfully.");
                     if (!this.DCCBattleChat) ((DCCClient) this.DCCClient).SendSub("!toggle battle chat");
                 } catch (Exception ex) {
                     this.SayToAllChannels(string.Format("My DCC connection failed: {0}", ex.Message));
-                    Bot.Connections.Remove(this.DCCClient);
+                    Bot.Clients.Remove(newEntry);
                 }
+                return true;
             }
-            base.OnPrivateCTCP(Connection, Sender, Message);
+            return base.OnPrivateCTCP(sender, e);
         }
 
-        public bool RunArenaRegex(IRCClient connection, string channel, string sender, string message) {
+        public bool RunArenaRegex(IRCClient connection, string channel, User sender, string message) {
             foreach (System.Reflection.MethodInfo method in this.GetType().GetMethods(System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.NonPublic)) {
                 foreach (Attribute attribute in method.GetCustomAttributes(typeof(ArenaRegexAttribute), false)) {
                     foreach (string expression in ((ArenaRegexAttribute) attribute).Expressions) {
@@ -281,9 +292,9 @@ namespace BattleBot
             if (this.DCCClient != null && this.DCCClient.IsConnected)
                 ((DCCClient) this.DCCClient).SendSub(message);
             else if (PM)
-                this.Say(this.ArenaConnection, this.ArenaNickname, message, SayOptions.NoticeNever);
+                Bot.Say(this.ArenaConnection, this.ArenaNickname, message, SayOptions.NoticeNever);
             else
-                this.Say(this.ArenaConnection, this.ArenaChannel, message, SayOptions.NoticeNever);
+                Bot.Say(this.ArenaConnection, this.ArenaChannel, message, SayOptions.NoticeNever);
         }
 
 #region Filing
@@ -812,7 +823,7 @@ namespace BattleBot
                 if (character.Styles != null)
                     writer.WriteLine("Styles={0}", string.Join(".", character.Styles.Select(e => e.Key + "|" + e.Value.ToString())));
                 if (character.StyleExperience != null)
-                    writer.WriteLine("StyleEXP={0}", string.Join(".", character.StyleExperience.Select(e => e.Key + "|" + e.Value.ToString())));
+                    writer.WriteLine("StyleExp={0}", string.Join(".", character.StyleExperience.Select(e => e.Key + "|" + e.Value.ToString())));
                 if (character.Ignitions != null)
                     writer.WriteLine("Ignitions={0}", string.Join(".", character.Ignitions));
                 if (character.Items != null)
@@ -901,17 +912,17 @@ namespace BattleBot
                 case "ENABLEANALYSIS":
                     if (value == null) {
                         if (this.EnableAnalysis)
-                            this.Say(e.Connection, e.Channel, Bot.Choose("\u0002Analysis\u0002 is currently \u00039enabled\u000F.", "I \u00039will\u000F analyse the Arena combatants."));
+                            Bot.Say(e.Connection, e.Channel, Bot.Choose("\u0002Analysis\u0002 is currently \u00039enabled\u000F.", "I \u00039will\u000F analyse the Arena combatants."));
                         else
-                            this.Say(e.Connection, e.Channel, Bot.Choose("\u0002Analysis\u0002 is currently \u00034disabled\u000F.", "I \u00034will not\u000F analyse the Arena combatants."));
+                            Bot.Say(e.Connection, e.Channel, Bot.Choose("\u0002Analysis\u0002 is currently \u00034disabled\u000F.", "I \u00034will not\u000F analyse the Arena combatants."));
                     } else {
                         try {
                             if (this.EnableAnalysis = Bot.ParseBoolean(value))
-                                this.Say(e.Connection, e.Channel, Bot.Choose("\u0002Analysis\u0002 is now \u00039enabled\u000F.", "I \u00039will\u000F now analyse the Arena combatants."));
+                                Bot.Say(e.Connection, e.Channel, Bot.Choose("\u0002Analysis\u0002 is now \u00039enabled\u000F.", "I \u00039will\u000F now analyse the Arena combatants."));
                             else
-                                this.Say(e.Connection, e.Channel, Bot.Choose("\u0002Analysis\u0002 is now \u00034disabled\u000F.", "I will \u00034no longer\u000F analyse the Arena combatants."));
+                                Bot.Say(e.Connection, e.Channel, Bot.Choose("\u0002Analysis\u0002 is now \u00034disabled\u000F.", "I will \u00034no longer\u000F analyse the Arena combatants."));
                         } catch (ArgumentException) {
-                            this.Say(e.Connection, e.Sender.Nickname, string.Format("I don't recognise '\u0002{0}\u000F' as a Boolean value. Please enter \u0002on\u0002 or \u0002off\u0002.", value));
+                            Bot.Say(e.Connection, e.Sender.Nickname, string.Format("I don't recognise '\u0002{0}\u000F' as a Boolean value. Please enter \u0002on\u0002 or \u0002off\u0002.", value));
                         }
                     }
                     break;
@@ -919,21 +930,21 @@ namespace BattleBot
                 case "ENABLEPARTICIPATION":
                     if (value == null) {
                         if (this.EnableParticipation)
-                            this.Say(e.Connection, e.Channel, Bot.Choose("\u0002Participation\u0002 is currently \u00039enabled\u000F.", "I \u00039will\u000F participate in battles."));
+                            Bot.Say(e.Connection, e.Channel, Bot.Choose("\u0002Participation\u0002 is currently \u00039enabled\u000F.", "I \u00039will\u000F participate in battles."));
                         else
-                            this.Say(e.Connection, e.Channel, Bot.Choose("\u0002Participation\u0002 is currently \u00034disabled\u000F.", "I \u00034will not\u000F participate in battles."));
+                            Bot.Say(e.Connection, e.Channel, Bot.Choose("\u0002Participation\u0002 is currently \u00034disabled\u000F.", "I \u00034will not\u000F participate in battles."));
                     } else {
                         try {
                             if (this.EnableParticipation = Bot.ParseBoolean(value)) {
-                                this.Say(e.Connection, e.Channel, Bot.Choose("\u0002Participation\u0002 is now \u00039enabled\u000F.", "I \u00039will\u000F now participate in battles."));
+                                Bot.Say(e.Connection, e.Channel, Bot.Choose("\u0002Participation\u0002 is now \u00039enabled\u000F.", "I \u00039will\u000F now participate in battles."));
                                 if (this.EnableParticipation && (this.GetAbilitiesThread == null || !this.GetAbilitiesThread.IsAlive)) {
                                     this.GetAbilitiesThread = new Thread(GetAbilities);
                                     this.GetAbilitiesThread.Start();
                                 }
                             }  else
-                                this.Say(e.Connection, e.Channel, Bot.Choose("\u0002Participation\u0002 is now \u00034disabled\u000F.", "I will \u00034no longer\u000F participate in battles."));
+                                Bot.Say(e.Connection, e.Channel, Bot.Choose("\u0002Participation\u0002 is now \u00034disabled\u000F.", "I will \u00034no longer\u000F participate in battles."));
                         } catch (ArgumentException) {
-                            this.Say(e.Connection, e.Sender.Nickname, string.Format("I don't recognise '\u0002{0}\u000F' as a Boolean value. Please enter \u0002on\u0002 or \u0002off\u0002.", value));
+                            Bot.Say(e.Connection, e.Sender.Nickname, string.Format("I don't recognise '\u0002{0}\u000F' as a Boolean value. Please enter \u0002on\u0002 or \u0002off\u0002.", value));
                         }
                     }
                     break;
@@ -941,42 +952,42 @@ namespace BattleBot
                 case "ENABLEGAMBLING":
                     if (value == null) {
                         if (this.EnableGambling)
-                            this.Say(e.Connection, e.Channel, Bot.Choose("\u0002Gambling\u0002 is currently \u00039enabled\u000F.", "I \u00039will\u000F bet on NPC battles."));
+                            Bot.Say(e.Connection, e.Channel, Bot.Choose("\u0002Gambling\u0002 is currently \u00039enabled\u000F.", "I \u00039will\u000F bet on NPC battles."));
                         else
-                            this.Say(e.Connection, e.Channel, Bot.Choose("\u0002Gambling\u0002 is currently \u00034disabled\u000F.", "I \u00034will not\u000F bet on NPC battles."));
+                            Bot.Say(e.Connection, e.Channel, Bot.Choose("\u0002Gambling\u0002 is currently \u00034disabled\u000F.", "I \u00034will not\u000F bet on NPC battles."));
                     } else {
                         try {
                             if (this.EnableGambling = Bot.ParseBoolean(value))
-                                this.Say(e.Connection, e.Channel, Bot.Choose("\u0002Gambling\u0002 is now \u00039enabled\u000F.", "I \u00039will\u000F now bet on NPC battles."));
+                                Bot.Say(e.Connection, e.Channel, Bot.Choose("\u0002Gambling\u0002 is now \u00039enabled\u000F.", "I \u00039will\u000F now bet on NPC battles."));
                             else
-                                this.Say(e.Connection, e.Channel, Bot.Choose("\u0002Gambling\u0002 is now \u00034disabled\u000F.", "I will \u00034no longer\u000F bet on NPC battles."));
+                                Bot.Say(e.Connection, e.Channel, Bot.Choose("\u0002Gambling\u0002 is now \u00034disabled\u000F.", "I will \u00034no longer\u000F bet on NPC battles."));
                         } catch (ArgumentException) {
-                            this.Say(e.Connection, e.Sender.Nickname, string.Format("I don't recognise '\u0002{0}\u000F' as a Boolean value. Please enter \u0002on\u0002 or \u0002off\u0002.", value));
+                            Bot.Say(e.Connection, e.Sender.Nickname, string.Format("I don't recognise '\u0002{0}\u000F' as a Boolean value. Please enter \u0002on\u0002 or \u0002off\u0002.", value));
                         }
                     }
                     break;
                 case "ARENANICKNAME":
                 case "BOTNICKNAME":
                     if (value == null) {
-                        this.Say(e.Connection, e.Channel, string.Format("The Arena bot's nickname is assumed to be \u0002{0}\u000F.", this.ArenaNickname));
+                        Bot.Say(e.Connection, e.Channel, string.Format("The Arena bot's nickname is assumed to be \u0002{0}\u000F.", this.ArenaNickname));
                     } else {
-                        this.Say(e.Connection, e.Channel, string.Format("The Arena bot's nickname is now assumed to be \u0002{0}\u000F.", this.ArenaNickname = value));
+                        Bot.Say(e.Connection, e.Channel, string.Format("The Arena bot's nickname is now assumed to be \u0002{0}\u000F.", this.ArenaNickname = value));
                     }
                     break;
                 case "NOMONSTERFIX":
                     if (value == null) {
                         if (this.NoMonsterFix)
-                            this.Say(e.Connection, e.Channel, Bot.Choose("The \u0002no-monster fix\u0002 is currently \u00039enabled\u000F.", "I \u00039will\u000F stop empty battles."));
+                            Bot.Say(e.Connection, e.Channel, Bot.Choose("The \u0002no-monster fix\u0002 is currently \u00039enabled\u000F.", "I \u00039will\u000F stop empty battles."));
                         else
-                            this.Say(e.Connection, e.Channel, Bot.Choose("The \u0002no-monster fix\u0002 is currently \u00034disabled\u000F.", "I \u00034will not\u000F stop empty battles."));
+                            Bot.Say(e.Connection, e.Channel, Bot.Choose("The \u0002no-monster fix\u0002 is currently \u00034disabled\u000F.", "I \u00034will not\u000F stop empty battles."));
                     } else {
                         try {
                             if (this.NoMonsterFix = Bot.ParseBoolean(value))
-                                this.Say(e.Connection, e.Channel, Bot.Choose("The \u0002no-monster fix\u0002 is now \u00039enabled\u000F.", "I \u00039will\u000F now stop empty battles."));
+                                Bot.Say(e.Connection, e.Channel, Bot.Choose("The \u0002no-monster fix\u0002 is now \u00039enabled\u000F.", "I \u00039will\u000F now stop empty battles."));
                             else
-                                this.Say(e.Connection, e.Channel, Bot.Choose("The \u0002no-monster fix\u0002 is now \u00034disabled\u000F.", "I will \u00034no longer\u000F stop empty battles."));
+                                Bot.Say(e.Connection, e.Channel, Bot.Choose("The \u0002no-monster fix\u0002 is now \u00034disabled\u000F.", "I will \u00034no longer\u000F stop empty battles."));
                         } catch (ArgumentException) {
-                            this.Say(e.Connection, e.Sender.Nickname, string.Format("I don't recognise '\u0002{0}\u000F' as a Boolean value. Please enter \u0002on\u0002 or \u0002off\u0002.", value));
+                            Bot.Say(e.Connection, e.Sender.Nickname, string.Format("I don't recognise '\u0002{0}\u000F' as a Boolean value. Please enter \u0002on\u0002 or \u0002off\u0002.", value));
                         }
                     }
                     break;
@@ -990,41 +1001,47 @@ namespace BattleBot
                 case "PATH":
                     if (value == null) {
                         if (this.ArenaDirectory == null)
-                            this.Say(e.Connection, e.Channel, "I don't have access to the Arena data folder.");
+                            Bot.Say(e.Connection, e.Channel, "I don't have access to the Arena data folder.");
                         else
-                            this.Say(e.Connection, e.Channel, string.Format("The Arena data folder is found at \u0002{0}\u000F.", this.ArenaDirectory));
+                            Bot.Say(e.Connection, e.Channel, string.Format("The Arena data folder is found at \u0002{0}\u000F.", this.ArenaDirectory));
                     } else {
                         if (value == "" ||
                             value.Equals("none", StringComparison.OrdinalIgnoreCase) ||
                             value.Equals("null", StringComparison.OrdinalIgnoreCase) ||
                             value.Equals("off", StringComparison.OrdinalIgnoreCase) ||
                             value.Equals("cancel", StringComparison.OrdinalIgnoreCase))
-                            this.Say(e.Connection, e.Channel, "The Arena data folder was disassociated.");
+                            Bot.Say(e.Connection, e.Channel, "The Arena data folder was disassociated.");
                         else if (!Directory.Exists(value))
-                            this.Say(e.Connection, e.Sender.Nickname, "That folder doesn't seem to exist.");
+                            Bot.Say(e.Connection, e.Sender.Nickname, "That folder doesn't seem to exist.");
                         else if (!File.Exists(Path.Combine(value, "system.dat")))
-                            this.Say(e.Connection, e.Sender.Nickname, "That folder doesn't seem to be an Arena data folder (no \u0002system.dat\u0002 was found).");
+                            Bot.Say(e.Connection, e.Sender.Nickname, "That folder doesn't seem to be an Arena data folder (no \u0002system.dat\u0002 was found).");
                         else
-                            this.Say(e.Connection, e.Channel, string.Format("The Arena data folder is now set to \u0002{0}\u000F.", this.ArenaDirectory = value));
+                            Bot.Say(e.Connection, e.Channel, string.Format("The Arena data folder is now set to \u0002{0}\u000F.", this.ArenaDirectory = value));
                     }
                     break;
                 case "MINPLAYERS":
                 case "MINIMUMPLAYERS":
                     if (value == null) {
-                        this.Say(e.Connection, e.Channel, string.Format("I will enter with at least \u0002{0}\u0002 other players.", this.MinPlayers));
+                        if (this.MinPlayers == 1)
+                            Bot.Say(e.Connection, e.Channel, string.Format("I will enter with at least \u0002{0}\u0002 other player.", this.MinPlayers));
+                        else
+                            Bot.Say(e.Connection, e.Channel, string.Format("I will enter with at least \u0002{0}\u0002 other players.", this.MinPlayers));
                     } else {
                         int value2;
                         if (int.TryParse(value, out value2)) {
-                            if (value2 >= 0)
-                                this.Say(e.Connection, e.Channel, string.Format("I will now enter with at least \u0002{0}\u0002 other players.", this.MinPlayers = value2));
-                            else
-                                this.Say(e.Connection, e.Sender.Nickname, string.Format("The number can't be negative.", value2));
+                            if (value2 >= 0) {
+                                if (value2 == 1)
+                                    Bot.Say(e.Connection, e.Channel, string.Format("I will now enter with at least \u0002{0}\u0002 other player.", this.MinPlayers = value2));
+                                else
+                                    Bot.Say(e.Connection, e.Channel, string.Format("I will now enter with at least \u0002{0}\u0002 other players.", this.MinPlayers = value2));
+                            } else
+                                Bot.Say(e.Connection, e.Sender.Nickname, string.Format("The number can't be negative.", value2));
                         } else
-                            this.Say(e.Connection, e.Sender.Nickname, string.Format("'\u0002{0}\u000F' is not a valid integer.", value));
+                            Bot.Say(e.Connection, e.Sender.Nickname, string.Format("'\u0002{0}\u000F' is not a valid integer.", value));
                     }
                     break;
                 default:
-                    this.Say(e.Connection, e.Sender.Nickname, string.Format("I don't have a setting named \u0002{0}\u000F here.", property));
+                    Bot.Say(e.Connection, e.Sender.Nickname, string.Format("I don't have a setting named \u0002{0}\u000F here.", property));
                     break;
             }
         }
@@ -1033,9 +1050,9 @@ namespace BattleBot
             ".time", CommandScope.Channel | CommandScope.PM | CommandScope.Global)]
         public void CommandTime(object sender, CommandEventArgs e) {
             if (!BattleStarted)
-                Say(e.Connection, e.Channel, "There's no battle going on at the moment.");
+                Bot.Say(e.Connection, e.Channel, "There's no battle going on at the moment.");
             else if (Darkness)
-                Say(e.Connection, e.Channel, "Darkness has already risen.");
+                Bot.Say(e.Connection, e.Channel, "Darkness has already risen.");
             else {
                 string timeMessage = null; string timeColour = null; string demonWallMessage = null;
                 string holyAuraTimeMessage = null; bool holyAuraOut = false;
@@ -1172,22 +1189,22 @@ namespace BattleBot
 
                 // Show the time.
                 if (timeColour == IRC.Colours.DarkRed)
-                    this.Say(e.Connection, e.Channel, "Darkness should rise any second now.");
+                    Bot.Say(e.Connection, e.Channel, "Darkness should rise any second now.");
                 else
-                    this.Say(e.Connection, e.Channel, string.Format(Bot.Choose(
+                    Bot.Say(e.Connection, e.Channel, string.Format(Bot.Choose(
                         "Darkness arises in {0}.",
                         "You have {0} until darkness arises."
                         ), timeColour + timeMessage + IRC.Colours.Reset));
 
                 // Show the holy aura time.
                 if (holyAuraOut)
-                    this.Say(e.Connection, e.Channel, string.Format("{0}'s holy aura is about to expire.", this.HolyAuraUser));
+                    Bot.Say(e.Connection, e.Channel, string.Format("{0}'s holy aura is about to expire.", this.HolyAuraUser));
                 else if (HolyAuraTurns != -1 || HolyAuraEnd != default(DateTime))
-                    this.Say(e.Connection, e.Channel, string.Format("{0}'s holy aura will last for \u000312{0}\u000F.", holyAuraTimeMessage));
+                    Bot.Say(e.Connection, e.Channel, string.Format("{0}'s holy aura will last for \u000312{0}\u000F.", holyAuraTimeMessage));
 
                 // Show the demon wall power.
                 if (demonWallMessage != null)
-                    this.Say(e.Connection, e.Channel, string.Format("The \u0002Demon Wall\u0002's power is at \u000304{0}\u000F.", demonWallMessage));
+                    Bot.Say(e.Connection, e.Channel, string.Format("The \u0002Demon Wall\u0002's power is at \u000304{0}\u000F.", demonWallMessage));
             }
         }
 
@@ -1197,24 +1214,24 @@ namespace BattleBot
             Character character;
             if (!this.Characters.TryGetValue(e.Parameters[0], out character))
                 // We can't recognise the turn of someone we don't know about.
-                this.Say(e.Connection, e.Channel, "I'm not familiar enough with this character to control them. Have them enter a battle first.");
+                Bot.Say(e.Connection, e.Channel, "I'm not familiar enough with this character to control them. Have them enter a battle first.");
             // Check if we're already controlling that person.
             else if (this.Controlling.Contains(character.ShortName))
-                this.Say(e.Connection, e.Channel, string.Format("I'm already controlling {0}.", character.ShortName));
+                Bot.Say(e.Connection, e.Channel, string.Format("I'm already controlling {0}.", character.ShortName));
             // Check for a non-player.
             // TODO: Allow it for clones.
             else if (character.Category != Category.Player && !Bot.UserHasPermission(e.Connection, e.Channel, e.Sender.Nickname, MyKey + ".control.nonplayer"))
-                this.Say(e.Connection, e.Channel, string.Format("You don't have permission to use this command on a non-player.", character.ShortName));
+                Bot.Say(e.Connection, e.Channel, string.Format("You don't have permission to use this command on a non-player.", character.ShortName));
             // We'll need admin status to control non-players.
             else if (character.Category != Category.Player && !this.IsAdmin)
-                this.Say(e.Connection, e.Channel, string.Format("I can't control non-players here.", character.ShortName));
+                Bot.Say(e.Connection, e.Channel, string.Format("I can't control non-players here.", character.ShortName));
             else if (character.IsReadyToControl) {
                 this.Controlling.Add(character.ShortName);
-                this.Say(e.Connection, e.Channel, string.Format("OK. I will now control \u0002{0}\u0002.", character.Name));
+                Bot.Say(e.Connection, e.Channel, string.Format("OK. I will now control \u0002{0}\u0002.", character.Name));
             } else {
                 // We'll need to know what this character has.
-                this.Say(e.Connection, e.Channel, string.Format("\u0001ACTION looks carefully at {0}...\u0001", character.Name));
-                Thread getAbilitiesThread = new Thread(GetAbilities);
+                Bot.Say(e.Connection, e.Channel, string.Format("\u0001ACTION looks carefully at {0}...\u0001", character.Name));
+                Thread getAbilitiesThread = new Thread(delegate(object name) { this.GetAbilities((string) name); });
                 getAbilitiesThread.Start(character.ShortName);
             }
         }
@@ -1225,17 +1242,17 @@ namespace BattleBot
             Character character;
             if (!this.Characters.TryGetValue(e.Sender.Nickname, out character))
                 // We can't recognise the turn of someone we don't know about.
-                this.Say(e.Connection, e.Channel, "I'm not familiar enough with your character to control you. Enter a battle first.");
+                Bot.Say(e.Connection, e.Channel, "I'm not familiar enough with your character to control you. Enter a battle first.");
             // Check if we're already controlling that person.
             else if (this.Controlling.Contains(character.ShortName))
-                this.Say(e.Connection, e.Channel, string.Format("I'm already controlling you, {0}.", character.ShortName));
+                Bot.Say(e.Connection, e.Channel, string.Format("I'm already controlling you, {0}.", character.ShortName));
             else if (character.IsReadyToControl) {
                 this.Controlling.Add(character.ShortName);
-                this.Say(e.Connection, e.Channel, string.Format("OK. I will now control \u0002{0}\u0002.", character.Name));
+                Bot.Say(e.Connection, e.Channel, string.Format("OK. I will now control \u0002{0}\u0002.", character.Name));
             } else {
                 // We'll need to know what this character has.
-                this.Say(e.Connection, e.Channel, string.Format("\u0001ACTION looks carefully at {0}...\u0001", character.Name));
-                Thread getAbilitiesThread = new Thread(GetAbilities);
+                Bot.Say(e.Connection, e.Channel, string.Format("\u0001ACTION looks carefully at {0}...\u0001", character.Name));
+                Thread getAbilitiesThread = new Thread(delegate(object name) { this.GetAbilities((string) name); });
                 getAbilitiesThread.Start(character.ShortName);
             }
         }
@@ -1247,7 +1264,7 @@ namespace BattleBot
             if (e.Parameters.Length == 1) {
                 if (!e.Connection.CaseMappingComparer.Equals(e.Parameters[0], e.Sender.Nickname) &&
                     !Bot.UserHasPermission(e.Connection, e.Channel, e.Sender, MyKey + ".control")) {
-                    this.Say(e.Connection, e.Sender.Nickname, "You don't have permission to use that command on others.");
+                    Bot.Say(e.Connection, e.Sender.Nickname, "You don't have permission to use that command on others.");
                     return;
                 }
                 target = e.Parameters[0];
@@ -1255,9 +1272,9 @@ namespace BattleBot
                 target = e.Sender.Nickname;
 
             if (Controlling.Remove(target))
-                this.Say(e.Connection, e.Channel, string.Format("OK, I will stop controlling \u0002{0}\u0002.", target));
+                Bot.Say(e.Connection, e.Channel, string.Format("OK, I will stop controlling \u0002{0}\u0002.", target));
             else
-                this.Say(e.Connection, e.Channel, string.Format("I'm not controlling {0}.", target));
+                Bot.Say(e.Connection, e.Channel, string.Format("I'm not controlling {0}.", target));
         }
 
         [Command("arena-id", 0, 1, "arena-id [new]", "Instructs me to identify myself to the Arena. Specify 'new' if I should set up a new character.",
@@ -1330,18 +1347,18 @@ namespace BattleBot
             ".admin", CommandScope.Channel)]
         public void CommandRename(object sender, CommandEventArgs e) {
             if (this.ArenaDirectory == null) {
-                this.Say(e.Connection, e.Sender.Nickname, "I don't have access to the Arena data folder.");
+                Bot.Say(e.Connection, e.Sender.Nickname, "I don't have access to the Arena data folder.");
                 return;
             }
             // Make sure the player exists.
             if (!File.Exists(Path.Combine(this.ArenaDirectory, "characters", e.Parameters[0] + ".char"))) {
-                this.Say(e.Connection, e.Sender.Nickname, string.Format("No player named \u0002{0}\u0002 is present.", e.Parameters[0]));
+                Bot.Say(e.Connection, e.Sender.Nickname, string.Format("No player named \u0002{0}\u0002 is present.", e.Parameters[0]));
                 return;
             }
             // Check for conflicts.
             string message;
             if (!this.CharacterNameCheck(e.Parameters[1], out message)) {
-                this.Say(e.Connection, e.Sender.Nickname, message);
+                Bot.Say(e.Connection, e.Sender.Nickname, message);
                 return;
             }
 
@@ -1429,7 +1446,7 @@ namespace BattleBot
                     File.WriteAllText(filePath, newBattleTxt.ToString());
                 }
             }
-            this.Say(e.Connection, e.Channel, string.Format("\u0002{0}\u0002 is now known as \u0002{1}\u0002.", e.Parameters[0], e.Parameters[1]));
+            Bot.Say(e.Connection, e.Channel, string.Format("\u0002{0}\u0002 is now known as \u0002{1}\u0002.", e.Parameters[0], e.Parameters[1]));
             if (this.BattleStarted && this.IsAdmin && this.Turn.Equals(e.Parameters[0], StringComparison.OrdinalIgnoreCase))
                 this.BattleAction(false, "!next");
         }
@@ -1438,7 +1455,7 @@ namespace BattleBot
             ".admin", CommandScope.Channel)]
         public void CommandRestore(object sender, CommandEventArgs e) {
             if (this.ArenaDirectory == null) {
-                this.Say(e.Connection, e.Sender.Nickname, "I don't have access to the Arena data folder.");
+                Bot.Say(e.Connection, e.Sender.Nickname, "I don't have access to the Arena data folder.");
                 return;
             }
             string name; string message;
@@ -1448,7 +1465,7 @@ namespace BattleBot
                 name = e.Parameters[1];
             // Check for conflicts.
             if (!this.CharacterNameCheck(name, out message)) {
-                this.Say(e.Connection, e.Sender.Nickname, message);
+                Bot.Say(e.Connection, e.Sender.Nickname, message);
                 return;
             }
 
@@ -1462,7 +1479,7 @@ namespace BattleBot
                 }
             }
             if (latestFile == null) {
-                this.Say(e.Connection, e.Sender.Nickname, string.Format("No record of \u0002{0}\u0002 was found.", e.Parameters[0]));
+                Bot.Say(e.Connection, e.Sender.Nickname, string.Format("No record of \u0002{0}\u0002 was found.", e.Parameters[0]));
                 return;
             }
 
@@ -1499,16 +1516,16 @@ namespace BattleBot
             File.Delete(latestFile);
 
             if (name == e.Parameters[0])
-                this.Say(e.Connection, e.Channel, string.Format("\u0002{0}\u0002 has been restored.", e.Parameters[0], name));
+                Bot.Say(e.Connection, e.Channel, string.Format("\u0002{0}\u0002 has been restored.", e.Parameters[0], name));
             else
-                this.Say(e.Connection, e.Channel, string.Format("\u0002{0}\u0002 has been restored as \u0002{1}\u0002.", e.Parameters[0], name));
+                Bot.Say(e.Connection, e.Channel, string.Format("\u0002{0}\u0002 has been restored as \u0002{1}\u0002.", e.Parameters[0], name));
         }
 
         [Command("lateentry", 1, 1, "lateentry <player>", "Enters a player into the battle after it has started.",
             ".lateentry")]
         public void CommandLateEntry(object sender, CommandEventArgs e) {
             if (this.ArenaDirectory == null) {
-                this.Say(e.Connection, e.Sender.Nickname, "I don't have access to the Arena data folder.");
+                Bot.Say(e.Connection, e.Sender.Nickname, "I don't have access to the Arena data folder.");
                 return;
             }
             string battleFile; string battleFile2;
@@ -1521,17 +1538,17 @@ namespace BattleBot
                 battleFile2 = Path.Combine(this.ArenaDirectory, "battle2.txt");
             }
             if (!File.Exists(battleFile)) {
-                this.Say(e.Connection, e.Sender.Nickname, string.Format("\u0002{0}\u0002 is missing. Perhaps there's currently no battle.", "battle.txt"));
+                Bot.Say(e.Connection, e.Sender.Nickname, string.Format("\u0002{0}\u0002 is missing. Perhaps there's currently no battle.", "battle.txt"));
                 return;
             }
             if (!File.Exists(battleFile2)) {
-                this.Say(e.Connection, e.Sender.Nickname, string.Format("\u0002{0}\u0002 is missing. Perhaps there's currently no battle.", "battle2.txt"));
+                Bot.Say(e.Connection, e.Sender.Nickname, string.Format("\u0002{0}\u0002 is missing. Perhaps there's currently no battle.", "battle2.txt"));
                 return;
             }
 
             // Make sure the character exists.
             if (!File.Exists(Path.Combine(this.ArenaDirectory, "characters", e.Parameters[0] + ".char"))) {
-                this.Say(e.Connection, e.Sender.Nickname, string.Format("No character named \u0002{0}\u0002 is present.", e.Parameters[0]));
+                Bot.Say(e.Connection, e.Sender.Nickname, string.Format("No character named \u0002{0}\u0002 is present.", e.Parameters[0]));
                 return;
             }
 
@@ -1541,7 +1558,7 @@ namespace BattleBot
             while (!reader.EndOfStream) {
                 string line = reader.ReadLine();
                 if (line.Equals(e.Parameters[0], StringComparison.OrdinalIgnoreCase)) {
-                    this.Say(e.Connection, e.Sender.Nickname, string.Format("\u0002{0}\u0002 is already in the battle.", e.Parameters[0]));
+                    Bot.Say(e.Connection, e.Sender.Nickname, string.Format("\u0002{0}\u0002 is already in the battle.", e.Parameters[0]));
                     return;
                 }
                 newBattleTxt.AppendLine(line);
@@ -1583,6 +1600,7 @@ namespace BattleBot
 
 #region Character information
         private void GetAbilities() {
+            if (this.LoggedIn == null) return;
             Character me = this.Characters[this.LoggedIn];
 
             // TODO: Insert DCC check here.
@@ -1704,7 +1722,7 @@ namespace BattleBot
         }
 
         private void GetAbilities(string characterName) {
-            Character character = this.Characters[this.LoggedIn];
+            Character character = this.Characters[characterName];
             Combatant combatant;
             if (this.BattleList.ContainsKey(characterName))
                 combatant = this.BattleList[characterName];
@@ -1713,16 +1731,18 @@ namespace BattleBot
             this.WriteLine(2, 12, string.Format("Examining {0}.", character.ShortName));
 
             // Attributes
-            if (character.EquippedWeapon == null ||
-                (combatant != null && (combatant.HP == 0 || combatant.STR == 0 || combatant.DEF == 0 || combatant.INT == 0 || combatant.SPD == 0)) ||
-                (combatant == null && (character.BaseHP == 0 || character.BaseSTR == 0 || character.BaseDEF == 0 || character.BaseINT == 0 || character.BaseSPD == 0))) {
-                this.WriteLine(2, 12, string.Format("[{0}] Checking attributes.", character.ShortName));
-                this.BattleAction(true, "!stats " + character.ShortName);
-                for (int j = 0; j < 120; ++j) {
-                    if (!(character.EquippedWeapon == null ||
-                          (combatant != null && (combatant.HP == 0 || combatant.STR == 0 || combatant.DEF == 0 || combatant.INT == 0 || combatant.SPD == 0)) ||
-                          (combatant == null && (character.BaseHP == 0 || character.BaseSTR == 0 || character.BaseDEF == 0 || character.BaseINT == 0 || character.BaseSPD == 0)))) break;
-                    Thread.Sleep(250);
+            if (combatant.Category == Category.Player) {
+                if (character.EquippedWeapon == null ||
+                    (combatant != null && (combatant.HP == 0 || combatant.STR == 0 || combatant.DEF == 0 || combatant.INT == 0 || combatant.SPD == 0)) ||
+                    (combatant == null && (character.BaseHP == 0 || character.BaseSTR == 0 || character.BaseDEF == 0 || character.BaseINT == 0 || character.BaseSPD == 0))) {
+                    this.WriteLine(2, 12, string.Format("[{0}] Checking attributes.", character.ShortName));
+                    this.BattleAction(true, "!stats " + character.ShortName);
+                    for (int j = 0; j < 120; ++j) {
+                        if (!(character.EquippedWeapon == null ||
+                              (combatant != null && (combatant.HP == 0 || combatant.STR == 0 || combatant.DEF == 0 || combatant.INT == 0 || combatant.SPD == 0)) ||
+                              (combatant == null && (character.BaseHP == 0 || character.BaseSTR == 0 || character.BaseDEF == 0 || character.BaseINT == 0 || character.BaseSPD == 0)))) break;
+                        Thread.Sleep(250);
+                    }
                 }
             }
 
@@ -1796,7 +1816,7 @@ namespace BattleBot
                 }
             }
 
-            if (!this.Weapons.ContainsKey(character.EquippedWeapon) || !this.Weapons.ContainsKey(character.EquippedWeapon2)) {
+            if (!this.Weapons.ContainsKey(character.EquippedWeapon) || (character.EquippedWeapon2 != null && !this.Weapons.ContainsKey(character.EquippedWeapon2))) {
                 this.WriteLine(2, 12, string.Format("[{0}] {0}'s equipped weapon is unknown!", character.ShortName));
                 this.BattleAction(true, "!equip Fists");
                 for (int j = 0; j < 120; ++j) {
@@ -1806,9 +1826,9 @@ namespace BattleBot
             }
 
             // Find my style.
-            if (character.CurrentStyle == null) {
+            if (combatant.Category == Category.Player && character.CurrentStyle == null) {
                 this.WriteLine(2, 12, string.Format("[{0}] Checking style.", character.ShortName));
-                this.Say(this.ArenaConnection, ArenaNickname, "!xp " + character.ShortName, SayOptions.NoticeNever);
+                Bot.Say(this.ArenaConnection, ArenaNickname, "!xp " + character.ShortName, SayOptions.NoticeNever);
                 for (int j = 0; j < 120; ++j) {
                     if (character.CurrentStyle != null) break;
                     Thread.Sleep(250);
@@ -1820,16 +1840,17 @@ namespace BattleBot
 
             this.Controlling.Add(character.ShortName);
             this.BattleAction(false, string.Format("OK. I'll control {0}.", character.Name));
+            if (this.Turn == combatant.ShortName) this.AI.Turn();
         }
 
         public Character GetCharacter(string name, bool add = true) {
             foreach (Character character in this.Characters.Values) {
-                if (character.Name.Equals(name, StringComparison.OrdinalIgnoreCase))
+                if (name.Equals(character.Name, StringComparison.OrdinalIgnoreCase))
                     return character;
             }
             if (!add) return null;
-            Character character2 = new Character() { ShortName = "*" + name };
-            this.Characters.Add(name, character2);
+            Character character2 = new Character() { Name = name, ShortName = "*" + name };
+            this.Characters.Add(character2.ShortName, character2);
             return character2;
         }
 
@@ -1924,7 +1945,7 @@ namespace BattleBot
             foreach (string techniqueName in techniqueNames) {
                 Match match2 = Regex.Match(techniqueName, @"^\x02*(\x035)?([^\x03]*)(?:\x033)?\((\d+)\)\x02*$");
                 if (match2.Success) {
-                    character.Techniques.Add(match2.Groups[2].Value, int.Parse(match2.Groups[3].Value));
+                    character.Techniques[match2.Groups[2].Value] = int.Parse(match2.Groups[3].Value);
                 } else {
                     this.WriteLine(2, 4, string.Format("Invalid token in the technique list:\u000F {0}", techniqueName));
                 }
@@ -1989,7 +2010,7 @@ namespace BattleBot
             this.ViewingStatsCharacter.ShortName = e.Match.Groups[1].Value;
         }
 
-        [ArenaRegex(@"^\[\x034HP\x0312 (\d*)\x031/\x0312(\d*)(?:\x03\d{0,2}|\x0F)\] \[\x034TP\x0312 (\d*)\x031/\x0312(\d*)(?:\x03\d{0,2}|\x0F)\](?: \[\x034Ignition Gauge\x0312 (\d*)\x031/\x0312(\d*)(?:\x03\d{0,2}|\x0F)\])? \[\x034Status\x0312 \x033(.*)(?:\x03\d{0,2}|\x0F)\](?: \[\x034Royal Guard Meter\x0312 (\d*)(?:\x03\d{0,2}|\x0F)\])?")]
+        [ArenaRegex(@"^\[\x034HP\x0312 (\d*)\x031/\x0312(\d*)(?:\x03\d{0,2}|\x0F)\] \[\x034TP\x0312 (\d*)\x031/\x0312(\d*)(?:\x03\d{0,2}|\x0F)\](?: \[\x034Ignition Gauge\x0312 (\d*)\x031/\x0312(\d*)(?:\x03\d{0,2}|\x0F)\])? \[\x034Status\x0312 \x033((?:[^\]]|\[[^\]]*\])*)(?:\x03\d{0,2}|\x0F)\](?: \[\x034Royal Guard Meter\x0312 (\d*)(?:\x03\d{0,2}|\x0F)\])?")]
         internal void OnStats1(object sender, RegexEventArgs e) {
             if (this.ViewingStatsCharacter == null) {
                 this.ViewingStatsCharacter = new Character();
@@ -2190,10 +2211,10 @@ namespace BattleBot
             this.WriteLine(2, 7, string.Format("{0} changes to the {1} style.", character.Name, character.CurrentStyle));
         }
 
-        [ArenaRegex(@"^\x033\x02([^\x02]*) \x02has\x02 \$\$(\d*) \x02double dollars\.")]
+        [ArenaRegex(@"^\x033\x02([^\x02]*) \x02has\x02 \$\$([\d,]*) \x02double dollars\.")]
         internal void OnDoubleDollars(object sender, RegexEventArgs e) {
             Character character = this.GetCharacter(e.Match.Groups[1].Value);
-            character.DoubleDollars = int.Parse(e.Match.Groups[2].Value);
+            character.DoubleDollars = int.Parse(e.Match.Groups[2].Value.Replace(",", ""));
             this.WriteLine(2, 7, string.Format("{0} has $${1}.", character.Name, character.DoubleDollars));
         }
 #endregion
@@ -2488,7 +2509,7 @@ namespace BattleBot
             this.viewInfoWeaponCheck();
         }
 
-        [ArenaRegex(@"\[\x034Base Power\x0312 (.*)(?:\x03\d{0,2}|\x0F)\] \[\x034Cost\x0312 (.*) black orb\(?s?\)?(?:\x03\d{0,2}|\x0F)\] \[\x034Element of Weapon\x0312 (.*)(?:\x03\d{0,2}|\x0F)\](?: \[\x034Is the weapon 2 Handed\?\x0312 (?:(yes)|(no))\x034\])?")]
+        [ArenaRegex(@"\[\x034Base Power\x0312 (\d*)(?:\x03\d{0,2}|\x0F)\] \[\x034Cost\x0312 (\d*) black orb\(?s?\)?(?:\x03\d{0,2}|\x0F)\] \[\x034Element of Weapon\x0312 ([^\x03\x0F]*)(?:\x03\d{0,2}|\x0F)\](?: \[\x034Is the weapon 2 Handed\?\x0312 (?:(yes)|(no))\x034\])?")]
         internal void OnViewInfoWeapon2(object sender, RegexEventArgs e) {
             if (this.ViewingWeapon == null)
                 this.ViewingWeapon = new Weapon();
@@ -2589,7 +2610,7 @@ namespace BattleBot
                 this.ViewingTechnique = new Technique();
             }
 
-            this.ViewingTechnique.Power = int.Parse(e.Match.Groups[1].Value);
+            int.TryParse(e.Match.Groups[1].Value, out this.ViewingTechnique.Power);
             this.ViewingTechnique.Cost = int.Parse(e.Match.Groups[2].Value);
             this.ViewingTechnique.Element = e.Match.Groups[3].Value;
             this.ViewingTechnique.UsesINT = e.Match.Groups[6].Success;
@@ -2868,7 +2889,7 @@ namespace BattleBot
 
 #region Battle preparation
         [ArenaRegex(@"^\x034A dimensional portal has been detected\. The enemy force will arrive in (\d+(?:\.\d+)?) (?:(minute)|second)\(?s?\)?\. [Tt]ype \x02!enter\x02 if you wish to join the battle!")]
-        internal void OnBatleOpenNormal(object sender, RegexEventArgs e) {
+        internal void OnBattleOpenNormal(object sender, RegexEventArgs e) {
             float time = float.Parse(e.Match.Groups[1].Value);
             if (e.Match.Groups[2].Success)
                 time *= 60;
@@ -2876,7 +2897,7 @@ namespace BattleBot
         }
 
         [ArenaRegex(@"^\x034The doors to the \x02gauntlet\x02 are open\. Anyone willing to brave the gauntlet has (\d+(?:\.\d+)?) (?:(minute)|second)\(?s?\)? to enter before the doors close\. Type \x02!enter\x02 if you wish to join the battle!")]
-        internal void OnBatleOpenGauntlet(object sender, RegexEventArgs e) {
+        internal void OnBattleOpenGauntlet(object sender, RegexEventArgs e) {
             float time = float.Parse(e.Match.Groups[1].Value);
             if (e.Match.Groups[2].Success)
                 time *= 60;
@@ -2884,7 +2905,7 @@ namespace BattleBot
         }
 
         [ArenaRegex(@"^\x0314\x02The President of the Allied Forces\x02 has been \x02kidnapped by monsters\x02! Are you a bad enough dude to save the president\? \x034The rescue party will depart in (\d+(?:\.\d+)?) (?:(minute)|second)\(?s?\)?\. Type \x02!enter\x02 if you wish to join the battle!")]
-        internal void OnBatleOpenPresident(object sender, RegexEventArgs e) {
+        internal void OnBattleOpenPresident(object sender, RegexEventArgs e) {
             float time = float.Parse(e.Match.Groups[1].Value);
             if (e.Match.Groups[2].Success)
                 time *= 60;
@@ -2892,7 +2913,7 @@ namespace BattleBot
         }
 
         [ArenaRegex(@"^\x034An \x02evil treasure chest Mimic\x02 is ready to fight\S? The battle will begin in (\d+(?:\.\d+)?) (?:(minute)|second)\(?s?\)?\. Type \x02!enter\x02 if you wish to join the battle!")]
-        internal void OnBatleOpenMimic(object sender, RegexEventArgs e) {
+        internal void OnBattleOpenMimic(object sender, RegexEventArgs e) {
             float time = float.Parse(e.Match.Groups[1].Value);
             if (e.Match.Groups[2].Success)
                 time *= 60;
@@ -2900,7 +2921,7 @@ namespace BattleBot
         }
 
         [ArenaRegex(@"\x034A \x021 vs 1 AI Match\x02 is about to begin! The battle will begin in (\d+(?:\.\d+)?) (?:(minute)|second)\(?s?\)?.")]
-        internal void OnBatleOpenNPC(object sender, RegexEventArgs e) {
+        internal void OnBattleOpenNPC(object sender, RegexEventArgs e) {
             float time = float.Parse(e.Match.Groups[1].Value);
             if (e.Match.Groups[2].Success)
                 time *= 60;
@@ -2921,7 +2942,7 @@ namespace BattleBot
             this.TurnNumber = 0;
             this.Turn = null;
 
-            if (type != BattleType.NPC) {
+            if (type != BattleType.NPC && this.LoggedIn != null) {
                 // Enter the battle.
                 if (this.EnableParticipation && this.MinPlayers <= 0) {
                     Character character;
@@ -3263,6 +3284,8 @@ namespace BattleBot
                         this.UnmatchedShortNames.Add(new UnmatchedName() { Name = shortName, Category = (Category) 7 });
                 }
                 this.MatchNames();
+
+                this.AICheck();
             }
         }
 
@@ -3512,7 +3535,7 @@ namespace BattleBot
                         character.Category = Category.Ally;
 
                     this.Characters.Add(character.ShortName, character);
-                    this.WriteLine(2, 9, "Registered {0} to {1}.", fullName, character.ShortName);
+                    this.WriteLine(2, 9, "Registered {0} to {1}.", fullName.Name, character.ShortName);
                     this.RegisterEnteredCharacter(character);
 
                     // Remove this character from the list of considered matches.
@@ -3595,6 +3618,8 @@ namespace BattleBot
             this.Turn = GetShortName(e.Match.Groups[1].Value, false, true);
             ++this.BattleList[this.Turn].TurnNumber;
 
+            this.AI.BattleStart();
+
             // If it's the bot's turn, act.
             this.AICheck();
         }
@@ -3609,7 +3634,7 @@ namespace BattleBot
             this.TurnAoE = false;
         }
 
-        [ArenaRegex(@"^\x02\x033((?>[^\x02]*))\x02 ((?>[^\x03]*)(?:\x03(?>[^\x03]*))*?)\x033\.")]
+        [ArenaRegex(@"^\x02\x033((?>[^\x02]*))\x02 ((?>[^\x03]*)(?:\x03(?>[^\x03]*))*?\x033\.)")]
         internal void OnAttackStandard(object sender, RegexEventArgs e) {
             // Standard attack actions get "\x033." appended to them.
             // Technique actions, on the other hand, don't.
@@ -3650,91 +3675,142 @@ namespace BattleBot
         }
 
         internal void RegisterAttack() {
+            this.RegisterAttack('\0');
+        }
+        internal void RegisterAttack(char colour) {
             if (!this.EnableAnalysis) return;
-            if (this.Turn == null) return;
+            if (this.Turn == null || this.TurnAction == null) return;
 
             // Was the action a technique?
             bool isTechnique = !this.TurnAction.EndsWith("\u00033.");
-            Technique technique;
+            Technique technique = null;
             string techniqueName;
             string techniqueElement;
             bool techniqueHealing = isTechnique && this.TurnAction.Contains("healing");
 
-            if (this.Turn != null)
-                this.TurnAction = Regex.Replace(this.TurnAction, @"\b" + Regex.Escape(this.BattleList[this.Turn].Name) + @"\b", "%user");
-            this.TurnAction = Regex.Replace(this.TurnAction, @"\b(?:him|her|it|his|its|he|she)\b", "%gender");
-            if (this.TurnTarget != null)
-                this.TurnAction = Regex.Replace(this.TurnAction, @"\b" + Regex.Escape(this.BattleList[this.TurnTarget].Name) + @"\b", "%target");
+            if (!this.TurnAoE) {
+                if (this.Turn != null)
+                    this.TurnAction = Regex.Replace(this.TurnAction, @"\b" + Regex.Escape(this.BattleList[this.Turn].Name) + @"\b", "%user");
+                this.TurnAction = Regex.Replace(this.TurnAction, @"\b(?:him|her|it|his|its|he|she)\b", "%gender");
+                if (this.TurnTarget != null)
+                    this.TurnAction = Regex.Replace(this.TurnAction, @"\b" + Regex.Escape(this.BattleList[this.TurnTarget].Name) + @"\b", "%target");
+            }
 
             if (isTechnique) {
                 techniqueName = null;
                 foreach (Technique _technique in this.Techniques.Values) {
                     if (_technique.Description == this.TurnAction) {
                         techniqueName = _technique.Name;
+                        technique = _technique;
                         break;
                     }
                 }
-                if (techniqueName == null) {
-                    // We don't yet know this technique. Let's note all we can see about it.
-                    if (this.TurnAbility == null || this.TurnAbility == "?")
-                        techniqueName = "UnknownTechnique" + this.Techniques.Count.ToString();
-                    else
-                        techniqueName = this.TurnAbility;
-                    if (!this.Techniques.TryGetValue(techniqueName, out technique) || !technique.IsWellKnown) {
-                        // Guess the element of the technique.
-                        Match match = Regex.Match(this.TurnAction, @"\b(?:(ice|icy)|(water|tsunami\b|tidal wave\b)|(thunder\b|lightning\b)|(holy\b)|(curse|dark(?:ness)?\b)|(fire(?!d|s|ing)|flam(?:e|ing))|(winds?\b|tornado|cyclone)|(ground\b|earth|boulder|(?-i:rock|stone))|(light\b)|(shock(?!\W?wave)))", RegexOptions.IgnoreCase);
-                        if (match.Groups[1].Success)
-                            techniqueElement = "Ice";
-                        else if (match.Groups[2].Success)
-                            techniqueElement = "Water";
-                        else if (match.Groups[3].Success)
-                            techniqueElement = "Lightning";
-                        else if (match.Groups[4].Success)
-                            techniqueElement = "Light";
-                        else if (match.Groups[5].Success)
-                            techniqueElement = "Dark";
-                        else if (match.Groups[6].Success)
-                            techniqueElement = "Fire";
-                        else if (match.Groups[7].Success)
-                            techniqueElement = "Wind";
-                        else if (match.Groups[8].Success)
-                            techniqueElement = "Earth";
-                        else if (match.Groups[9].Success)
-                            techniqueElement = "Light";
-                        else if (match.Groups[10].Success)
-                            techniqueElement = "Lightning";
+                if (!this.TurnAoE) {
+                    if (techniqueName == null) {
+                        // We don't yet know this technique. Let's note all we can see about it.
+                        if (this.TurnAbility == null || this.TurnAbility == "?")
+                            techniqueName = "UnknownTechnique" + this.Techniques.Count.ToString();
                         else
-                            techniqueElement = null;
-                        technique = new Technique() { Name = techniqueName, Description = this.TurnAction, Element = techniqueElement };
-                        this.Techniques[techniqueName] = technique;
-                        this.WriteLine(2, 9, "Found new technique {0}. (Element: {1})", techniqueName, techniqueElement ?? "None");
-                    }
-                } else {
-                    if (this.TurnAbility != null && this.TurnAbility != "?" && this.TurnAbility != techniqueName) {
-                        technique = this.Techniques[techniqueName];
-                        this.WriteLine(2, 9, "Reregistering {0} as {1}.", techniqueName, this.TurnAbility);
-                        this.Techniques.Remove(techniqueName);
-                        foreach (Character character in this.Characters.Values) {
-                            if (character.EquippedTechniques != null) {
-                                for (int i = 0; i < character.EquippedTechniques.Count; ++i) {
-                                    if (character.EquippedTechniques[i] == techniqueName) {
-                                        character.EquippedTechniques[i] = this.TurnAbility;
-                                        break;
+                            techniqueName = this.TurnAbility;
+                        if (!this.Techniques.TryGetValue(techniqueName, out technique) || !technique.IsWellKnown) {
+                            // Guess the element of the technique.
+                            Match match = Regex.Match(this.TurnAction, @"\b(?:(ice|icy)|(water|tsunami\b|tidal wave\b)|(thunder\b|lightning\b)|(holy\b)|(curse|dark(?:ness)?\b)|(fire(?!d|s|ing)|flam(?:e|ing))|(winds?\b|tornado|cyclone)|(ground\b|earth|boulder|(?-i:rock|stone))|(light\b)|(shock(?!\W?wave)))", RegexOptions.IgnoreCase);
+                            if (match.Groups[1].Success)
+                                techniqueElement = "Ice";
+                            else if (match.Groups[2].Success)
+                                techniqueElement = "Water";
+                            else if (match.Groups[3].Success)
+                                techniqueElement = "Lightning";
+                            else if (match.Groups[4].Success)
+                                techniqueElement = "Light";
+                            else if (match.Groups[5].Success)
+                                techniqueElement = "Dark";
+                            else if (match.Groups[6].Success)
+                                techniqueElement = "Fire";
+                            else if (match.Groups[7].Success)
+                                techniqueElement = "Wind";
+                            else if (match.Groups[8].Success)
+                                techniqueElement = "Earth";
+                            else if (match.Groups[9].Success)
+                                techniqueElement = "Light";
+                            else if (match.Groups[10].Success)
+                                techniqueElement = "Lightning";
+                            else
+                                techniqueElement = null;
+                            technique = new Technique() { Name = techniqueName, Description = this.TurnAction, Element = techniqueElement };
+                            this.Techniques[techniqueName] = technique;
+                            this.WriteLine(2, 9, "Found new technique {0}. (Element: {1})", techniqueName, techniqueElement ?? "None");
+                        }
+                    } else {
+                        if (this.TurnAbility != null && this.TurnAbility != "?" && this.TurnAbility != techniqueName) {
+                            technique = this.Techniques[techniqueName];
+                            this.WriteLine(2, 9, "Reregistering {0} as {1}.", techniqueName, this.TurnAbility);
+                            this.Techniques.Remove(techniqueName);
+                            foreach (Character character in this.Characters.Values) {
+                                if (character.EquippedTechniques != null) {
+                                    for (int i = 0; i < character.EquippedTechniques.Count; ++i) {
+                                        if (character.EquippedTechniques[i] == techniqueName) {
+                                            character.EquippedTechniques[i] = this.TurnAbility;
+                                            break;
+                                        }
                                     }
                                 }
                             }
+                            techniqueName = this.TurnAbility;
+                            technique.Name = techniqueName;
+                            if (!this.Techniques.ContainsKey(techniqueName)) this.Techniques.Add(techniqueName, technique);
                         }
-                        techniqueName = this.TurnAbility;
-                        technique.Name = techniqueName;
-                        if (!this.Techniques.ContainsKey(techniqueName)) this.Techniques.Add(techniqueName, technique);
                     }
                 }
+                if (technique != null) {
+                    if (this.TurnTarget == null)
+                        this.WriteLine(2, 3, "{0} used {1} on {2}.", this.BattleList[this.Turn].Name, technique.Name, "???");
+                    else
+                        this.WriteLine(2, 3, "{0} used {1} on {2}.", this.BattleList[this.Turn].Name, technique.Name, this.BattleList[this.TurnTarget].Name);
+                    this.BattleList[this.Turn].LastAction = technique.Name;
+                }
+                if (!this.TurnAoE && !this.BattleList[this.Turn].Status.Contains("conserving TP", StringComparer.InvariantCultureIgnoreCase)) {
+                    this.BattleList[this.Turn].TP -= technique.TP;
+                    if (this.BattleList[this.Turn].TP < 0) this.BattleList[this.Turn].TP = 0;
+                }
+
+                // Register the effectiveness.
+                if (this.IsBattleDungeon && this.TurnTarget != null && colour != '\0') {
+                    Combatant target = this.BattleList[this.TurnTarget];
+                    if (!target.HasUsedMagicShift) {
+                        // Element
+                        if (technique != null && technique.Element != null && technique.Element != "none") {
+                            if (colour == '7') {
+                                // The attack was super effective.
+                                if (target.Character.ElementalWeaknesses == null) target.Character.ElementalWeaknesses = new List<string>();
+                                if (!target.Character.ElementalWeaknesses.Contains(technique.Element, StringComparer.InvariantCultureIgnoreCase)) {
+                                    this.WriteLine(2, 9, "{0} is weak to {1}.", target.Name, technique.Element);
+                                    target.Character.ElementalWeaknesses.Add(technique.Element);
+                                }
+                            } else if (colour == '6') {
+                                // The attack was not very effective.
+                                if (target.Character.ElementalResistances == null) target.Character.ElementalResistances = new List<string>();
+                                if (!target.Character.ElementalResistances.Contains(technique.Element, StringComparer.InvariantCultureIgnoreCase)) {
+                                    this.WriteLine(2, 9, "{0} is resistant to {1}.", target.Name, technique.Element);
+                                    target.Character.ElementalResistances.Add(technique.Element);
+                                }
+                            } else {
+                                if (target.Character.RegularlyEffective == null) target.Character.RegularlyEffective = new List<string>();
+                                if (!target.Character.RegularlyEffective.Contains(technique.Element, StringComparer.InvariantCultureIgnoreCase))
+                                    target.Character.RegularlyEffective.Add(technique.Element);
+                            }
+                        }
+                    }
+                }
+            } else {
+                this.BattleList[this.Turn].LastAction = this.BattleList[this.Turn].Character.EquippedWeapon;
             }
         }
 
-        [ArenaRegex(@"^The attack did\x034\x02 (\d+) \x02\x0Fdamage(?: \[([^\]]*)\])?")]
+        [ArenaRegex(@"^The attack did\x03([467])\x02 (\d+) \x02\x0Fdamage(?! \x0F?to)(?: \[([^\]]*)\])?")]
         internal void OnDamageLegacy(object sender, RegexEventArgs e) {
             if (!this.EnableAnalysis) return;
+            if (this.TurnAction == null) return;
 
             int maxOccurrences = 0;
             // We will find out whom the target is by looking for whose name is mentioned the most in the action.
@@ -3751,21 +3827,21 @@ namespace BattleBot
                     this.TurnTarget = combatant.ShortName;
                 }
             }
-            this.RegisterAttack();
+            this.RegisterAttack(e.Match.Groups[1].Value[0]);
             this.TurnAbility = null;
             this.Turn = null;
         }
 
-        [ArenaRegex(@"^The attack did\x034\x02 (\d+) \x02\x0Fdamage to ([^[]*)(?: \[([^\]]*)\])?")]
+        [ArenaRegex(@"^The attack did\x03([467])\x02 (\d+) \x02\x0Fdamage to ([^[]*)(?<! )(?: \[([^\]]*)\])?")]
         internal void OnDamageSingle(object sender, RegexEventArgs e) {
             if (!this.EnableAnalysis) return;
-            this.TurnTarget = GetShortName(e.Match.Groups[2].Value, false, true);
-            this.RegisterAttack();
+            this.TurnTarget = GetShortName(e.Match.Groups[3].Value, false, true);
+            this.RegisterAttack(e.Match.Groups[1].Value[0]);
             this.TurnAbility = null;
             this.Turn = null;
         }
 
-        [ArenaRegex(@"^\x031The first attack did\x034\x02 (\d+) \x02\x0Fdamage +\.(?:The second attack did\x034\x02 (\d+) \x03\x0Fdamage +\.(?:The third attack did\x034\x02 (\d+) \x02\x0Fdamage\. +(?:The fourth attack did\x034\x02 (\d+) \x02\x0Fdamage\. +(?:The fifth attack did\x034\x02 (\d+) \x02\x0Fdamage\. +(?:The sixth attack did\x034\x02 (\d+) \x02\x0Fdamage\. +(?:The seventh attack did\x034\x02 (\d+) \x02\x0Fdamage\. +(?:The eighth? attack did\x034\x02 (\d+) \x02\x0Fdamage\.)?)?)?)?)?)?)?Total physical damage:\x034\x02 (\d+) \x0F(.*)")]
+        [ArenaRegex(@"^(?:\x031)?The first attack did\x03([467])\x02 (\d+) \x02\x0Fdamage\. +(?:The second attack did\x03\d\x02 (\d+) [\x02\x03]*\x0Fdamage\. +(?:The third attack did\x03\d\x02 (\d+) \x02\x0Fdamage\. +(?:The fourth attack did\x03\d\x02 (\d+) \x02\x0Fdamage\. +(?:The fifth attack did\x03\d\x02 (\d+) \x02\x0Fdamage\. +(?:The sixth attack did\x03\d\x02 (\d+) \x02\x0Fdamage\. +(?:The seventh attack did\x03\d\x02 (\d+) \x02\x0Fdamage\. +(?:The eighth? attack did\x03\d\x02 (\d+) \x02\x0Fdamage\.\ +)?)?)?)?)?)?)?Total physical damage:\x03\d\x02 (\d+) \x0F(.*)")]
         internal void OnDamageMulti(object sender, RegexEventArgs e) {
             if (!this.EnableAnalysis) return;
 
@@ -3784,19 +3860,17 @@ namespace BattleBot
                     this.TurnTarget = combatant.ShortName;
                 }
             }
-            this.RegisterAttack();
+            this.RegisterAttack(e.Match.Groups[1].Value[0]);
             this.TurnAbility = null;
             this.Turn = null;
         }
 
-        [ArenaRegex(@"^The attack did\x034\x02 (\d+) \x02\x0Fdamage \x0Fto\x02 ([^\x02]*)\x02! (\x034\x02[^\x02]*\x02.* )?\x0F(\[([^\]]*)\])?( \x02\x034.*\x02.*\x02.*\x02!)?")]
+        [ArenaRegex(@"^The attack did\x03([467])\x02 (\d+) \x02\x0Fdamage \x0Fto\x02 ([^\x02]*)\x02! (\x034\x02[^\x02]*\x02.* )?\x0F(\[([^\]]*)\])?( \x02\x034.*\x02.*\x02.*\x02!)?")]
         internal void OnDamageAoE(object sender, RegexEventArgs e) {
             if (!this.EnableAnalysis) return;
-            if (!this.TurnAoE) {
-                this.TurnTarget = GetShortName(e.Match.Groups[2].Value, false, true);
-                this.RegisterAttack();
-                this.TurnAoE = true;
-            }
+            this.TurnTarget = GetShortName(e.Match.Groups[3].Value, false, true);
+            this.RegisterAttack(e.Match.Groups[1].Value[0]);
+            this.TurnAoE = true;
         }
 
         [ArenaRegex(@"^\x02\x034(?>[^\x02]*)\x02can only attack monsters!")]
@@ -3816,62 +3890,70 @@ namespace BattleBot
             }
         }
 
-        [ArenaRegex(@"^\x02\x034([^\x02]*) \x02is now\x02 (?:(frozen in time)|(poisoned)|(silenced)|(blind)|inflicted with (?:(a virus)|(amnesia)|(defense down)|(strength down)|(int down))|(paralyzed)|(a zombie)|(slowed)|(stunned)|(cursed)|(charmed)|(intimidated)|(petrified)|(bored of the battle)|(confused)|(no longer boosted)|([^\x02]*))\x02!")]
+        [ArenaRegex(@"^\x02\x034([^\x02]*) \x02is now\x02 (?:(frozen in time)|(poisoned)|(silenced)|(blind)|inflicted with (?:(a virus)|(amnesia)|(defense down)|(strength down)|(int down))|(paralyzed)|(a zombie)|(slowed)|(stunned)|(cursed)|(charmed)|(intimidated)|(petrified)|(bored of the battle)|(confused)|(no longer boosted)|((?:gains|under) defense up)|([^\x02]*))\x02!")]
         internal void OnStatusInflicted(object sender, RegexEventArgs e) {
             if (!this.EnableAnalysis) return;
-            Combatant combatant = this.BattleList[e.Match.Groups[1].Value];
+            string subject = this.GetShortName(e.Match.Groups[1].Value, false, true);
+            if (subject == null) return;
+            Combatant combatant = this.BattleList[subject];
             string effect;
             if (e.Match.Groups[2].Success)
-                effect = "stop";
+                effect = "frozen in time";
             else if (e.Match.Groups[3].Success)
-                effect = "poison";
+                effect = "poisoned";
             else if (e.Match.Groups[4].Success)
-                effect = "silence";
+                effect = "silenced";
             else if (e.Match.Groups[5].Success)
                 effect = "blind";
             else if (e.Match.Groups[6].Success)
                 effect = "virus";
             else if (e.Match.Groups[7].Success)
-                effect = "amnesia";
+                effect = "under amnesia";
             else if (e.Match.Groups[8].Success)
-                effect = "defensedown";
+                effect = "Defense Down";
             else if (e.Match.Groups[9].Success)
-                effect = "strengthdown";
+                effect = "Strength Down";
             else if (e.Match.Groups[10].Success)
-                effect = "intdown";
+                effect = "Int Down";
             else if (e.Match.Groups[11].Success)
-                effect = "paralysis";
+                effect = "paralyzed";
             else if (e.Match.Groups[12].Success)
                 effect = "zombie";
             else if (e.Match.Groups[13].Success)
-                effect = "slow";
+                effect = "slowed";
             else if (e.Match.Groups[14].Success)
-                effect = "stun";
-            else if (e.Match.Groups[15].Success)
-                effect = "curse";
-            else if (e.Match.Groups[16].Success)
-                effect = "charm";
+                effect = "stunned";
+            else if (e.Match.Groups[15].Success) {
+                effect = "cursed";
+                combatant.TP = 0;
+            } else if (e.Match.Groups[16].Success)
+                effect = "charmed";
             else if (e.Match.Groups[17].Success)
-                effect = "intimidate";
+                effect = "intimidated";
             else if (e.Match.Groups[18].Success)
-                effect = "petrify";
+                effect = "petrified";
             else if (e.Match.Groups[19].Success)
                 effect = "bored";
             else if (e.Match.Groups[20].Success)
-                effect = "confuse";
-            else if (e.Match.Groups[21].Success)
-                effect = "removeboost";
+                effect = "confused";
+            else if (e.Match.Groups[21].Success) {
+                // Remove boost
+                combatant.Status.Remove("power boosted");
+                this.WriteLine(1, 12, "{0} is no longer boosted.", combatant.Name);
+                return;
+            } else if (e.Match.Groups[22].Success)
+                effect = "Defense Up";
             else {
-                this.WriteLine(2, 4, "Unrecognised status effect: {0}", e.Match.Groups[22].Value);
+                this.WriteLine(2, 4, "Unrecognised status effect: {0}", e.Match.Groups[23].Value);
                 return;
             }
-            if (combatant.Status.Contains(effect)) {
+            if (combatant.Status.Contains(effect, StringComparer.InvariantCultureIgnoreCase)) {
                 if (e.Match.Groups[3].Success) {
-                    effect = "poison-heavy";
-                    combatant.Status[combatant.Status.IndexOf("poison")] = effect;
+                    effect = "poisoned heavily";
+                    combatant.Status[combatant.Status.IndexOf("poisoned")] = effect;
                     this.WriteLine(1, 12, "{0} is now inflicted with {1}.", combatant.Name, effect);
                 }
-            } else if (!e.Match.Groups[3].Success || !combatant.Status.Contains("poison-heavy")) {
+            } else if (!e.Match.Groups[3].Success || !combatant.Status.Contains("poisoned heavily", StringComparer.InvariantCultureIgnoreCase)) {
                 combatant.Status.Add(effect);
                 this.WriteLine(1, 12, "{0} is now inflicted with {1}.", combatant.Name, effect);
             }
@@ -3880,7 +3962,9 @@ namespace BattleBot
         [ArenaRegex(@"^\x034\x02([^\x02]*) \x02is immune to the ([^ ]*) status!")]
         internal void OnStatusImmune(object sender, RegexEventArgs e) {
             if (!this.EnableAnalysis) return;
-            Character character = this.Characters[e.Match.Groups[1].Value];
+            string subject = this.GetShortName(e.Match.Groups[1].Value, false, true);
+            Character character = this.Characters[subject];
+            if (character.StatusImmunities == null) character.StatusImmunities = new List<string>();
             if (!character.StatusImmunities.Contains(e.Match.Groups[2].Value)) {
                 character.StatusImmunities.Add(e.Match.Groups[2].Value);
                 this.WriteLine(1, 12, "{0} is immune to the {1} effect.", character.Name, e.Match.Groups[2].Value);
@@ -3889,12 +3973,15 @@ namespace BattleBot
 
         [ArenaRegex(@"^(?:\x033\x02|\x02\x033)([^\x02]*)'s\x02 attack goes right through\x02 ([^\x02]*) \x02doing no damage!")]
         internal void OnEtherealAvoid(object sender, RegexEventArgs e) {
-            if (!this.EnableAnalysis) return;
-            Character character = this.Characters[e.Match.Groups[2].Value];
-            Combatant combatant = this.BattleList[e.Match.Groups[2].Value];
-            character.IsEthereal = true;
-            if (!combatant.Status.Contains("ethereal"))
-                combatant.Status.Add("ethereal");
+            try {
+                if (!this.EnableAnalysis) return;
+                string subject = this.GetShortName(e.Match.Groups[2].Value, false, true);
+                Character character = this.Characters[subject];
+                Combatant combatant = this.BattleList[subject];
+                character.IsEthereal = true;
+                if (!combatant.Status.Contains("ethereal", StringComparer.InvariantCultureIgnoreCase))
+                    combatant.Status.Add("ethereal");
+            } catch (KeyNotFoundException) { }
         }
 
         [ArenaRegex(@"^\x034\x02([^\x02]*) \x02is immune to the (?i:(fire)|(ice)|(water)|(lightning)|(earth)|(wind)|(light)|(dark)|([^ ]+)) element!")]
@@ -3924,22 +4011,22 @@ namespace BattleBot
             this.BattleList.Add(this.Turn + "_summon", new Combatant() { ShortName = shortName, Name = e.Match.Groups[2].Value, Character = character, Category = Category.Ally });
         }
 
-        [ArenaRegex(@"^\x033It is\x02 ([^\x02]*)\x02's turn \[[^:]*Health[^:]*: (\x02?\x03[01]?\d\x02?.*)\x02\x033\] \[[^:]*Status[^:]*:\x02?\x034\x02? ?(?:\x034)*([^\x5D]*)\x02\x033\]")]
+        [ArenaRegex(@"^\x033It is\x02 ([^\x02]*)\x02's turn \[[^:]*Health[^:]*: (\x02?\x03[01]?\d\x02?.*)\x02\x033\] \[[^:]*Status[^:]*:\x02?\x034\x02? ?(?:\x034)*((?:\[[^\]]*\]|[^\]])*)\x02\x033\]")]
         internal void OnTurn(object sender, RegexEventArgs e) {
             this.BattleOpen = false;
             this.BattleStarted = true;
             if (!this.EnableAnalysis) return;
+            this.Turn = null;
             this.TurnAction = null;
             this.TurnTarget = null;
 
             Combatant combatant; Character character;
 
             // Make sure we know the character whose turn it is.
-            bool known = false; ;
+            bool known = false;
             foreach (UnmatchedName name in this.UnmatchedFullNames) {
                 if (name.Name == e.Match.Groups[1].Value) {
-                    known = true;
-                    break;
+                    return;
                 }
             }
             if (!known) {
@@ -3959,8 +4046,12 @@ namespace BattleBot
                                 this.UnmatchedFullNames.Add(new UnmatchedName() { Name = e.Match.Groups[1].Value, Category = (Category) 7 });
                                 return;
                             }
+                        } else {
+                            // We'll need to find them in the battle list later.
+                            this.UnmatchedFullNames.Add(new UnmatchedName() { Name = e.Match.Groups[1].Value, Category = (Category) 7 });
+                            return;
                         }
-                    }
+                    } 
                 }
             }
 
@@ -3987,7 +4078,7 @@ namespace BattleBot
             string status = IRCClient.RemoveCodes(e.Match.Groups[3].Value);
             combatant.Status.Clear();
             if (status != "none" && status != "normal")
-                combatant.Status.AddRange(status.Split(new string[] { " | " }, StringSplitOptions.None));
+                combatant.Status.AddRange(status.Split(new char[] { '|', ' ', 'Â' }, StringSplitOptions.RemoveEmptyEntries));
 
             // Count TP.
             if (!combatant.Status.Contains("cursed")) {
@@ -4025,10 +4116,10 @@ namespace BattleBot
                 Name = name, ShortName = original + "_clone", Category = character.Category < Category.Monster ? Category.Ally : Category.Monster,
                 BaseHP = (int) Math.Round((float) combatant.HP * 0.4F), BaseTP = character.BaseTP, IgnitionGauge = character.IgnitionGauge, IgnitionCapacity = character.IgnitionCapacity,
                 BaseSTR = character.BaseSTR, BaseDEF = character.BaseDEF, BaseINT = character.BaseINT, BaseSPD = character.BaseSPD,
-                EquippedWeapon = character.EquippedWeapon, EquippedWeapon2 = character.EquippedWeapon2, EquippedAccessory = character.EquippedAccessory, EquippedTechniques = new List<string>(character.EquippedTechniques),
+                EquippedWeapon = character.EquippedWeapon, EquippedWeapon2 = character.EquippedWeapon2, EquippedAccessory = character.EquippedAccessory, EquippedTechniques = (character.EquippedTechniques == null ? null : new List<string>(character.EquippedTechniques)),
                 IsUndead = character.IsUndead, IsElemental = character.IsElemental, IsEthereal = character.IsEthereal,
-                ElementalResistances = new List<string>(character.ElementalResistances), ElementalWeaknesses = new List<string>(character.ElementalWeaknesses), ElementalImmunities = new List<string>(character.ElementalImmunities), ElementalAbsorbs = new List<string>(character.ElementalAbsorbs),
-                WeaponResistances = new List<string>(character.WeaponResistances), WeaponWeaknesses = new List<string>(character.WeaponWeaknesses),
+                ElementalResistances = character.ElementalResistances, ElementalWeaknesses = character.ElementalWeaknesses, ElementalImmunities = character.ElementalImmunities, ElementalAbsorbs = character.ElementalAbsorbs,
+                WeaponResistances = character.WeaponResistances, WeaponWeaknesses = character.WeaponWeaknesses,
                 IsReadyToControl = character.IsReadyToControl, IsWellKnown = character.IsWellKnown
             });
             this.BattleList.Add(original + "_clone", new Combatant() {
@@ -4056,6 +4147,7 @@ namespace BattleBot
         }
 
         internal void OnDefeat(string victim, bool overkill) {
+            if (victim == null) return;
             Combatant combatant = this.BattleList[victim];
             this.WriteLine(2, 8, "{0} is defeated.", combatant.Name);
             if (this.BattleType == BattleType.NPC) return;
@@ -4180,6 +4272,7 @@ namespace BattleBot
         internal void OnSuicide(object sender, RegexEventArgs e) {
             if (!this.EnableAnalysis) return;
             string victim = GetShortName(e.Match.Groups[1].Value, false, true);
+            if (victim == null) return;
             Combatant combatant = this.BattleList[victim];
             this.WriteLine(2, 8, "{0} is committing suicide!", combatant.Name);
             if (this.BattleType == BattleType.NPC) return;
@@ -4190,6 +4283,7 @@ namespace BattleBot
         internal void OnCloneDisappearance(object sender, RegexEventArgs e) {
             if (!this.EnableAnalysis) return;
             string victim = GetShortName(e.Match.Groups[1].Value, false, true);
+            if (victim == null) return;
             Combatant combatant = this.BattleList[victim];
             this.WriteLine(2, 8, "{0} disappears.", combatant.Name);
             combatant.Presence = Presence.Dead;
@@ -4199,6 +4293,7 @@ namespace BattleBot
         internal void OnSummonDisappearance(object sender, RegexEventArgs e) {
             if (!this.EnableAnalysis) return;
             string victim = GetShortName(e.Match.Groups[1].Value, false, true);
+            if (victim == null) return;
             Combatant combatant = this.BattleList[victim];
             this.WriteLine(2, 8, "{0} fades away.", combatant.Name);
             combatant.Presence = Presence.Dead;
@@ -4208,6 +4303,7 @@ namespace BattleBot
         internal void OnFlight(object sender, RegexEventArgs e) {
             if (!this.EnableAnalysis) return;
             string victim = GetShortName(e.Match.Groups[1].Value, false, true);
+            if (victim == null) return;
             Combatant combatant = this.BattleList[victim];
             this.WriteLine(2, 8, "{0} flees.", combatant.Name);
             combatant.Presence = Presence.RunAway;
@@ -4249,6 +4345,7 @@ namespace BattleBot
             @"^\x034There were no players to meet the monsters on the battlefield! \x02The battle is over\x02."})]
         internal void OnBattleEnd(object sender, RegexEventArgs e) {
             this.WriteLine(1, 8, "The battle has ended.");
+            this.AI.BattleEnd();
             this.ClearBattle();
         }
 
@@ -4258,6 +4355,7 @@ namespace BattleBot
             Character winner = null; Character loser = null;
 
             this.WriteLine(1, 8, "The battle has ended.");
+            this.AI.BattleEnd();
 
             foreach (Combatant combatant in this.BattleList.Values) {
                 Character character = this.Characters[combatant.ShortName];
@@ -4331,7 +4429,7 @@ namespace BattleBot
             this.BattleList.Clear();
         }
 
-        [ArenaRegex(@"^\x034\x02Another\x02 wave of monsters has arrived to the battlefield!(?: \[\x02Gauntlet Round: (\d+)\x02\])?")]
+        [ArenaRegex(@"^\x034\x02Another\x02 wave of monsters has arrived to the battlefield!( \[\x02Gauntlet Round: (\d+)\x02\])?")]
         internal void OnWave(object sender, RegexEventArgs e) {
             // Remove all existing monsters from the battle list.
             foreach (Combatant combatant in new List<Combatant>(this.BattleList.Values)) {
@@ -4340,6 +4438,7 @@ namespace BattleBot
             this.Turn = null;
             this.TurnAction = null;
             this.TurnAbility = null;
+            if (e.Match.Groups[1].Success) ++this.Level;
             this.WriteLine(1, 8, "Another wave of monsters draws near!");
         }
 
@@ -4376,13 +4475,13 @@ namespace BattleBot
             }
         }
 
-        [ArenaRegex(@"^\x033Gambling Winners?: (\x02[^\x02]*\x02\(?:\$\$\d*\)(?:, \x02[^\x02]*\x02\(?:\$\$\d*\))*)")]
+        [ArenaRegex(@"^\x033Gambling Winners?: (.*)")]
         internal void OnGamblingReward(object sender, RegexEventArgs e) {
             foreach (string winner in e.Match.Groups[1].Value.Split(new char[] { ',' })) {
                 Character character;
                 Match match = Regex.Match(winner, @"^\s*\x02([^\x02]*)\x02\(\$\$(\d*)\)\s*$");
                 if (match.Success && this.Characters.TryGetValue(match.Groups[1].Value, out character))
-                    character.DoubleDollars += int.Parse(e.Match.Groups[2].Value);
+                    character.DoubleDollars += int.Parse(match.Groups[2].Value);
             }
         }
 #endregion
@@ -4453,11 +4552,16 @@ namespace BattleBot
             }
         }
 
+        internal void LogError(string Procedure, Exception ex) {
+            base.LogError(Procedure, ex);
+        }
+
         protected internal void WriteLine(short level, short colour, string text) {
             if (level > this.debugLevel) return;
-            foreach (IRCClient client in Bot.Connections) {
+            foreach (ClientEntry clientEntry in Bot.Clients) {
+                IRCClient client = clientEntry.Client;
                 if (client.Address == "!Console") {
-                    this.Say(client, "#", MyKey + " \u0003" + colour + "***\u0003 " + text);
+                    Bot.Say(client, "#", MyKey + " \u0003" + colour + "***\u0003 " + text);
                     return;
                 }
             }

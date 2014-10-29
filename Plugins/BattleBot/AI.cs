@@ -18,40 +18,60 @@ namespace BattleBot {
     }
 
     public interface AI {
+        void BattleStart();
+        void BattleEnd();
         void Turn();
     }
 
     public class AI2 : AI {
         internal BattleBotPlugin plugin;
         private short ListRefreshCount = 0;
-        private List<object[]> Ratings;
+        private string analysisTarget;
+        private List<Tuple<Action, string, string, float>> Ratings;
+        private List<Combatant> allies;
+        private List<Combatant> targets;
+
         public Func<Combatant, bool> targetCondition { get; private set; }
 
         public AI2(BattleBotPlugin plugin) {
             this.plugin = plugin;
             this.targetCondition = delegate(Combatant combatant) {
-                if (combatant.Presence != Presence.Alive) return false;
-                if (this.plugin.BattleType != BattleType.PvP && combatant.Category < Category.Monster) return false;
-                return true;
+                if (combatant.ShortName == this.plugin.Turn) return false;
+                if (this.plugin.BattleType == BattleType.PvP) return true;
+                return this.plugin.BattleList[this.plugin.Turn].Category < Category.Monster ^ combatant.Category < Category.Monster;
             };
+            this.allies = new List<Combatant>();
+            this.targets = new List<Combatant>();
         }
 
+        public void BattleStart() {
+            this.ListRefreshCount = 0;
+            this.analysisTarget = null;
+        }
+
+        public void BattleEnd() { }
+
         public void Turn() {
-            string turn = this.plugin.Turn;
-            List<Combatant> allies = new List<Combatant>();
-            List<Combatant> targets = new List<Combatant>();
+            this.allies.Clear();
+            this.targets.Clear();
 
             // Check for unknown categories on older bots.
-            foreach (Combatant entry in this.plugin.BattleList.Values) {
-                if ((entry.Category & (Category) 7) == (Category) 7) {
-                    this.Act(Action.Attack, null, entry.ShortName);
-                    return;
-                } else if (entry.Name == this.plugin.Turn || (this.plugin.BattleType != BattleType.PvP && entry.Category < Category.Monster)) {
-                    allies.Add(entry);
-                } else if (entry.Category == Category.Monster) {
-                    targets.Add(entry);
+            foreach (Combatant combatant in this.plugin.BattleList.Values) {
+                if (combatant.Presence == Presence.Alive) {
+                    if ((combatant.Category & (Category) 7) == (Category) 7) {
+                        this.Act(Action.Attack, null, combatant.ShortName);
+                        return;
+                    } else if (!this.allies.Contains(combatant) && !this.targets.Contains(combatant)) {
+                        if (this.targetCondition(combatant)) {
+                            targets.Add(combatant);
+                        } else {
+                            allies.Add(combatant);
+                        }
+                    }
                 }
             }
+
+            string turn = this.plugin.Turn;
 
             // Check that there are targets in the battle.
             if (targets.Count == 0) {
@@ -59,41 +79,41 @@ namespace BattleBot {
                     this.plugin.BattleAction(false, "There are no targets in the battle!");
                     this.ListRefreshCount = 0;
                 } else {
+                    this.ListRefreshCount++;
                     this.plugin.BattleAction(false, "!bat info");
                 }
                 return;
             } else {
-                // TODO: Reset that at the start of each battle.
                 this.ListRefreshCount = 0;
             }
 
             this.ActionCheck();
 
             Character character = this.plugin.Characters[this.plugin.Turn];
-            int topIndex; List<object[]> _Ratings = new List<object[]>(this.Ratings);
+            int topIndex; List<Tuple<Action, string, string, float>> _Ratings = new List<Tuple<Action, string, string, float>>(this.Ratings);
             // Display the top 10.
             for (int i = 1; i <= 10 && _Ratings.Count > 0; ++i) {
                 topIndex = -1;
 
                 // Find the top action.
                 for (int j = 0; j < _Ratings.Count; ++j) {
-                    if (topIndex < 0 || (float) _Ratings[j][3] > (float) _Ratings[topIndex][3])
+                    if (topIndex < 0 || _Ratings[j].Item4 > _Ratings[topIndex].Item4)
                         topIndex = j;
                 }
 
                 string message;
-                switch ((Action) _Ratings[topIndex][0]) {
+                switch (_Ratings[topIndex].Item1) {
                     case Action.Attack   : message = "Attack        {1,-16} on {2,-16}"; break;
                     case Action.Technique: message = "Technique     {1,-16} on {2,-16}"; break;
                     case Action.Skill    :
-                        if (_Ratings[topIndex][2] == null)
+                        if (_Ratings[topIndex].Item3 == null)
                             message = "Skill         {1,-16}                    ";
                         else
                             message = "Skill         {1,-16} on {2,-16}";
                         break;
                     default              : message = "{0,-12}  {1,-16} on {2,-16}"; break;
                 }
-                this.plugin.WriteLine(3, 2, "Top action #{3,2}: " + message + ": {4,6:0.00}", _Ratings[topIndex][0], _Ratings[topIndex][1], _Ratings[topIndex][2], i, _Ratings[topIndex][3]);
+                this.plugin.WriteLine(3, 2, "Top action #{3,2}: " + message + ": {4,6:0.00}", _Ratings[topIndex].Item1, _Ratings[topIndex].Item2, _Ratings[topIndex].Item3, i, _Ratings[topIndex].Item4);
                 _Ratings.RemoveAt(topIndex);
             }
 
@@ -106,15 +126,16 @@ namespace BattleBot {
             topIndex = -1;
             for (int j = 0; j < this.Ratings.Count; ++j) {
                 // Randomise it a little bit.
-                this.Ratings[j][3] = (float) this.Ratings[j][3] * ((float) this.plugin.RNG.NextDouble() * 0.1F + 0.95F);
-                if (topIndex < 0 || (float) this.Ratings[j][3] > (float) this.Ratings[topIndex][3])
+                this.Ratings[j] = new Tuple<Action,string,string,float>(this.Ratings[j].Item1, this.Ratings[j].Item2, this.Ratings[j].Item3,
+                    this.Ratings[j].Item4 * ((float) this.plugin.RNG.NextDouble() * 0.1F + 0.95F));
+                if (topIndex < 0 || (float) this.Ratings[j].Item4 > this.Ratings[topIndex].Item4)
                     topIndex = j;
             }
             // Switch weapons if necessary.
-            switch ((Action) this.Ratings[topIndex][0]) {
+            switch ((Action) this.Ratings[topIndex].Item1) {
                 case Action.Attack:
-                    if (character.EquippedWeapon != (string) this.Ratings[topIndex][1]) {
-                        this.Act(Action.EquipWeapon, null, (string) this.Ratings[topIndex][1]);
+                    if (character.EquippedWeapon != this.Ratings[topIndex].Item2) {
+                        this.Act(Action.EquipWeapon, null, this.Ratings[topIndex].Item2);
                         System.Threading.Thread.Sleep(600);
                     }
                     break;
@@ -125,7 +146,7 @@ namespace BattleBot {
                         (IEnumerable<string>) new string[] { character.EquippedWeapon }) {
                         Weapon weapon = this.plugin.Weapons[weaponName];
                         if ((topWeapon == null || weapon.Power > topWeapon.Power) &&
-                            weapon.Techniques.Contains(this.Ratings[topIndex][1]))
+                            weapon.Techniques.Contains(this.Ratings[topIndex].Item2))
                             topWeapon = weapon;
                     }
                     if (character.EquippedWeapon != topWeapon.Name) {
@@ -134,7 +155,11 @@ namespace BattleBot {
                     }
                     break;
             }
-            this.Act((Action) this.Ratings[topIndex][0], (string) this.Ratings[topIndex][1], (string) this.Ratings[topIndex][2]);
+            if (this.Ratings[topIndex].Item1 == Action.Skill && this.Ratings[topIndex].Item2 == "Analysis")
+                this.analysisTarget = (string) this.Ratings[topIndex].Item3;
+            else if (this.Ratings[topIndex].Item1 == Action.Skill && this.Ratings[topIndex].Item2 == "ShadowCopy")
+                this.plugin.BattleList[this.plugin.Turn].HasUsedShadowCopy = true;
+            this.Act(this.Ratings[topIndex].Item1, this.Ratings[topIndex].Item2, this.Ratings[topIndex].Item3);
         }
 
         public bool CanSwitchWeapon() {
@@ -149,7 +174,7 @@ namespace BattleBot {
             Character character = this.plugin.Characters[this.plugin.Turn];
             Combatant combatant = this.plugin.BattleList[this.plugin.Turn];
 
-            this.Ratings = new List<object[]>();
+            this.Ratings = new List<Tuple<Action,string,string,float>>();
 
             this.CheckAttacks(character, combatant);
             if ((this.plugin.BattleConditions & BattleCondition.MeleeLock) == 0 && character.Techniques != null)
@@ -235,7 +260,7 @@ namespace BattleBot {
                 if (weapon.Name == combatant.LastAction) score /= 2.5F;
 
                 // Check targets.
-                foreach (Combatant combatant2 in this.plugin.BattleList.Values.Where(this.targetCondition)) {
+                foreach (Combatant combatant2 in this.targets) {
                     float targetScore = score;
                     if (combatant2.Character.AttacksAllies) targetScore /= 1.5F;
                     if (combatant2.Status.Contains("ethereal")) continue;
@@ -320,7 +345,7 @@ namespace BattleBot {
                             }
                         }
                     }
-                    this.Ratings.Add(new object[] { Action.Attack, weapon.Name, combatant2.ShortName, targetScore });
+                    this.Ratings.Add(new Tuple<Action, string, string, float>(Action.Attack, weapon.Name, combatant2.ShortName, targetScore));
                 }
             }
         }
@@ -381,52 +406,52 @@ namespace BattleBot {
 
                 // Disfavour inefficient techniques.
                 if (!combatant.Status.Contains("conserving TP") && technique.TP > 15)
-                    score /= Math.Min((float) technique.TP / Math.Max(score, 1F), 1F);
+                    score /= Math.Max((float) technique.TP / Math.Max(score, 1F), 1F);
 
                 float targetScore; float AoEScore; string targetName = null;
                 switch (technique.Type) {
                     case TechniqueType.Attack:
-                        foreach (Combatant combatant2 in this.plugin.BattleList.Values.Where(this.targetCondition)) {
+                        foreach (Combatant combatant2 in this.targets) {
                             targetScore = this.CheckTechniqueTarget(character, combatant, technique, combatant2, score);
                             if (targetScore > 0F)
-                                this.Ratings.Add(new object[] { Action.Technique, technique.Name, combatant2.ShortName, targetScore });
+                                this.Ratings.Add(new Tuple<Action, string, string, float>(Action.Technique, technique.Name, combatant2.ShortName, targetScore));
                         }
                         break;
                     case TechniqueType.AoEAttack:
-                        AoEScore = score;
-                        foreach (Combatant combatant2 in this.plugin.BattleList.Values.Where(this.targetCondition)) {
+                        AoEScore = 0;
+                        foreach (Combatant combatant2 in this.targets) {
                             if (targetName == null) targetName = combatant2.ShortName;
                             targetScore = this.CheckTechniqueTarget(character, combatant, technique, combatant2, score);
                             AoEScore += targetScore * 0.6F;
                         }
                         if (AoEScore > 0F)
-                            this.Ratings.Add(new object[] { Action.Technique, technique.Name, targetName, AoEScore });
+                            this.Ratings.Add(new Tuple<Action, string, string, float>(Action.Technique, technique.Name, targetName, AoEScore));
                         break;
                     case TechniqueType.Heal:
                         // Allies
-                        foreach (Combatant combatant2 in this.plugin.BattleList.Values.Where(c => !this.targetCondition.Invoke(c))) {
+                        foreach (Combatant combatant2 in this.targets) {
                             targetScore = this.CheckTechniqueTargetHeal(character, combatant, technique, combatant2, score);
                             if (targetScore > 0F)
-                                this.Ratings.Add(new object[] { Action.Technique, technique.Name, combatant2.ShortName, targetScore });
+                                this.Ratings.Add(new Tuple<Action, string, string, float>(Action.Technique, technique.Name, combatant2.ShortName, targetScore));
                         }
                         // Enemy zombies
-                        foreach (Combatant combatant2 in this.plugin.BattleList.Values.Where(this.targetCondition)) {
+                        foreach (Combatant combatant2 in this.targets) {
                             if (combatant2.Status.Contains("zombie") || combatant2.Character.IsUndead) {
                                 targetScore = this.CheckTechniqueTarget(character, combatant, technique, combatant2, score);
                                 if (targetScore > 0F)
-                                    this.Ratings.Add(new object[] { Action.Technique, technique.Name, combatant2.ShortName, targetScore });
+                                    this.Ratings.Add(new Tuple<Action, string, string, float>(Action.Technique, technique.Name, combatant2.ShortName, targetScore));
                             }
                         }
                         break;
                     case TechniqueType.AoEHeal:
-                        AoEScore = score;
-                        foreach (Combatant combatant2 in this.plugin.BattleList.Values.Where(c => !this.targetCondition.Invoke(c))) {
+                        AoEScore = 0;
+                        foreach (Combatant combatant2 in this.targets) {
                             if (targetName == null) targetName = combatant2.ShortName;
                             targetScore = this.CheckTechniqueTargetHeal(character, combatant, technique, combatant2, score);
                             AoEScore += targetScore * 0.6F;
                         }
                         if (AoEScore > 0F)
-                            this.Ratings.Add(new object[] { Action.Technique, technique.Name, targetName, AoEScore });
+                            this.Ratings.Add(new Tuple<Action, string, string, float>(Action.Technique, technique.Name, targetName, AoEScore));
                         break;
                     case TechniqueType.Suicide:
                         targetScore = score;
@@ -445,10 +470,10 @@ namespace BattleBot {
                             case "Critical"     : targetScore *= 0.30F; break;
                             default: targetScore *= 0.25F; break;
                         }
-                        foreach (Combatant combatant2 in this.plugin.BattleList.Values.Where(this.targetCondition)) {
+                        foreach (Combatant combatant2 in this.targets) {
                             targetScore = this.CheckTechniqueTarget(character, combatant, technique, combatant2, targetScore);
                             if (targetScore > 0F)
-                                this.Ratings.Add(new object[] { Action.Technique, technique.Name, combatant2.ShortName, targetScore });
+                                this.Ratings.Add(new Tuple<Action, string, string, float>(Action.Technique, technique.Name, combatant2.ShortName, targetScore));
                         }
                         break;
                     case TechniqueType.AoESuicide:
@@ -467,14 +492,14 @@ namespace BattleBot {
                             case "Critical"     : score *= 0.40F; break;
                             default: score *= 0.30F; break;
                         }
-                        AoEScore = score;
-                        foreach (Combatant combatant2 in this.plugin.BattleList.Values.Where(this.targetCondition)) {
+                        AoEScore = 0;
+                        foreach (Combatant combatant2 in this.targets) {
                             if (targetName == null) targetName = combatant2.ShortName;
                             targetScore = this.CheckTechniqueTarget(character, combatant, technique, combatant2, score);
                             AoEScore += targetScore * 0.6F;
                         }
                         if (AoEScore > 0F)
-                            this.Ratings.Add(new object[] { Action.Technique, technique.Name, targetName, AoEScore });
+                            this.Ratings.Add(new Tuple<Action, string, string, float>(Action.Technique, technique.Name, targetName, AoEScore));
                         break;
                 }
 
@@ -486,8 +511,8 @@ namespace BattleBot {
         private float CheckTechniqueTarget(Character character, Combatant combatant, Technique technique, Combatant target, float score) {
             float targetScore = score;
             if (target.Character.AttacksAllies) targetScore /= 1.5F;
-            if (target.Status.Contains("ethereal") && !technique.IsMagic) return 0F;
-            if (target.Status.Contains("evolving")) return 0F;
+            if (target.Status.Contains("ethereal", StringComparer.InvariantCultureIgnoreCase) && !technique.IsMagic) return 0F;
+            if (target.Status.Contains("evolving", StringComparer.InvariantCultureIgnoreCase)) return 0F;
             if (target.Character.IsElemental && technique.IsMagic) targetScore *= 1.3F;
 
             // Check the monster level.
@@ -609,8 +634,8 @@ namespace BattleBot {
 
         private void CheckSkills(Character character, Combatant combatant) {
             float topScore = 0F;
-            foreach (object[] entry in this.Ratings)
-                topScore = Math.Max(topScore, (float) entry[3]);
+            foreach (Tuple<Action, string, string, float> entry in this.Ratings)
+                topScore = Math.Max(topScore, entry.Item4);
 
             if (character.Skills.ContainsKey("ShadowCopy") && !combatant.HasUsedShadowCopy) {
                 float factor = 0.7F;
@@ -631,7 +656,7 @@ namespace BattleBot {
                     case "Alive by a hair's breadth":
                         factor += 0.01F; break;
                 }
-                foreach (Combatant monster in this.plugin.BattleList.Values.Where(this.targetCondition)) {
+                foreach (Combatant monster in this.targets) {
                     factor -= 0.1F;
                     switch (monster.Health) {
                         case "Enhanced"     : factor += 0.02F; break;
@@ -650,11 +675,11 @@ namespace BattleBot {
                             factor += 0.02F; break;
                     }
                 }
-                this.Ratings.Add(new object[] { Action.Skill, "ShadowCopy", null, score * factor });
+                this.Ratings.Add(new Tuple<Action, string, string, float>(Action.Skill, "ShadowCopy", null, score * factor));
             }
 
-            if (this.plugin.ViewingCharacter == null && character.Skills.ContainsKey("Analysis") && character.Skills["Analysis"] >= 4) {
-                float score = (topScore + 30) / this.plugin.BattleList.Values.Count(this.targetCondition);
+            if ((this.plugin.Turn == this.plugin.LoggedIn || this.plugin.Turn == this.plugin.LoggedIn + "_clone") && this.plugin.ViewingCharacter == null && character.Skills.ContainsKey("Analysis") && character.Skills["Analysis"] >= 4) {
+                float score = (topScore + 30) / this.targets.Count;
                 // We'll disfavour the Analysis skill if we're about to faint.
                 switch (combatant.Health) {
                     case "Enhanced"     : score += 0.95F; break;
@@ -672,9 +697,9 @@ namespace BattleBot {
                     case "Alive by a hair's breadth":
                         score += 0.15F; break;
                 }
-                foreach (Combatant monster in this.plugin.BattleList.Values.Where(c => c.Category == Category.Monster)) {
+                foreach (Combatant monster in this.plugin.BattleList.Values.Where(c => c.Category == Category.Monster && c.ShortName != this.analysisTarget)) {
                     if (!monster.Character.IsWellKnown && !monster.ShortName.StartsWith("evil_", StringComparison.InvariantCultureIgnoreCase))
-                        this.Ratings.Add(new object[] { Action.Skill, "Analysis", monster.ShortName, score });
+                        this.Ratings.Add(new Tuple<Action, string, string, float>(Action.Skill, "Analysis", monster.ShortName, score));
                 }
             }
 
@@ -868,6 +893,8 @@ namespace BattleBot {
                         break;
                 }
             }
+
+            if (action == Action.Technique) this.plugin.TurnAbility = ability;
         }
     }
 }

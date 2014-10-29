@@ -44,12 +44,15 @@
   </ItemGroup>
   <ItemGroup>
     <Compile Include="CBot\Attributes.cs" />
+    <Compile Include="CBot\ClientEntry.cs" />
     <Compile Include="CBot\CommandScope.cs" />
     <Compile Include="CBot\ConsoleConnection.cs" />
     <Compile Include="CBot\EventArgs.cs" />
+    <Compile Include="CBot\NickServSettings.cs" />
     <Compile Include="IRC\Channel.cs" />
     <Compile Include="IRC\ChannelCollection.cs" />
     <Compile Include="IRC\ChannelUser.cs" />
+    <Compile Include="IRC\EventArgs.cs" />
     <Compile Include="IRC\StringComparer.cs" />
     <Compile Include="IRC\User.cs" />
     <Compile Include="IRC\ChannelUserCollection.cs" />
@@ -62,7 +65,7 @@
     <Compile Include="IRC\Colours.cs" />
     <Compile Include="IRC\IRCClient.cs" />
     <Compile Include="CBot\Plugin.cs" />
-    <Compile Include="CBot\PluginData.cs" />
+    <Compile Include="CBot\PluginEntry.cs" />
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSHARP.Targets" />
   <ProjectExtensions>
