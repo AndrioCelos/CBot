@@ -148,6 +148,9 @@ namespace ChannelNotifier
             if (base.OnPrivateMessage(sender, e)) return true;
 
             string message;
+            // Don't relay the message if it's a ZNC 'not connected' notification.
+            if (Regex.IsMatch(e.Message, @"^Your message to \S+ got lost")) return false;
+
             // Don't relay the message if it's a command.
             Match match = Regex.Match(e.Message, @"^" + Regex.Escape(((IRCClient) sender).Nickname) + @"\.*[:,-]? (.*)", RegexOptions.IgnoreCase);
             if (match.Success)
@@ -168,6 +171,11 @@ namespace ChannelNotifier
         public override bool OnPrivateNotice(object sender, PrivateMessageEventArgs e) {
             this.SendCheck(string.Format("\u000315[\u00037PM\u000315] {0}{1}\u00038:\u000F {2}", IRC.Colours.NicknameColour(e.Sender.Nickname), e.Sender.Nickname, e.Message), (IRCClient) sender, e.Sender.Nickname);
             return base.OnPrivateNotice(sender, e);
+        }
+
+        public override bool OnInvite(object sender, ChannelInviteEventArgs e) {
+            this.SendCheck(string.Format("Invited to \u0002{0}\u0002 by {1}{2}\u000F.", e.Channel, IRC.Colours.NicknameColour(e.Sender.Nickname), e.Sender.Nickname), (IRCClient) sender, e.Sender.Nickname);
+            return base.OnInvite(sender, e);
         }
     }
 }

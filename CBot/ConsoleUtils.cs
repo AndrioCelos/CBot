@@ -112,7 +112,7 @@ namespace CBot
                         throw new FormatException();
                     else {
                         if (open == -1)
-                            Console.Write(args[index].ToString());
+                            Console.Write((args[index] ?? "").ToString());
                         else
                             Console.Write("{0" + format.Substring(open, i - open) + "}", args[index]);
                         open = -1;

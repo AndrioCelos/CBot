@@ -19,6 +19,8 @@ namespace IRC {
         public string Username { get; protected internal set; }
         /// <summary>The user's displayed host</summary>
         public string Host { get; protected internal set; }
+        /// <summary>The user's account name.</summary>
+        public string Account { get; protected internal set; }
 
         /// <summary>The user's full name</summary>
         public string FullName { get; protected internal set; }

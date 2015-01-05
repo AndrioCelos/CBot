@@ -18,116 +18,116 @@ ERRORPAGE;
 ?>
 <?php
     function sort_scoreboard($min, $max, $key, $dir) {
-    // Sorts all or part of $list.
-    // Parameters:
-    //   $min: The inclusive minimum index of the sublist to sort.
-    //   $max: The inclusive maximum index of the sublist to sort.
-    //   $key: The field to sort on.
-    //   $dir: 1 to sort ascending; -1 to sort descending.
-    // Returns: null
-    // We use the quicksort algorithm.
+        // Sorts all or part of $list.
+        // Parameters:
+        //   $min: The inclusive minimum index of the sublist to sort.
+        //   $max: The inclusive maximum index of the sublist to sort.
+        //   $key: The field to sort on.
+        //   $dir: 1 to sort ascending; -1 to sort descending.
+        // Returns: null
+        // We use the quicksort algorithm.
 
-    global $list;
+        global $list;
 
-    if ($max <= $min) return;
-    if ($max - $min == 1) {
-        if (($dir > 0 && compare($list[$min][$key], $list[$max][$key], $key) ==  1) ||
-        ($dir < 0 && compare($list[$min][$key], $list[$max][$key], $key) == -1)) {
-        $swap = $list[$min];
-        $list[$min] = $list[$max];
-        $list[$max] = $swap;
+        if ($max <= $min) return;
+        if ($max - $min == 1) {
+            if (($dir > 0 && compare($list[$min][$key], $list[$max][$key], $key) ==  1) ||
+                ($dir < 0 && compare($list[$min][$key], $list[$max][$key], $key) == -1)) {
+                $swap = $list[$min];
+                $list[$min] = $list[$max];
+                $list[$max] = $swap;
+            }
+            return;
         }
-        return;
-    }
 
-    $pivot = $list[$max][$key];
+        $pivot = $list[$max][$key];
         $index = $min;
-    
-    for ($i = $min; $i < $max; $i += 1) {
-        if (($dir > 0 && compare($list[$i][$key], $pivot, $key) !=  1) ||
-        ($dir < 0 && compare($list[$i][$key], $pivot, $key) != -1)) {
-        if ($i != $index) {
-            // Swap this entry to the pointer position.
-            $swap = $list[$index];
-            $list[$index] = $list[$i];
-            $list[$i] = $swap;
+        
+        for ($i = $min; $i < $max; $i += 1) {
+            if (($dir > 0 && compare($list[$i][$key], $pivot, $key) !=  1) ||
+                ($dir < 0 && compare($list[$i][$key], $pivot, $key) != -1)) {
+                if ($i != $index) {
+                    // Swap this entry to the pointer position.
+                    $swap = $list[$index];
+                    $list[$index] = $list[$i];
+                    $list[$i] = $swap;
+                }
+                ++$index;
+            }
         }
-        ++$index;
-        }
-    }
 
-    // Enter the pivot.
-    $swap = $list[$index];
-    $list[$index] = $list[$max];
-    $list[$max] = $swap;
+        // Enter the pivot.
+        $swap = $list[$index];
+        $list[$index] = $list[$max];
+        $list[$max] = $swap;
 
-    // Recursively sort the sublists.
-    sort_scoreboard($min, $index - 1, $key, $dir);
-    sort_scoreboard($index + 1, $max, $key, $dir);
+        // Recursively sort the sublists.
+        sort_scoreboard($min, $index - 1, $key, $dir);
+        sort_scoreboard($index + 1, $max, $key, $dir);
     }
 
     function compare($value1, $value2, $key) {
-    // Compares two values using a method based on the sort key.
-    // Parameters:
-    //   $value1: The value to compare.
-    //   $value2: The value to which to compate $value1.
-    //   $key   : The sort key. If this equals "name", strcasecmp will be used.
-    // Returns: 1 if $value1 > $value2; 0 if $value1 = $value2; -1 if $value1 < $value2.
+        // Compares two values using a method based on the sort key.
+        // Parameters:
+        //   $value1: The value to compare.
+        //   $value2: The value to which to compate $value1.
+        //   $key   : The sort key. If this equals "name", strcasecmp will be used.
+        // Returns: 1 if $value1 > $value2; 0 if $value1 = $value2; -1 if $value1 < $value2.
 
-    if ($key == "name") {
-        $result = strcasecmp($value1, $value2);
-        if ($result > 0) return  1;
-        if ($result < 0) return -1;
-        return 0;
-    } else {
-        if ($value1 > $value2) return  1;
-        if ($value1 < $value2) return -1;
-        return 0;
-    }
+        if ($key == "name") {
+            $result = strcasecmp($value1, $value2);
+            if ($result > 0) return  1;
+            if ($result < 0) return -1;
+            return 0;
+        } else {
+            if ($value1 > $value2) return  1;
+            if ($value1 < $value2) return -1;
+            return 0;
+        }
     }
 
     function sort_link($lperiod, $key, $flip, $text) {
         // Creates a link with the given parameters.
-    // Parameters:
-    //   $lperiod: The period to use in the link.
-    //   $key    : The sort key to use in the link. This also determines the default value for the direction.
-    //   $flip   : If true, it indicates this is a column header, and should flip the sort order.
-    //   $text   : The text to display to the user.
-    // Returns: an <a> or <span> tag to be rendered.
+        // Parameters:
+        //   $lperiod: The period to use in the link.
+        //   $key    : The sort key to use in the link. This also determines the default value for the direction.
+        //   $flip   : If true, it indicates this is a column header, and should flip the sort order.
+        //   $text   : The text to display to the user.
+        // Returns: an <a> or <span> tag to be rendered.
 
-    global $period, $sort, $dir;
-    if (!$flip && $period == $lperiod) {
-        return "<span class=\"selected\">$text</span>";
-    }
-    if ($sort == $key) {
-        if ($flip) $newdir = -$dir; else $newdir = $dir;
-        if ($newdir == 1)
-        return "<a class=\"selected\" href=\"?period=$lperiod&sort=$key&dir=asc\">$text</a>";
-        else
-        return "<a class=\"selected\" href=\"?period=$lperiod&sort=$key&dir=desc\">$text</a>";
-    } else {
-        if ($key == "name" || $key == "losses")
-        return "<a href=\"?period=$lperiod&sort=$key&dir=asc\">$text</a>";
-        else
-        return "<a href=\"?period=$lperiod&sort=$key&dir=desc\">$text</a>";
-    }
+        global $period, $sort, $dir;
+        if (!$flip && $period == $lperiod) {
+            return "<span class=\"selected\">$text</span>";
+        }
+        if ($sort == $key) {
+            if ($flip) $newdir = -$dir; else $newdir = $dir;
+            if ($newdir == 1)
+                return "<a class=\"selected\" href=\"?period=$lperiod&sort=$key&dir=asc\">$text</a>";
+            else
+                return "<a class=\"selected\" href=\"?period=$lperiod&sort=$key&dir=desc\">$text</a>";
+        } else {
+            if ($key == "name" || $key == "losses")
+                return "<a href=\"?period=$lperiod&sort=$key&dir=asc\">$text</a>";
+            else
+                return "<a href=\"?period=$lperiod&sort=$key&dir=desc\">$text</a>";
+        }
     }
 
     // Parse the GET parameters.
 
-    if (!$_GET["period"]) $period = "current";
+    if (!isset($_GET["period"])) $period = "current";
     else if ($_GET["period"] == "current") $period = "current";
     else if ($_GET["period"] == "last") $period = "last";
     else if ($_GET["period"] == "alltime") $period = "alltime";
 
-    if ($_GET["sort"]) $sort = $_GET["sort"];
+    if (isset($_GET["sort"])) $sort = $_GET["sort"];
     else $sort = "points";
 
     if ($sort == "name" || $sort == "losses") {
-        if ($_GET["dir"] == "desc") $dir = -1;
+        if (isset($_GET["dir"]) && $_GET["dir"] == "desc") $dir = -1;
         else $dir = 1;
     } else {
-        if ($_GET["dir"] == "asc") $dir = 1;
+        if (isset($_GET["dir"]) && $_GET["dir"] == "asc") $dir = 1;
         else $dir = -1;
     }
 ?>
@@ -140,13 +140,13 @@ ERRORPAGE;
             <link rel="stylesheet" href="/style/unostats.css">
             <!-- Generated by http://www.colorzilla.com/gradient-editor/ -->
             <!--[if gte IE 9]>
-            <style type="text/css">
-                div.shadow {
-                filter: none;
-                }
-            </style>
+                <style type="text/css">
+                    div.shadow {
+                        filter: none;
+                    }
+                </style>
             <![endif]-->
-    </head>
+        </head>
     <body>
 <?php
     if (!$period) {

@@ -468,8 +468,8 @@ namespace FAQ
             }
 
             foreach (KeyValuePair<string, string[]> context in this.Contexts) {
-                if (!context.Value.Contains(connection.NetworkName + "/" + channel) &&
-                    !context.Value.Contains("*/" + channel))
+                if (!context.Value.Contains(connection.NetworkName + "/" + channel, StringComparer.InvariantCultureIgnoreCase) &&
+                    !context.Value.Contains("*/" + channel, StringComparer.InvariantCultureIgnoreCase))
                     continue;
 
                 string fullKey = context.Key + "/" + request;
@@ -1594,7 +1594,7 @@ namespace FAQ
                         Bot.Say(e.Connection, e.Channel, string.Format("Shortcuts are disabled in the following channels: {0}", string.Join("\u0002, \u0002", this.NoShortcutChannels)));
                         break;
                     default:
-                        Bot.Say(e.Connection, e.Sender.Nickname, string.Format("I don't manage a setting named \u0002{0}\u0002.", e.Parameters[1]));
+                        Bot.Say(e.Connection, e.Sender.Nickname, string.Format("I don't manage a setting named \u0002{0}\u0002.", e.Parameters[0]));
                         break;
                 }
             } else {
@@ -1604,7 +1604,7 @@ namespace FAQ
                         Bot.Say(e.Connection, e.Channel, string.Format("Shortcuts are now disabled in the following channels: {0}", string.Join("\u0002, \u0002", this.NoShortcutChannels)));
                         break;
                     default:
-                        Bot.Say(e.Connection, e.Sender.Nickname, string.Format("I don't manage a setting named \u0002{0}\u0002.", e.Parameters[1]));
+                        Bot.Say(e.Connection, e.Sender.Nickname, string.Format("I don't manage a setting named \u0002{0}\u0002.", e.Parameters[0]));
                         break;
                 }
             }

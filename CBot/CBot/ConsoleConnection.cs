@@ -33,7 +33,7 @@ namespace CBot {
             string Prefix; string Command; string[] Parameters; string Trail = null;
             IRCClient.ParseIRCLine(t, out Prefix, out Command, out Parameters, out Trail, true);
 
-            if ((Command.Equals("PRIVMSG", StringComparison.OrdinalIgnoreCase) || Command.Equals("NOTICE", StringComparison.OrdinalIgnoreCase)) && (Parameters[0] == "#" || IRCStringComparer.RFC1459CaseInsensitiveComparer.Equals(Parameters[0], "User"))) {
+            if ((Command.Equals("PRIVMSG", StringComparison.OrdinalIgnoreCase) || Command.Equals("NOTICE", StringComparison.OrdinalIgnoreCase)) && (Parameters[0] == "#" || IRCStringComparer.RFC1459.Equals(Parameters[0], "User"))) {
                 // Emulate a channel message to # or PM to 'User' by sticking it on the console.
                 ConsoleConnection.writeMessage(Parameters[1]);
             }

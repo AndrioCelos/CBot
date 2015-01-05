@@ -39,7 +39,7 @@ namespace CBot {
         }
 
         public bool IsActiveChannel(IRCClient connection, string channel) {
-            if (!connection.IsChannel(channel)) return IsActivePM(connection, channel);
+            if (!connection.IsChannel(channel)) return false; //return IsActivePM(connection, channel);
 
             foreach (string channelName in this.Channels) {
                 string[] fields = channelName.Split(new char[] { '/' }, 2);
@@ -128,7 +128,8 @@ namespace CBot {
                 method.Invoke(this, new object[] { this, e });
             } catch (Exception ex) {
                 Bot.LogError(MyKey, method.Name, ex);
-                Bot.Say(Connection, Channel, "\u00034The command failed. This incident has been logged. ({0})", ex.Message);
+                while (ex is TargetInvocationException) ex = ex.InnerException;
+                Bot.Say(Connection, Channel, "\u00034The command failed. This incident has been logged. ({0})", ex.Message.Replace('\n', ' '));
             }
             return true;
         }

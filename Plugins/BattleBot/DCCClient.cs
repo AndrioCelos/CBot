@@ -61,9 +61,9 @@ namespace BattleBot {
             IRCClient.ParseIRCLine(t, out Prefix, out Command, out Parameters, out Trail, true);
 
             if ((Command.Equals("PRIVMSG", StringComparison.OrdinalIgnoreCase) || Command.Equals("NOTICE", StringComparison.OrdinalIgnoreCase)) && (Parameters[0] == "#" ||
-                IRCStringComparer.RFC1459CaseInsensitiveComparer.Equals("#Lobby", Parameters[0]) ||
-                IRCStringComparer.RFC1459CaseInsensitiveComparer.Equals("#BattleRoom", Parameters[0]) ||
-                IRCStringComparer.RFC1459CaseInsensitiveComparer.Equals(this.Target.Nickname, Parameters[0]))) {
+                IRCStringComparer.RFC1459.Equals("#Lobby", Parameters[0]) ||
+                IRCStringComparer.RFC1459.Equals("#BattleRoom", Parameters[0]) ||
+                IRCStringComparer.RFC1459.Equals(this.Target.Nickname, Parameters[0]))) {
                 // Emulate a channel message or PM to the target by sending it over DCC.
                 this.SendSub(Parameters[1].Replace("\u000F", "\u000F\u000312,99"));
             }

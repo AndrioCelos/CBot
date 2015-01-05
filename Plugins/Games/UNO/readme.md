@@ -116,3 +116,6 @@ Permissions
 
 * `<plugin>.stop` — enables the `!ustop` command.
 * `<plugin>.set` — enables the `!uset` command to set global settings.
+* `<plugin>.start` — enables the `!ustart` command.
+* `<plugin>.start.botduel` — allows the `!ustart` command to be used when only the user and the bot have joined.
+* `<plugin>.wait` — enables the `!uwait` command.

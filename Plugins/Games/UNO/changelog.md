@@ -1,3 +1,22 @@
+Version 1.9.1 – 5 January 2015
+------------------------------
+
+* **Fix:** When a player going out doesn't end the game, the AI and game timer are now set up correctly.
+
+Version 1.9 – 11 December 2014
+-----------------------------
+
+* Added the `OutLimit` setting, to replace `AllOut`. The game will end when this many players go out. It can also be set to `none`.
+* Added the `MidGameJoin` setting. If enabled, players will be allowed to join after the game starts.
+* `d` no longer parses in the `!play` command as 'Wild Draw Four'.
+
+Version 1.8 – 5 November 2014
+-----------------------------
+
+* Added the `!uwait` command. The `<plugin>.wait` permission is required to use it.
+* The bot now PMs players who go out with the number of points they won, if the game hasn't ended.
+* **Fix:** Reverse cards now work correctly when there are three players remaining, one of whom uses one to go out.
+
 Version 1.7.3 – 21 October 2014
 -------------------------------
 
@@ -6,7 +25,7 @@ Version 1.7.3 – 21 October 2014
 Version 1.7.2 – 19 October 2014
 -------------------------------
 
-* Added the `!ustart` command.
+* Added the `!ustart` command. The `<plugin>.start` permission is required to use it.
 * **Fix:** The possible typo `pl wdg` will no longer set the colour to green. There must now be a space separating the colour parameter.
 
 Version 1.7.1 – 13 October 2014

@@ -1,7 +1,7 @@
 ﻿
 Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio 2013
-VisualStudioVersion = 12.0.30501.0
+VisualStudioVersion = 12.0.31101.0
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "CBot", "CBot\CBot.csproj", "{C734F450-74BA-4ECF-AB7B-3B5ED3E4CD76}"
 EndProject
@@ -30,6 +30,10 @@ EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Monopoly", "Plugins\Games\Monopoly\Monopoly.csproj", "{D894AFD5-993F-4484-A3AF-EAA729F46C6E}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Greedy Dice", "Plugins\Games\Greedy Dice\Greedy Dice.csproj", "{EF64D212-B68B-43F1-BA4F-F0A7A7C31BDA}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "CommandManager", "Plugins\CommandManager\CommandManager.csproj", "{D0072D90-0D83-449B-9606-A6F1EA7A0D47}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "BombDefense", "Plugins\BombDefense\BombDefense.csproj", "{42A52734-A94F-4E75-8A2B-1FA92A5BDF29}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -171,6 +175,26 @@ Global
 		{EF64D212-B68B-43F1-BA4F-F0A7A7C31BDA}.Release|Mixed Platforms.ActiveCfg = Release|Any CPU
 		{EF64D212-B68B-43F1-BA4F-F0A7A7C31BDA}.Release|Mixed Platforms.Build.0 = Release|Any CPU
 		{EF64D212-B68B-43F1-BA4F-F0A7A7C31BDA}.Release|x86.ActiveCfg = Release|Any CPU
+		{D0072D90-0D83-449B-9606-A6F1EA7A0D47}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{D0072D90-0D83-449B-9606-A6F1EA7A0D47}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{D0072D90-0D83-449B-9606-A6F1EA7A0D47}.Debug|Mixed Platforms.ActiveCfg = Debug|Any CPU
+		{D0072D90-0D83-449B-9606-A6F1EA7A0D47}.Debug|Mixed Platforms.Build.0 = Debug|Any CPU
+		{D0072D90-0D83-449B-9606-A6F1EA7A0D47}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{D0072D90-0D83-449B-9606-A6F1EA7A0D47}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{D0072D90-0D83-449B-9606-A6F1EA7A0D47}.Release|Any CPU.Build.0 = Release|Any CPU
+		{D0072D90-0D83-449B-9606-A6F1EA7A0D47}.Release|Mixed Platforms.ActiveCfg = Release|Any CPU
+		{D0072D90-0D83-449B-9606-A6F1EA7A0D47}.Release|Mixed Platforms.Build.0 = Release|Any CPU
+		{D0072D90-0D83-449B-9606-A6F1EA7A0D47}.Release|x86.ActiveCfg = Release|Any CPU
+		{42A52734-A94F-4E75-8A2B-1FA92A5BDF29}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{42A52734-A94F-4E75-8A2B-1FA92A5BDF29}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{42A52734-A94F-4E75-8A2B-1FA92A5BDF29}.Debug|Mixed Platforms.ActiveCfg = Debug|Any CPU
+		{42A52734-A94F-4E75-8A2B-1FA92A5BDF29}.Debug|Mixed Platforms.Build.0 = Debug|Any CPU
+		{42A52734-A94F-4E75-8A2B-1FA92A5BDF29}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{42A52734-A94F-4E75-8A2B-1FA92A5BDF29}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{42A52734-A94F-4E75-8A2B-1FA92A5BDF29}.Release|Any CPU.Build.0 = Release|Any CPU
+		{42A52734-A94F-4E75-8A2B-1FA92A5BDF29}.Release|Mixed Platforms.ActiveCfg = Release|Any CPU
+		{42A52734-A94F-4E75-8A2B-1FA92A5BDF29}.Release|Mixed Platforms.Build.0 = Release|Any CPU
+		{42A52734-A94F-4E75-8A2B-1FA92A5BDF29}.Release|x86.ActiveCfg = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
@@ -188,5 +212,7 @@ Global
 		{B6C4F826-185A-49FB-82AD-195A7B05759F} = {0AE309FE-E1B4-45BE-9094-1184B9A16DA9}
 		{D894AFD5-993F-4484-A3AF-EAA729F46C6E} = {1D401810-A843-47FE-9C92-A7ECFE85FE52}
 		{EF64D212-B68B-43F1-BA4F-F0A7A7C31BDA} = {1D401810-A843-47FE-9C92-A7ECFE85FE52}
+		{D0072D90-0D83-449B-9606-A6F1EA7A0D47} = {0AE309FE-E1B4-45BE-9094-1184B9A16DA9}
+		{42A52734-A94F-4E75-8A2B-1FA92A5BDF29} = {0AE309FE-E1B4-45BE-9094-1184B9A16DA9}
 	EndGlobalSection
 EndGlobal

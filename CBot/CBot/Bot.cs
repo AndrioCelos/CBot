@@ -126,11 +126,16 @@ namespace CBot {
                 ConsoleUtils.WriteLine("%cDKGRAY{0} %cDKGREEN>>%cDKGRAY {1}%r", ((IRCClient) sender).Address, e.Data);
             };
             newClient.RawLineSent += delegate(object sender, RawEventArgs e) {
-                if (e.Data.StartsWith("PASS ", StringComparison.OrdinalIgnoreCase) ||
-                    e.Data.StartsWith("OPER ", StringComparison.OrdinalIgnoreCase) ||
-                    e.Data.StartsWith("PRIVMSG NickServ :IDENTIFY ", StringComparison.OrdinalIgnoreCase) ||
-                    e.Data.StartsWith("PRIVMSG NickServ :GHOST ", StringComparison.OrdinalIgnoreCase))
-                    ConsoleUtils.WriteLine("%cDKGRAY{0} %cDKRED<<%cDKGRAY {1}%r", ((IRCClient) sender).Address, "***");
+                if (e.Data.StartsWith("PASS ", StringComparison.OrdinalIgnoreCase))
+                    ConsoleUtils.WriteLine("%cDKGRAY{0} %cDKRED<<%cDKGRAY {1}%r", ((IRCClient) sender).Address, "PASS ***");
+                else if (e.Data.StartsWith("AUTHENTICATE ", StringComparison.OrdinalIgnoreCase))
+                    ConsoleUtils.WriteLine("%cDKGRAY{0} %cDKRED<<%cDKGRAY {1}%r", ((IRCClient) sender).Address, "AUTHENTICATE ***");
+                else if (e.Data.StartsWith("OPER ", StringComparison.OrdinalIgnoreCase))
+                    ConsoleUtils.WriteLine("%cDKGRAY{0} %cDKRED<<%cDKGRAY {1}%r", ((IRCClient) sender).Address, "OPER ***");
+                else if (e.Data.StartsWith("PRIVMSG NickServ :IDENTIFY ", StringComparison.OrdinalIgnoreCase))
+                    ConsoleUtils.WriteLine("%cDKGRAY{0} %cDKRED<<%cDKGRAY {1}%r", ((IRCClient) sender).Address, "PRIVMSG NickServ :IDENTIFY ***");
+                else if (e.Data.StartsWith("PRIVMSG NickServ :GHOST ", StringComparison.OrdinalIgnoreCase))
+                    ConsoleUtils.WriteLine("%cDKGRAY{0} %cDKRED<<%cDKGRAY {1}%r", ((IRCClient) sender).Address, "PRIVMSG NickServ :GHOST ***");
                 else
                     ConsoleUtils.WriteLine("%cDKGRAY{0} %cDKRED<<%cDKGRAY {1}%r", ((IRCClient) sender).Address, e.Data);
             };
@@ -425,13 +430,13 @@ namespace CBot {
                     pluginVersion = attribute.Version;
             }
             if (pluginVersion == null) {
-                ConsoleUtils.WriteLine(" %cREDOutdated plugin – no API version is specified.");
+                ConsoleUtils.WriteLine(" %cREDOutdated plugin – no API version is specified.%r");
                 return false;
             } else if (pluginVersion < Bot.MinPluginVersion) {
-                ConsoleUtils.WriteLine(" %cREDOutdated plugin – built for version {0}.{1}.", pluginVersion.Major, pluginVersion.Minor);
+                ConsoleUtils.WriteLine(" %cREDOutdated plugin – built for version {0}.{1}.%r", pluginVersion.Major, pluginVersion.Minor);
                 return false;
             } else if (pluginVersion > Bot.Version) {
-                ConsoleUtils.WriteLine(" %cREDOutdated bot – the plugin is built for version {0}.{1}.", pluginVersion.Major, pluginVersion.Minor);
+                ConsoleUtils.WriteLine(" %cREDOutdated bot – the plugin is built for version {0}.{1}.%r", pluginVersion.Major, pluginVersion.Minor);
                 return false;
             }
 
@@ -932,6 +937,12 @@ namespace CBot {
                                                     client.Client.AllowInvalidCertificate = false;
                                                 }
                                                 break;
+                                            case "SASL-USERNAME":
+                                                client.Client.SASLUsername = Value;
+                                                break;
+                                            case "SASL-PASSWORD":
+                                                client.Client.SASLPassword = Value;
+                                                break;
                                             case "NICKSERV-NICKNAMES":
                                             case "NS-NICKNAMES":
                                                 client.NickServ.RegisteredNicknames = Value.Split(new char[] { ',', ' ' }, StringSplitOptions.RemoveEmptyEntries);
@@ -1064,8 +1075,10 @@ namespace CBot {
                             if (Filename != null) {
                                 try {
                                     ConsoleUtils.Write("  Loading plugin %cWHITE" + Section + "%r...");
-                                    Bot.LoadPlugin(Section, Filename, Channels);
-                                    ConsoleUtils.WriteLine(" OK");
+                                    if (Bot.LoadPlugin(Section, Filename, Channels))
+                                        ConsoleUtils.WriteLine(" OK");
+                                    else
+                                        error = true;
                                 } catch (Exception ex) {
                                     ConsoleUtils.WriteLine("%cRED Failed%r");
                                     Bot.LogError(Section, "Initialisation", ex);
@@ -1152,6 +1165,10 @@ namespace CBot {
                     Writer.WriteLine("Autojoin=" + string.Join(",", client.AutoJoin));
                 }
                 Writer.WriteLine("SSL=" + (client.Client.SSL ? "Yes" : "No"));
+                if (client.Client.SASLUsername != null && client.Client.SASLPassword != null) {
+                    Writer.WriteLine("SASL-Username=" + client.Client.SASLUsername);
+                    Writer.WriteLine("SASL-Password=" + client.Client.SASLPassword);
+                }
                 Writer.WriteLine("AllowInvalidCertificate=" + (client.Client.AllowInvalidCertificate ? "Yes" : "No"));
                 if (client.NickServ != null) {
                     Writer.WriteLine("NickServ-Nicknames=" + string.Join(",", client.NickServ.RegisteredNicknames));
@@ -1506,11 +1523,12 @@ namespace CBot {
                             break;
                         else if (i < needleFields.Length && needleFields[i].Equals(hayFields[i], StringComparison.OrdinalIgnoreCase))
                             ++matchLevel;
-                        else
+                        else {
+                            matchLevel = -1;
                             break;
-
+                        }
                     }
-                    if (i == hayFields.Length) {
+                    if (matchLevel != -1 && i < hayFields.Length || (i == hayFields.Length && i == needleFields.Length)) {
                         if ((score >> 1) <= matchLevel)
                             score = (matchLevel << 1) | (polarity ? 1 : 0);
                     }
@@ -1711,7 +1729,7 @@ namespace CBot {
 
         public static bool EventCheck(IRCClient client, string channel, string procedureName, params object[] parameters) {
             foreach (KeyValuePair<string, PluginEntry> i in Bot.Plugins) {
-                if (channel == null || i.Value.Obj.IsActiveChannel(client, channel)) {
+                if (channel == null || !client.IsChannel(channel) || i.Value.Obj.IsActiveChannel(client, channel)) {
                     MethodInfo method = i.Value.Obj.GetType().GetMethod(procedureName);
                     if (method == null) throw new MissingMethodException("No such procedure was found.");
                     try {
@@ -2017,10 +2035,10 @@ namespace CBot {
             Bot.EventCheck((IRCClient) sender, e.Channel, "OnExemptListEnd", new object[] { sender, e });
         }
         private static void OnInvite(object sender, ChannelInviteEventArgs e) {
-            Bot.EventCheck((IRCClient) sender, e.Channel, "OnInvite", new object[] { sender, e });
+            Bot.EventCheck((IRCClient) sender, null, "OnInvite", new object[] { sender, e });
         }
         private static void OnInviteSent(object sender, ChannelInviteSentEventArgs e) {
-            Bot.EventCheck((IRCClient) sender, e.Channel, "OnInviteSent", new object[] { sender, e });
+            Bot.EventCheck((IRCClient) sender, null, "OnInviteSent", new object[] { sender, e });
         }
         private static void OnInviteList(object sender, ChannelModeListEventArgs e) {
             Bot.EventCheck((IRCClient) sender, e.Channel, "OnInviteList", new object[] { sender, e });

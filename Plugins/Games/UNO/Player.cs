@@ -9,11 +9,10 @@ namespace UNO {
         public int HandPoints;
         public List<byte> Hand;
         public short IdleCount;
-        public bool MultipleCards;
-        public string StreakMessage;
+        internal string StreakMessage;
         public bool CanMove;
         public DateTime DisconnectedAt;
-        public int Position;
+        public int Rank;
 
         public Player(string name) {
             this.Name = name;

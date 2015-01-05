@@ -93,8 +93,10 @@ namespace Gender
                     int lineNumber = 0;
 
                     while (!reader.EndOfStream) {
-                        string[] fields = reader.ReadLine().Split(new char[] { '=' }, 2);
+                        string line = reader.ReadLine();
                         ++lineNumber;
+                        if (line.Length == 0) continue;
+                        string[] fields = line.Split(new char[] { '=' }, 2);
 
                         if (fields.Length != 2) {
                             ConsoleUtils.WriteLine("[{0}] Problem loading the configuration (line {1}): the line is not in the correct format.", MyKey, lineNumber);
@@ -140,39 +142,76 @@ namespace Gender
             }
         }
 
-        [Command(new string[] { "setgender", "ircsetgender" }, 1, 2, "setgender <hostmask>|=<nickname> male|female|none|clear", "Sets a gender for the given user.",
+        [Command(new string[] { "setgender", "ircsetgender" }, 1, 2, "setgender [<hostmask>|=<nickname>] male|female|none|clear", "Sets a gender for the given user.",
             ".setgender")]
         public void CommandSetGender(object sender, CommandEventArgs e) {
-            IRC.Gender gender;
+            IRC.Gender gender = IRC.Gender.Unspecified;
+            bool valid = false;
+            string mask = null;
 
-            if (e.Parameters.Length == 1 || e.Parameters[1].Equals("clear", StringComparison.InvariantCultureIgnoreCase) ||
-                                            e.Parameters[1].Equals("c", StringComparison.InvariantCultureIgnoreCase)) {
-                gender = IRC.Gender.Unspecified;
-                if (this.Gender.Remove(e.Parameters[0]))
-                    Bot.Say(e.Connection, e.Channel, "Gender for \u0002{0}\u0002 has been cleared.", e.Parameters[0]);
-                else {
-                    Bot.Say(e.Connection, e.Sender.Nickname, "No gender for \u0002{0}\u0002 was set.", e.Parameters[0]);
+            if (e.Parameters.Length == 1) {
+                valid = true;
+                mask = "*!*" + (e.Sender.Username.StartsWith("~") ? e.Sender.Username.Substring(1) : e.Sender.Username) + "@" + e.Sender.Host;
+                if (e.Parameters[0].Equals("male", StringComparison.InvariantCultureIgnoreCase) || e.Parameters[00].Equals("m", StringComparison.InvariantCultureIgnoreCase)) {
+                    gender = IRC.Gender.Male;
+                    Bot.Say(e.Connection, e.Channel, "Gender for \u0002{0}\u0002 has been set to \u0002male\u0002.", mask);
+                } else if (e.Parameters[0].Equals("female", StringComparison.InvariantCultureIgnoreCase) || e.Parameters[0].Equals("f", StringComparison.InvariantCultureIgnoreCase)) {
+                    gender = IRC.Gender.Female;
+                    Bot.Say(e.Connection, e.Channel, "Gender for \u0002{0}\u0002 has been set to \u0002female\u0002.", mask);
+                } else if (e.Parameters[0].Equals("none", StringComparison.InvariantCultureIgnoreCase) || e.Parameters[0].Equals("n", StringComparison.InvariantCultureIgnoreCase) ||
+                    e.Parameters[0].Equals("bot", StringComparison.InvariantCultureIgnoreCase) || e.Parameters[0].Equals("b", StringComparison.InvariantCultureIgnoreCase)) {
+                    gender = IRC.Gender.Bot;
+                    Bot.Say(e.Connection, e.Channel, "Gender for \u0002{0}\u0002 has been set to \u0002none\u0002.", mask);
+                } else if (e.Parameters[0].Equals("clear", StringComparison.InvariantCultureIgnoreCase) || e.Parameters[0].Equals("c", StringComparison.InvariantCultureIgnoreCase)) {
+                    gender = IRC.Gender.Unspecified;
+                } else
+                    valid = false;
+            }
+            if (valid) {
+                if (gender == IRC.Gender.Unspecified) {
+                    if (this.Gender.Remove(mask))
+                        Bot.Say(e.Connection, e.Channel, "Gender for \u0002{0}\u0002 has been cleared.", mask);
+                    else {
+                        Bot.Say(e.Connection, e.Sender.Nickname, "No gender for \u0002{0}\u0002 was set.", mask);
+                        return;
+                    }
+                } else
+                    this.Gender[mask] = gender;
+                e.Sender.Gender = gender;
+                return;
+            } else if (Bot.UserHasPermission(e.Connection, e.Channel, e.Sender.Nickname, MyKey + ".setgender.others")) {
+                if (e.Parameters.Length == 1 || e.Parameters[1].Equals("clear", StringComparison.InvariantCultureIgnoreCase) ||
+                                                e.Parameters[1].Equals("c", StringComparison.InvariantCultureIgnoreCase)) {
+                    gender = IRC.Gender.Unspecified;
+                    if (this.Gender.Remove(e.Parameters[0]))
+                        Bot.Say(e.Connection, e.Channel, "Gender for \u0002{0}\u0002 has been cleared.", e.Parameters[0]);
+                    else {
+                        Bot.Say(e.Connection, e.Sender.Nickname, "No gender for \u0002{0}\u0002 was set.", e.Parameters[0]);
+                        return;
+                    }
+                } else if (e.Parameters[1].Equals("male", StringComparison.InvariantCultureIgnoreCase) ||
+                           e.Parameters[1].Equals("m", StringComparison.InvariantCultureIgnoreCase)) {
+                    gender = IRC.Gender.Male;
+                    this.Gender[e.Parameters[0]] = IRC.Gender.Male;
+                    Bot.Say(e.Connection, e.Channel, "Gender for \u0002{0}\u0002 has been set to \u0002male\u0002.", e.Parameters[0]);
+                } else if (e.Parameters[1].Equals("female", StringComparison.InvariantCultureIgnoreCase) ||
+                           e.Parameters[1].Equals("f", StringComparison.InvariantCultureIgnoreCase)) {
+                    gender = IRC.Gender.Female;
+                    this.Gender[e.Parameters[0]] = IRC.Gender.Female;
+                    Bot.Say(e.Connection, e.Channel, "Gender for \u0002{0}\u0002 has been set to \u0002female\u0002.", e.Parameters[0]);
+                } else if (e.Parameters[1].Equals("none", StringComparison.InvariantCultureIgnoreCase) ||
+                           e.Parameters[1].Equals("n", StringComparison.InvariantCultureIgnoreCase) ||
+                           e.Parameters[1].Equals("bot", StringComparison.InvariantCultureIgnoreCase) ||
+                           e.Parameters[1].Equals("b", StringComparison.InvariantCultureIgnoreCase)) {
+                    gender = IRC.Gender.Bot;
+                    this.Gender[e.Parameters[0]] = IRC.Gender.Bot;
+                    Bot.Say(e.Connection, e.Channel, "Gender for \u0002{0}\u0002 has been set to \u0002none\u0002.", e.Parameters[0]);
+                } else {
+                    Bot.Say(e.Connection, e.Sender.Nickname, "'{0}' isn't a valid option. Use 'male', 'female', 'none' or 'clear'.", e.Parameters[1]);
                     return;
                 }
-            } else if (e.Parameters[1].Equals("male", StringComparison.InvariantCultureIgnoreCase) ||
-                       e.Parameters[1].Equals("m", StringComparison.InvariantCultureIgnoreCase)) {
-                gender = IRC.Gender.Male;
-                this.Gender[e.Parameters[0]] = IRC.Gender.Male;
-                Bot.Say(e.Connection, e.Channel, "Gender for \u0002{0}\u0002 has been set to \u0002male\u0002.", e.Parameters[0]);
-            } else if (e.Parameters[1].Equals("female", StringComparison.InvariantCultureIgnoreCase) ||
-                       e.Parameters[1].Equals("f", StringComparison.InvariantCultureIgnoreCase)) {
-                gender = IRC.Gender.Female;
-                this.Gender[e.Parameters[0]] = IRC.Gender.Female;
-                Bot.Say(e.Connection, e.Channel, "Gender for \u0002{0}\u0002 has been set to \u0002female\u0002.", e.Parameters[0]);
-            } else if (e.Parameters[1].Equals("none", StringComparison.InvariantCultureIgnoreCase) ||
-                       e.Parameters[1].Equals("n", StringComparison.InvariantCultureIgnoreCase) ||
-                       e.Parameters[1].Equals("bot", StringComparison.InvariantCultureIgnoreCase) ||
-                       e.Parameters[1].Equals("b", StringComparison.InvariantCultureIgnoreCase)) {
-                gender = IRC.Gender.Bot;
-                this.Gender[e.Parameters[0]] = IRC.Gender.Bot;
-                Bot.Say(e.Connection, e.Channel, "Gender for \u0002{0}\u0002 has been set to \u0002none\u0002.", e.Parameters[0]);
             } else {
-                Bot.Say(e.Connection, e.Sender.Nickname, "'{0}' isn't a valid option. Use 'male', 'female', 'none' or 'clear'.", e.Parameters[1]);
+                Bot.Say(e.Connection, e.Sender.Nickname, "You don't have permission to set a gender for others.");
                 return;
             }
 

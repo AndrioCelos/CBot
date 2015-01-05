@@ -222,16 +222,18 @@ namespace BattleBot
         }
 
         public override bool OnPrivateNotice(object sender, PrivateMessageEventArgs e) {
-            if (e.Message.StartsWith("\u0001BOTVERSION ", StringComparison.InvariantCultureIgnoreCase)) {
-                if (e.Message.StartsWith("\u0001BOTVERSION Battle Dungeon ", StringComparison.InvariantCultureIgnoreCase)) {
-                    this.IsBattleDungeon = true;
-                    this.Version = new ArenaVersion(e.Message.Substring(27).TrimEnd(new char[] { (char) 1 }));
-                } else {
-                    this.IsBattleDungeon = false;
-                    this.Version = new ArenaVersion(e.Message.Substring(12).TrimEnd(new char[] { (char) 1 }));
+            if (sender == this.ArenaConnection && ((IRCClient) sender).CaseMappingComparer.Equals(e.Sender.Nickname, this.ArenaNickname)) {
+                if (e.Message.StartsWith("\u0001BOTVERSION ", StringComparison.InvariantCultureIgnoreCase)) {
+                    if (e.Message.StartsWith("\u0001BOTVERSION Battle Dungeon ", StringComparison.InvariantCultureIgnoreCase)) {
+                        this.IsBattleDungeon = true;
+                        this.Version = new ArenaVersion(e.Message.Substring(27).TrimEnd(new char[] { (char) 1 }));
+                    } else {
+                        this.IsBattleDungeon = false;
+                        this.Version = new ArenaVersion(e.Message.Substring(12).TrimEnd(new char[] { (char) 1 }));
+                    }
+                    this.VersionPreCTCP = false;
+                    this.WriteLine(1, 12, string.Format("The Arena is running {0} version {1}.", this.IsBattleDungeon ? "Battle Dungeon" : "Battle Arena", this.Version));
                 }
-                this.VersionPreCTCP = false;
-                this.WriteLine(1, 12, string.Format("The Arena is running {0} version {1}.", this.IsBattleDungeon ? "Battle Dungeon" : "Battle Arena", this.Version));
             }
             return base.OnPrivateNotice(sender, e);
         }

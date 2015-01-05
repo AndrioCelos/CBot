@@ -17,6 +17,15 @@ namespace BashQuotes
     public struct Quote {
         public string Text;
         public int Rating;
+
+        public Quote(string text) {
+            this.Text = text;
+            this.Rating = 0;
+        }
+        public Quote(string text, int rating) {
+            this.Text = text;
+            this.Rating = rating;
+        }
     }
 
     [APIVersion(3, 1)]
@@ -67,6 +76,23 @@ namespace BashQuotes
             }
         }
 
+        public static string Colourise(string line) {
+            Match match = Regex.Match(line, @"^(\s*[<\[(\-][ +%@&!]?)([A-}0-9-]+)([>\])\-]:?\s+.*)");
+            if (match.Success)
+                line = match.Groups[1].Value + IRC.Colours.NicknameColour(match.Groups[2].Value) + match.Groups[2].Value + "\u000F" + match.Groups[3].Value;
+            else {
+                match = Regex.Match(line, @"^([ +%@&!]?)([A-}0-9-]+)(:\s+.*)");
+                if (match.Success)
+                    line = match.Groups[1].Value + IRC.Colours.NicknameColour(match.Groups[2].Value) + match.Groups[2].Value + "\u000F" + match.Groups[3].Value;
+                else {
+                    match = Regex.Match(line, @"^(\*(?:\*\*)? )([A-}0-9-]+)(\s+(?!Now talking)(?!Topic)(?:Joins: |Parts: )?.*)");
+                    if (match.Success)
+                        line = match.Groups[1].Value + IRC.Colours.NicknameColour(match.Groups[2].Value) + match.Groups[2].Value + "\u000F" + match.Groups[3].Value;
+                }
+            }
+            return line;
+        }
+
         void QuoteTimer_Elapsed(object sender, ElapsedEventArgs e) {
             if (Quotes1 == null && Quotes2 != null) {
                 Quotes1 = Quotes2;
@@ -78,17 +104,20 @@ namespace BashQuotes
                 this.SayToAllChannels(string.Format("\u0002-------- bash #{0} - \u0002Rating:\u0002 {1} --------", Quotes1.Keys.ElementAt(Index), Quotes1.Values.ElementAt(Index).Rating));
                 foreach (string line in Quotes1.Values.ElementAt(Index).Text.Split(new string[] { "<br />", '\r'.ToString(), '\n'.ToString() }, StringSplitOptions.RemoveEmptyEntries)) {
                     if (line.Length <= 4) continue;
+
+                    string newLine = BashQuotesPlugin.Colourise(line);
+
                     Thread.Sleep(1000);
-                    if (line.Length > 350) {
+                    if (newLine.Length > 350) {
                         int i;
                         for (i = 350; i >= 300; --i)
-                            if (line[i] == ' ' || line[i] == (char) 9)
+                            if (newLine[i] == ' ' || newLine[i] == (char) 9)
                                 break;
-                        this.SayToAllChannels(line.Substring(0, i));
+                        this.SayToAllChannels(newLine.Substring(0, i));
                         Thread.Sleep(1000);
-                        this.SayToAllChannels("    " + line.Substring(i + 1));
+                        this.SayToAllChannels("    " + newLine.Substring(i + 1));
                     } else
-                        this.SayToAllChannels(line);
+                        this.SayToAllChannels(newLine);
                 }
                 ++Index;
             } else if (this.FailureMessage != null) {
@@ -219,10 +248,7 @@ namespace BashQuotes
                         }
                         if (lines > 20) continue;
 
-                        Quotes2.Add(int.Parse(match.Groups[1].Value), new Quote() {
-                            Rating = int.Parse(match.Groups[2].Value),
-                            Text = System.Web.HttpUtility.HtmlDecode(match.Groups[3].Value)
-                        });
+                        Quotes2.Add(int.Parse(match.Groups[1].Value), new Quote(System.Web.HttpUtility.HtmlDecode(match.Groups[3].Value), int.Parse(match.Groups[2].Value)));
                     }
                     Console.WriteLine("[Bash Quotes] Got {0} new quotes.", Quotes2.Count);
                 }

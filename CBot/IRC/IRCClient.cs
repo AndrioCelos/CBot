@@ -14,27 +14,66 @@ using System.Threading;
 using System.Timers;
 
 namespace IRC {
+    /// <summary>
+    /// Stores the channel modes available on an IRC server, and the types they belong to.
+    /// See http://www.irc.org/tech_docs/draft-brocklesby-irc-isupport-03.txt for more information.
+    /// </summary>
     public struct ChannelModes {
-        public char[] TypeAModes;
-        public char[] TypeBModes;
-        public char[] TypeCModes;
-        public char[] TypeDModes;
-        public ChannelModes(char[] A, char[] B, char[] C, char[] D) {
-            this.TypeAModes = A;
-            this.TypeBModes = B;
-            this.TypeCModes = C;
-            this.TypeDModes = D;
+        /// <summary>The type A modes available. These are also known as list modes.</summary>
+        public char[] TypeA { get; private set; }
+        /// <summary>The type B modes available. These always take a parameter, but do not include nickname status modes such as o.</summary>
+        public char[] TypeB { get; private set; }
+        /// <summary>The type C modes available. These always take a parameter except when unset.</summary>
+        public char[] TypeC { get; private set; }
+        /// <summary>The type D modes available. These never take a parameter.</summary>
+        public char[] TypeD { get; private set; }
+
+        public ChannelModes(char[] typeA, char[] typeB, char[] typeC, char[] typeD) : this() {
+            this.TypeA = typeA;
+            this.TypeB = typeB;
+            this.TypeC = typeC;
+            this.TypeD = typeD;
+        }
+
+        /// <summary>Contains a ChannelModes structure representing the standard modes defined by RFC 2812. These modes are beI,k,l,aimnqpsrt.</summary>
+        public readonly static ChannelModes RFC2812 = new ChannelModes(new char[] { 'b', 'e', 'I' },
+                                                                       new char[] { 'k' },
+                                                                       new char[] { 'l' },
+                                                                       new char[] { 'a', 'i', 'm', 'n', 'q', 'p', 's', 'r', 't' });
+
+        /// <summary>Returns the type of a given mode character, as 'A', 'B', 'C', 'D' or the null character if the given mode is not listed.</summary>
+        /// <param name="mode">The mode character to search for.</param>
+        /// <returns>'A', 'B', 'C', 'D' if the given mode belongs to the corresponding category, or the null character ('\0') if the given mode is not listed.</returns>
+        public char ModeType(char mode) {
+            if (this.TypeA.Contains(mode)) return 'A';
+            if (this.TypeD.Contains(mode)) return 'D';
+            if (this.TypeC.Contains(mode)) return 'C';
+            if (this.TypeB.Contains(mode)) return 'B';
+            return '\0';
         }
     }
 
+    /// <summary>Represents the status a user can have on a channel. A user can have zero, one or more of these.</summary>
+    /// <remarks>The flags are given values such that the higher bits represent higher status. Therefore, any user that can set modes on a channel will have access >= HalfOp, discounting oper powers.</remarks>
     [Flags]
-    public enum ChannelAccess : short {
+    public enum ChannelAccess {
+        /// <summary>The user has no known status.</summary>
         Normal = 0,
+        /// <summary>The user has half-voice (mode +V).</summary>
+        /// <remarks>I've never heard of an IRC server supporting this, and support in CIRC may be removed in future.</remarks>
         HalfVoice = 1,
+        /// <summary>The user has voice (mode +v).</summary>
         Voice = 2,
+        /// <summary>The user has half-operator status (mode +h).</summary>
+        /// <remarks>Many IRC servers don't support this.</remarks>
         HalfOp = 4,
+        /// <summary>The user has operator status (mode +o).</summary>
         Op = 8,
+        /// <summary>The user has administrator (or super-op) status (mode +a).</summary>
+        /// <remarks>Many IRC servers don't support this.</remarks>
         Admin = 16,
+        /// <summary>The user has owner status (mode +q).</summary>
+        /// <remarks>Many IRC servers don't support this, and channel mode q is often used for other purposes.</remarks>
         Owner = 32
     }
 
@@ -692,32 +731,71 @@ namespace IRC {
         public string Password { get; set; }
         public string ServerName { get; protected set; }
 
+        /// <summary>A list of all user modes the server supports.</summary>
         public char[] SupportedUserModes;
+        /// <summary>A list of all channel modes the server supports.</summary>
         public char[] SupportedChannelModes;
 
+        /// <summary>A list of all users we can see on the network.</summary>
         public UserCollection Users { get; protected set; }
+        /// <summary>A User object representing the local user.</summary>
+        public User Me { get; protected internal set; }
+
+        public string SASLUsername;
+        public string SASLPassword;
 
         // 005 information
+        /// <summary>A list of all RPL_ISUPPORT extensions given.</summary>
+        public Dictionary<string, string> Extensions { get; protected set; }
+        /// <summary>The RPL_ISUPPORT specification of the case mapping this server uses to compare nicknames and channel names.</summary>
+        /// <remarks>The value is case sensitive. There are three known values: ascii, rfc1459 (default) and strict-rfc1459.</remarks>
         public string CaseMapping { get; protected set; }
-        public Dictionary<char, int> ChannelLimit { get; protected set; }
+        /// <summary>The RPL_ISUPPORT specification of the maximum number of each type of channel we may be on.</summary>
+        /// <remarks>Each key contains one of more channel prefixes, and the corresponding value is the limit for all of those channel types combined.</remarks>
+        public Dictionary<string, int> ChannelLimit { get; protected set; }
+        /// <summary>The RPL_ISUPPORT specification of the channel modes this server supports.</summary>
+        /// <remarks>The value consists of four or more comma-separated categories, each containing zero or more mode characters. They are described in detail in http://www.irc.org/tech_docs/draft-brocklesby-irc-isupport-03.txt</remarks>
         public IRC.ChannelModes ChanModes { get; protected set; }
+        /// <summary>The RPL_ISUPPORT specification of the maximum length of a channel name.</summary>
         public int ChannelLength { get; protected set; }
+        /// <summary>The RPL_ISUPPORT specification of the channel types supported by this server.</summary>
         public char[] ChannelTypes { get; protected set; }
+        /// <summary>True if the server supports channel ban exceptions.</summary>
         public bool SupportsBanExceptions { get; protected set; }
+        /// <summary>The RPL_ISUPPORT specification of the mode character used for channel ban exceptions.</summary>
         public char BanExceptionsMode { get; protected set; }
+        /// <summary>True if the server supports channel invite exceptions.</summary>
         public bool SupportsInviteExceptions { get; protected set; }
+        /// <summary>The RPL_ISUPPORT specification of the mode character used for channel invite exceptions.</summary>
         public char InviteExceptionsMode { get; protected set; }
+        /// <summary>True if the server supports the WATCH command.</summary>
+        /// <remarks>If true, we will use the WATCH list to monitor users in the Users list.</remarks>
         public bool SupportsWatch { get; protected set; }
+        /// <summary>The RPL_ISUPPORT specification of the maximum length of a kick message.</summary>
         public int KickMessageLength { get; protected set; }
-        public Dictionary<char, int> ListModeLength { get; protected set; }
+        /// <summary>The RPL_ISUPPORT specification of the maximum number of entries that may be added to a channel list mode.</summary>
+        /// <remarks>Each key contains one of more mode characters, and the corresponding value is the limit for all of those modes combined.</remarks>
+        public Dictionary<string, int> ListModeLength { get; protected set; }
+        /// <summary>The RPL_ISUPPORT specification of the maximum number of modes that can be set with a single command.</summary>
         public int Modes { get; protected set; }
+        /// <summary>The RPL_ISUPPORT specification of the name of the IRC network.</summary>
+        /// <remarks>Note that this is not known until, and unless, the RPL_ISUPPORT message is received.</remarks>
         public string NetworkName { get; protected set; }
+        /// <summary>The RPL_ISUPPORT specification of the maximum length of a nickname we may use.</summary>
         public int NicknameLength { get; protected set; }
+        /// <summary>The RPL_ISUPPORT specification of the channel status modes this server supports.</summary>
+        /// <remarks>Each entry contains a mode character as the key, and the corresponding prefix as the value. They are given in order from highest to lowest status.</remarks>
         public Dictionary<char, char> StatusPrefix { get; protected set; }
+        /// <summary>The RPL_ISUPPORT specification of the status prefixes we may use to only talk to users on a channel with that status.</summary>
+        /// <remarks>Note that many servers require we also have that status to do this.</remarks>
         public char[] StatusMessage { get; protected set; }
+        /// <summary>The RPL_ISUPPORT specification of the maximum number of targets we may give for certain commands.</summary>
+        /// <remarks>Each entry consists of the command and the corresponding limit. Any command that's not listed does not support multiple targets.</remarks>
         public Dictionary<string, int> MaxTargets { get; protected set; }
+        /// <summary>The RPL_ISUPPORT specification of the maximum length of a channel topic.</summary>
         public int TopicLength { get; protected set; }
 
+        /// <summary>A StringComparer that emulates the comparison the server uses, as specified in the RPL_ISUPPORT message.</summary>
         public StringComparer CaseMappingComparer { get; protected set; }
 
         public bool Away { get; protected set; }
@@ -748,15 +826,16 @@ namespace IRC {
 
         public IRCClient() : this(60) { }
         public IRCClient(int PingTimeout) {
+            this.Extensions = new Dictionary<string, string>();
             this.CaseMapping = "rfc1459";
-            this.CaseMappingComparer = IRCStringComparer.RFC1459CaseInsensitiveComparer;
-            this.ChannelLimit = new Dictionary<char, int> { { '#', int.MaxValue } };
+            this.CaseMappingComparer = IRCStringComparer.RFC1459;
+            this.ChannelLimit = new Dictionary<string, int> { { "#&", int.MaxValue } };
             this.ChannelLength = 200;
-            this.ChannelTypes = new char[] { '#', '&' };
+            this.ChannelTypes = new char[] { '#' };
             this.SupportsBanExceptions = false;
             this.SupportsInviteExceptions = false;
             this.KickMessageLength = int.MaxValue;
-            this.ListModeLength = new Dictionary<char, int>();
+            this.ListModeLength = new Dictionary<string, int>();
             this.Modes = 3;
             this.NicknameLength = 9;
             this.StatusPrefix = new Dictionary<char, char> { { 'o', '@' }, { 'v', '+' } };
@@ -764,10 +843,10 @@ namespace IRC {
             this.MaxTargets = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
             this.TopicLength = int.MaxValue;
             this.LastSpoke = default(DateTime);
-            this.Channels = new ChannelCollection();
+            this.Channels = new ChannelCollection(this);
             this.buffer = new byte[512];
             this.outputBuilder = new StringBuilder();
-            this.Users = new UserCollection();
+            this.Users = new UserCollection(this);
             this.Lock = new object();
 
             this._PingTimeout = PingTimeout;
@@ -824,6 +903,8 @@ namespace IRC {
         }
 
         public virtual void Connect() {
+            this.Me = new User(this, this.Nickname, "*", "*");
+
             // Connect to the server.
             if (this.IP == null) {
                 this.tcpClient = new TcpClient();
@@ -845,6 +926,7 @@ namespace IRC {
             if (!this.SSL) {
                 if (this.Password != null)
                     this.Send("PASS :{0}", this.Password);
+                this.Send("CAP LS");
                 this.Send("NICK {0}", this.Nickname);
                 this.Send("USER {0} 4 {2} :{1}", this.Username, this.FullName, this.Address);
             }
@@ -871,6 +953,7 @@ namespace IRC {
                     this.SSLStream.AuthenticateAsClient(this.Address);
                     if (this.Password != null)
                         this.Send("PASS :{0}", this.Password);
+                    this.Send("CAP LS");
                     this.Send("NICK {0}", this.Nickname);
                     this.Send("USER {0} 4 {2} :{1}", this.Username, this.FullName, this.Address);
                 } catch (AuthenticationException ex) {
@@ -888,7 +971,7 @@ namespace IRC {
 
             // Read data.
             this.outputBuilder = new StringBuilder();
-            while (true) {
+            while (this.IsConnected) {
                 int n;
                 try {
                     if (this._PingTimeout != 0) this.PingTimer.Start();
@@ -901,6 +984,10 @@ namespace IRC {
                     this.OnDisconnected(new ExceptionEventArgs(ex));
                     return;
                 } catch (SocketException ex) {
+                    this.PingTimer.Stop();
+                    this.OnDisconnected(new ExceptionEventArgs(ex));
+                    return;
+                } catch (ObjectDisposedException ex) {
                     this.PingTimer.Stop();
                     this.OnDisconnected(new ExceptionEventArgs(ex));
                     return;
@@ -999,92 +1086,99 @@ namespace IRC {
                     case "001":
                         this.ServerName = prefix;
                         if (this.Nickname != parameters[0]) {
-                            this.OnNicknameChangeSelf(new NicknameChangeEventArgs(new User(this, this.Nickname, "*", "*"), parameters[0]));
+                            this.OnNicknameChangeSelf(new NicknameChangeEventArgs(this.Me, parameters[0]));
                             this.Nickname = parameters[0];
                         }
-                        this.Users.Add(new User(this, this.Nickname, "*", "*"));
+                        this.Users.Add(this.Me);
                         this.IsRegistered = true;
                         this.OnServerMessage(new ServerMessageEventArgs(prefix, command, parameters, parameters[1]));
                         break;
                     case "005":
-                        for (int i = 1; i < (trail == null ? parameters.Length : parameters.Length - 1); ++i) {
-                            string[] fields; string key; string value;
-                            fields = parameters[i].Split(new char[] { '=' }, 2);
-                            if (fields.Length == 2) {
-                                key = fields[0];
-                                value = fields[1];
-                            } else {
-                                key = fields[0];
-                                value = null;
-                            }
+                        if (!(parameters.Length != 0 && parameters[0].StartsWith("Try server"))) {
+                            for (int i = 1; i < (trail == null ? parameters.Length : parameters.Length - 1); ++i) {
+                                string[] fields; string key; string value;
+                                fields = parameters[i].Split(new char[] { '=' }, 2);
+                                if (fields.Length == 2) {
+                                    key = fields[0];
+                                    value = fields[1];
+                                } else {
+                                    key = fields[0];
+                                    value = null;
+                                }
 
-                            switch (key) {  // Parameter names are case sensitive.
-                                case "CASEMAPPING":
-                                    this.CaseMapping = value;
-                                    switch (value.ToUpper()) {
-                                        case "ASCII":
-                                            this.CaseMappingComparer = IRCStringComparer.ASCIICaseInsensitiveComparer;
+                                if (key.StartsWith("-")) {
+                                    this.Extensions.Remove(key.Substring(1));
+                                } else {
+                                    this.Extensions[key] = value;
+
+                                    switch (key) {  // Parameter names are case sensitive.
+                                        case "CASEMAPPING":
+                                            this.CaseMapping = value;
+                                            switch (value.ToUpper()) {
+                                                case "ASCII":
+                                                    this.CaseMappingComparer = IRCStringComparer.ASCII;
+                                                    break;
+                                                case "STRICT-RFC1459":
+                                                    this.CaseMappingComparer = IRCStringComparer.StrictRFC1459;
+                                                    break;
+                                                default:
+                                                    this.CaseMappingComparer = IRCStringComparer.RFC1459;
+                                                    break;
+                                            }
                                             break;
-                                        case "STRICT-RFC1459":
-                                            this.CaseMappingComparer = IRCStringComparer.StrictRFC1459CaseInsensitiveComparer;
+                                        case "CHANLIMIT":
+                                            this.ChannelLimit = new Dictionary<string, int>();
+                                            foreach (string field in value.Split(new char[] { ',' })) {
+                                                fields = field.Split(new char[] { ':' });
+                                                this.ChannelLimit.Add(fields[0], int.Parse(fields[1]));
+                                            }
                                             break;
-                                        default:
-                                            this.CaseMappingComparer = IRCStringComparer.RFC1459CaseInsensitiveComparer;
+                                        case "CHANMODES":
+                                            fields = value.Split(new char[] { ',' });
+                                            this.ChanModes = new ChannelModes(fields[0].ToCharArray(), fields[1].ToCharArray(), fields[2].ToCharArray(), fields[3].ToCharArray());
                                             break;
+                                        case "CHANNELLEN": this.ChannelLength = int.Parse(value); break;
+                                        case "CHANTYPES": this.ChannelTypes = value.ToCharArray(); break;
+                                        case "EXCEPTS":
+                                            this.SupportsBanExceptions = true;
+                                            this.BanExceptionsMode = value == null ? 'e' : value[0];
+                                            break;
+                                        case "INVEX":
+                                            this.SupportsInviteExceptions = true;
+                                            this.InviteExceptionsMode = value == null ? 'I' : value[0];
+                                            break;
+                                        case "KICKLEN": this.KickMessageLength = int.Parse(value); break;
+                                        case "MAXLIST":
+                                            foreach (string entry in value.Split(new char[] { ',' })) {
+                                                fields = entry.Split(new char[] { ':' }, 2);
+                                                this.ListModeLength.Add(fields[0], int.Parse(fields[1]));
+                                            }
+                                            break;
+                                        case "MODES": this.Modes = int.Parse(value); break;
+                                        case "NETWORK": this.NetworkName = value; break;
+                                        case "NICKLEN": this.NicknameLength = int.Parse(value); break;
+                                        case "PREFIX":
+                                            this.StatusPrefix = new Dictionary<char, char>();
+                                            if (value != null) {
+                                                Match m = Regex.Match(value, @"^\(([a-zA-Z]*)\)(.*)$");
+                                                for (int j = 0; j < m.Groups[1].Value.Length; ++j)
+                                                    this.StatusPrefix.Add(m.Groups[1].Value[j], m.Groups[2].Value[j]);
+                                            }
+                                            break;
+                                        case "STATUSMSG": this.StatusMessage = value.ToCharArray(); break;
+                                        case "TARGMAX":
+                                            foreach (string field in value.Split(new char[] { ',' })) {
+                                                fields = field.Split(new char[] { ':' }, 2);
+                                                if (fields[1] == "")
+                                                    this.MaxTargets.Remove(fields[0]);
+                                                else
+                                                    this.MaxTargets.Add(fields[0], int.Parse(fields[1]));
+                                            }
+                                            break;
+                                        case "TOPICLEN": this.TopicLength = int.Parse(value); break;
+                                        case "WATCH": this.SupportsWatch = true; break;
                                     }
-                                    break;
-                                case "CHANLIMIT":
-                                    this.ChannelLimit = new Dictionary<char, int>();
-                                    foreach (string field in value.Split(new char[] { ',' })) {
-                                        fields = field.Split(new char[] { ':' });
-                                        this.ChannelLimit.Add(fields[0][0], int.Parse(fields[1]));
-                                    }
-                                    break;
-                                case "CHANMODES":
-                                    fields = value.Split(new char[] { ',' });
-                                    this.ChanModes = new ChannelModes(fields[0].ToCharArray(), fields[1].ToCharArray(), fields[2].ToCharArray(), fields[3].ToCharArray());
-                                    break;
-                                case "CHANNELLEN": this.ChannelLength = int.Parse(value); break;
-                                case "CHANTYPES": this.ChannelTypes = value.ToCharArray(); break;
-                                case "EXCEPTS":
-                                    this.SupportsBanExceptions = true;
-                                    this.BanExceptionsMode = value == null ? 'e' : value[0];
-                                    break;
-                                case "INVEX":
-                                    this.SupportsInviteExceptions = true;
-                                    this.InviteExceptionsMode = value == null ? 'I' : value[0];
-                                    break;
-                                case "KICKLEN": this.KickMessageLength = int.Parse(value); break;
-                                case "MAXLIST":
-                                    foreach (string field in value.Split(new char[] { ',' })) {
-                                        fields = field.Split(new char[] { ':' }, 2);
-                                        foreach (char mode in fields[0])
-                                            this.ListModeLength.Add(mode, int.Parse(fields[1]));
-                                    }
-                                    break;
-                                case "MODES": this.Modes = int.Parse(value); break;
-                                case "NETWORK": this.NetworkName = value; break;
-                                case "NICKLEN": this.NicknameLength = int.Parse(value); break;
-                                case "PREFIX":
-                                    this.StatusPrefix = new Dictionary<char, char>();
-                                    if (value != null) {
-                                        Match m = Regex.Match(value, @"^\(([a-zA-Z]*)\)(.*)$");
-                                        for (int j = 0; j < m.Groups[1].Value.Length; ++j)
-                                            this.StatusPrefix.Add(m.Groups[1].Value[j], m.Groups[2].Value[j]);
-                                    }
-                                    break;
-                                case "STATUSMSG": this.StatusMessage = value.ToCharArray(); break;
-                                case "TARGMAX":
-                                    foreach (string field in value.Split(new char[] { ',' })) {
-                                        fields = field.Split(new char[] { ':' }, 2);
-                                        if (fields[1] == "")
-                                            this.MaxTargets.Remove(fields[0]);
-                                        else
-                                            this.MaxTargets.Add(fields[0], int.Parse(fields[1]));
-                                    }
-                                    break;
-                                case "TOPICLEN": this.TopicLength = int.Parse(value); break;
-                                case "WATCH": this.SupportsWatch = true; break;
+                                }
                             }
                         }
                         this.OnServerMessage(new ServerMessageEventArgs(prefix, command, parameters, string.Join(" ", parameters)));
@@ -1138,7 +1232,6 @@ namespace IRC {
                         break;
                     case "315":  // End of WHO list
                         // TODO: respond to 315 similarly to 366.
-                        this.OnWhoWasEnd(new WhoisEndEventArgs(parameters[1], parameters[2]));
                         break;
                     case "317":  // WHOIS idle line
                         this.OnWhoIsIdleLine(new WhoisIdleEventArgs(parameters[1], TimeSpan.FromSeconds(double.Parse(parameters[2])), IRCClient.DecodeUnixTime(double.Parse(parameters[3])), parameters[4]));
@@ -1170,6 +1263,7 @@ namespace IRC {
                         break;
                     case "332":  // Channel topic
                         if (Channels.Contains(parameters[1])) Channels[parameters[1]].Topic = parameters[2];
+                        this.OnChannelTopic(new ChannelTopicEventArgs(parameters[1], parameters[2]));
                         break;
                     case "333":  // Channel topic stamp
                         time = IRCClient.DecodeUnixTime(double.Parse(parameters[3]));
@@ -1295,7 +1389,7 @@ namespace IRC {
                         }
                         break;
                     case "436":  // Nickname collision KILL
-                        this.OnKilled(new PrivateMessageEventArgs(new User(prefix), this.Nickname, parameters[2]));
+                        this.OnKilled(new PrivateMessageEventArgs(this.Users.Get(prefix, false), this.Nickname, parameters[2]));
                         break;
                     case "598":  // Watched user went away
                         if (this.SupportsWatch) {
@@ -1350,27 +1444,94 @@ namespace IRC {
                         }
                         this.OnServerMessage(new ServerMessageEventArgs(prefix, command, parameters, parameters[1]));
                         break;
+                    case "900":  // Logged in
+                        this.Me.Account = parameters[2];
+                        break;
+                    case "901":  // Logged out
+                        this.Me.Account = null;
+                        break;
+                    case "903":  // SASL authentication successful
+                        this.Send("CAP END");
+                        break;
+                    case "902":  // SASL username rejected
+                    case "904":  // SASL authentication failed
+                    case "905":  // SASL response too long
+                    case "906":  // SASL authentication aborted
+                        this.Send("CAP END");
+                        break;
+                    case "ACCOUNT":
+                        user = this.Users.Get(prefix, false);
+                        if (parameters[0] == "*")
+                            user.Account = null;
+                        else
+                            user.Account = parameters[0];
+                        break;
+                    case "AUTHENTICATE":
+                        if (parameters[0] == "+" && this.SASLUsername != null && this.SASLPassword != null) {
+                            // Authenticate using SASL.
+                            byte[] responseBytes; string response;
+                            byte[] usernameBytes; byte[] passwordBytes;
+
+                            usernameBytes = Encoding.UTF8.GetBytes(this.SASLUsername);
+                            passwordBytes = Encoding.UTF8.GetBytes(this.SASLPassword);
+                            responseBytes = new byte[usernameBytes.Length * 2 + passwordBytes.Length + 2];
+                            usernameBytes.CopyTo(responseBytes, 0);
+                            usernameBytes.CopyTo(responseBytes, usernameBytes.Length + 1);
+                            passwordBytes.CopyTo(responseBytes, (usernameBytes.Length + 1) * 2);
+
+                            response = Convert.ToBase64String(responseBytes);
+                            this.Send("AUTHENTICATE :" + response);
+                        } else {
+                            // Unrecognised challenge or no credentials given; abort.
+                            this.Send("AUTHENTICATE *");
+                            this.Send("CAP END");
+                        }
+                        break;
+                    case "CAP":
+                        string subcommand = parameters[1];
+                        switch (subcommand.ToUpperInvariant()) {
+                            case "LS":
+                                List<string> supportedCapabilities = new List<string>();
+                                MatchCollection matches = Regex.Matches(parameters[2], @"\G *(-)?(~)?(=)?([^ ]+)");
+                                foreach (Match match in matches) {
+                                    if (match.Groups[4].Value == "multi-prefix" || 
+                                        match.Groups[4].Value == "extended-join" || 
+                                        match.Groups[4].Value == "account-notify" ||
+                                        (this.SASLUsername != null && match.Groups[4].Value == "sasl")) {
+                                        if (!supportedCapabilities.Contains(match.Groups[4].Value))
+                                            supportedCapabilities.Add(match.Groups[4].Value);
+                                    }
+                                }
+                                if (supportedCapabilities.Count > 0)
+                                    this.Send("CAP REQ :" + string.Join(" ", supportedCapabilities));
+                                else
+                                    this.Send("CAP END");
+                                break;
+                            case "ACK":
+                                if (Regex.IsMatch(parameters[2], @"(?<![^ ])[-~=]*sasl(?![^ ])") && this.SASLUsername != null) {
+                                    // TODO: SASL authentication
+                                    this.Send("AUTHENTICATE PLAIN");
+                                } else
+                                    this.Send("CAP END");
+                                break;
+                            case "NAK":
+                                this.Send("CAP END");
+                                break;
+                        }
+                        break;
                     case "ERROR":
                         this.OnServerError(new ServerErrorEventArgs(parameters[0]));
                         break;
                     case "INVITE":
-                        this.OnInvite(new ChannelInviteEventArgs(new User(prefix), parameters[0], parameters[1]));
+                        this.OnInvite(new ChannelInviteEventArgs(this.Users.Get(prefix, false), parameters[0], parameters[1]));
                         break;
                     case "JOIN":
-                        user = new User(prefix);
-                        if (this.Users.Contains(user.Nickname)) {
-                            User user2 = this.Users[user.Nickname];
-                            user2.Username = user.Username;
-                            user2.Host = user.Host;
-                            user = user2;
-                        } else {
-                            this.Users.Add(user);
-                        }
+                        user = this.Users.Get(prefix, this.Channels.Contains(parameters[0]));
 
                         if (user.Nickname == this.Nickname) {
                             Channel newChannel = new Channel(parameters[0], this) {
                                 OwnStatus = 0,
-                                Users = new ChannelUserCollection()
+                                Users = new ChannelUserCollection(this)
                             };
                             newChannel.Users.Add(new ChannelUser(user.Nickname, this));
                             this.Channels.Add(newChannel);
@@ -1381,9 +1542,19 @@ namespace IRC {
                             user.Channels.Add(this.Channels[parameters[0]]);
                             this.OnChannelJoin(new ChannelJoinEventArgs(user, parameters[0]));
                         }
+
+                        if (parameters.Length == 3) {
+                            // Extended join
+                            if (parameters[1] == "*")
+                                user.Account = null;
+                            else
+                                user.Account = parameters[1];
+                            user.FullName = parameters[2];
+                        }
+
                         break;
                     case "KICK":
-                        user = new User(prefix);
+                        user = this.Users.Get(prefix, false);
                         if (parameters[1].Equals(this.Nickname, StringComparison.OrdinalIgnoreCase)) {
                             this.OnChannelKickSelf(new ChannelKickEventArgs(user, parameters[0], this.Channels[parameters[0]].Users[parameters[1]], parameters.Length >= 3 ? parameters[2] : null));
                             this.Channels.Remove(parameters[0]);
@@ -1394,7 +1565,7 @@ namespace IRC {
                         }
                         break;
                     case "KILL":
-                        user = new User(prefix);
+                        user = this.Users.Get(prefix, false);
                         if (parameters[0].Equals(this.Nickname, StringComparison.OrdinalIgnoreCase)) {
                             this.OnKilled(new PrivateMessageEventArgs(user, this.Nickname, parameters[1]));
                         }
@@ -1407,24 +1578,26 @@ namespace IRC {
                                     direction = true;
                                 else if (c == '-')
                                     direction = false;
-                                else if (this.ChanModes.TypeAModes.Contains(c))
+                                else if (this.ChanModes.TypeA.Contains(c))
                                     this.OnChannelMode(prefix, parameters[0], direction, c, parameters[index++]);
-                                else if (this.ChanModes.TypeBModes.Contains(c))
+                                else if (this.ChanModes.TypeB.Contains(c))
                                     this.OnChannelMode(prefix, parameters[0], direction, c, parameters[index++]);
-                                else if (this.ChanModes.TypeCModes.Contains(c)) {
+                                else if (this.ChanModes.TypeC.Contains(c)) {
                                     if (direction)
                                         this.OnChannelMode(prefix, parameters[0], direction, c, parameters[index++]);
                                     else
                                         this.OnChannelMode(prefix, parameters[0], direction, c, null);
-                                } else if (this.ChanModes.TypeDModes.Contains(c))
+                                } else if (this.ChanModes.TypeD.Contains(c))
                                     this.OnChannelMode(prefix, parameters[0], direction, c, null);
                                 else if (this.StatusPrefix.ContainsKey(c))
                                     this.OnChannelMode(prefix, parameters[0], direction, c, parameters[index++]);
+                                else
+                                    this.OnChannelMode(prefix, parameters[0], direction, c, null);
                             }
                         }
                         break;
                     case "NICK":
-                        user = new User(prefix);
+                        user = this.Users.Get(prefix, false);
                         if (user.Nickname.Equals(this.Nickname, StringComparison.OrdinalIgnoreCase)) {
                             this._Nickname = parameters[0];
                             this.OnNicknameChangeSelf(new NicknameChangeEventArgs(user, this.Nickname));
@@ -1449,16 +1622,16 @@ namespace IRC {
                         break;
                     case "NOTICE":
                         if (this.IsChannel(parameters[0])) {
-                            this.OnChannelNotice(new ChannelMessageEventArgs(new User(prefix ?? this.Address), parameters[0], parameters[1]));
+                            this.OnChannelNotice(new ChannelMessageEventArgs(this.Users.Get(prefix ?? this.Address, false), parameters[0], parameters[1]));
                         } else if (prefix == null || prefix.Split(new char[] { '!' }, 2)[0].Contains(".")) {
                             // TODO: fix this
-                            this.OnServerNotice(new PrivateMessageEventArgs(new User(prefix ?? this.Address), parameters[0], parameters[1]));
+                            this.OnServerNotice(new PrivateMessageEventArgs(this.Users.Get(prefix ?? this.Address, false), parameters[0], parameters[1]));
                         } else {
-                            this.OnPrivateNotice(new PrivateMessageEventArgs(new User(prefix ?? this.Address), parameters[0], parameters[1]));
+                            this.OnPrivateNotice(new PrivateMessageEventArgs(this.Users.Get(prefix ?? this.Address, false), parameters[0], parameters[1]));
                         }
                         break;
                     case "PART":
-                        user = new User(prefix);
+                        user = this.Users.Get(prefix, false);
                         if (user.Nickname.Equals(this.Nickname, StringComparison.OrdinalIgnoreCase)) {
                             this.OnChannelPartSelf(new ChannelPartEventArgs(user, parameters[0], parameters.Length == 1 ? null : parameters[1]));
                             this.Channels.Remove(parameters[0]);
@@ -1476,15 +1649,7 @@ namespace IRC {
                         this.OnPingReply(new PingEventArgs(prefix));
                         break;
                     case "PRIVMSG":
-                        user = new User(prefix);
-                        if (this.Users.Contains(user.Nickname)) {
-                            User user2 = this.Users[user.Nickname];
-                            user2.Username = user.Username;
-                            user2.Host = user.Host;
-                            user = user2;
-                        } else {
-                            this.Users.Add(user);
-                        }
+                        user = this.Users.Get(prefix, false);
 
                         if (this.IsChannel(parameters[0])) {
                             // It's a channel message.
@@ -1515,7 +1680,7 @@ namespace IRC {
                         }
                         break;
                     case "QUIT":
-                        user = new User(prefix);
+                        user = this.Users.Get(prefix, false);
                         if (user.Nickname.Equals(this.Nickname, StringComparison.OrdinalIgnoreCase)) {
                             this.OnQuitSelf(new QuitEventArgs(user, parameters[0]));
                             this.Channels.Clear();
@@ -1528,7 +1693,7 @@ namespace IRC {
                         }
                         break;
                     case "TOPIC":
-                        user = new User(prefix);
+                        user = this.Users.Get(prefix, false);
                         this.OnChannelTopicChange(new ChannelTopicChangeEventArgs(new ChannelUser(user.Nickname, this), parameters[0], parameters[1]));
                         break;
                     default:
@@ -1575,163 +1740,163 @@ namespace IRC {
                 return Data;
         }
 
-        private void OnChannelMode(string Sender, string Target, bool Direction, char Mode, string Parameter) {
+        private void OnChannelMode(string sender, string target, bool direction, char mode, string parameter) {
             ChannelUser[] matchedUsers;
-            switch (Mode) {
+            switch (mode) {
                 case 'I':
-                    if (!this.ChanModes.TypeAModes.Contains(Mode)) return;
-                    matchedUsers = FindMatchingUsers(Target, Parameter);
-                    if (Direction) {
+                    if (!this.ChanModes.TypeA.Contains(mode)) return;
+                    matchedUsers = FindMatchingUsers(target, parameter);
+                    if (direction) {
                         if (matchedUsers.Any(user => this.CaseMappingComparer.Equals(user.Nickname, this.Nickname))) {
-                            this.OnChannelInviteExemptSelf(new ChannelListModeEventArgs(new User(Sender), Target, Parameter, matchedUsers));
+                            this.OnChannelInviteExemptSelf(new ChannelListModeEventArgs(this.Users.Get(sender, false), target, parameter, matchedUsers));
                         } else {
-                            this.OnChannelInviteExempt(new ChannelListModeEventArgs(new User(Sender), Target, Parameter, matchedUsers));
+                            this.OnChannelInviteExempt(new ChannelListModeEventArgs(this.Users.Get(sender, false), target, parameter, matchedUsers));
                         }
                     }
                     break;
                 case 'V':
-                    if (!this.StatusPrefix.ContainsKey(Mode)) return;
-                    if (Direction) {
-                        this.Channels[Target].Users[Parameter].Access |= ChannelAccess.HalfVoice;
-                        if (Parameter.Equals(this.Nickname, StringComparison.OrdinalIgnoreCase)) {
-                            this.OnChannelHalfVoiceSelf(new ChannelNicknameModeEventArgs(new User(Sender), Target, new ChannelUser(Parameter, this)));
+                    if (!this.StatusPrefix.ContainsKey(mode)) return;
+                    if (direction) {
+                        this.Channels[target].Users[parameter].Access |= ChannelAccess.HalfVoice;
+                        if (parameter.Equals(this.Nickname, StringComparison.OrdinalIgnoreCase)) {
+                            this.OnChannelHalfVoiceSelf(new ChannelNicknameModeEventArgs(this.Users.Get(sender, false), target, new ChannelUser(parameter, this)));
                         } else {
-                            this.OnChannelHalfVoice(new ChannelNicknameModeEventArgs(new User(Sender), Target, new ChannelUser(Parameter, this)));
+                            this.OnChannelHalfVoice(new ChannelNicknameModeEventArgs(this.Users.Get(sender, false), target, new ChannelUser(parameter, this)));
                         }
                     } else {
-                        this.Channels[Target].Users[Parameter].Access &= ~ChannelAccess.HalfVoice;
-                        if (Parameter.Equals(this.Nickname, StringComparison.OrdinalIgnoreCase)) {
-                            this.OnChannelDeHalfVoiceSelf(new ChannelNicknameModeEventArgs(new User(Sender), Target, new ChannelUser(Parameter, this)));
+                        this.Channels[target].Users[parameter].Access &= ~ChannelAccess.HalfVoice;
+                        if (parameter.Equals(this.Nickname, StringComparison.OrdinalIgnoreCase)) {
+                            this.OnChannelDeHalfVoiceSelf(new ChannelNicknameModeEventArgs(this.Users.Get(sender, false), target, new ChannelUser(parameter, this)));
                         } else {
-                            this.OnChannelDeHalfVoice(new ChannelNicknameModeEventArgs(new User(Sender), Target, new ChannelUser(Parameter, this)));
+                            this.OnChannelDeHalfVoice(new ChannelNicknameModeEventArgs(this.Users.Get(sender, false), target, new ChannelUser(parameter, this)));
                         }
                     }
                     break;
                 case 'a':
-                    if (!this.StatusPrefix.ContainsKey(Mode)) return;
-                    if (Direction) {
-                        this.Channels[Target].Users[Parameter].Access |= ChannelAccess.Admin;
-                        if (Parameter.Equals(this.Nickname, StringComparison.OrdinalIgnoreCase)) {
-                            this.OnChannelAdminSelf(new ChannelNicknameModeEventArgs(new User(Sender), Target, new ChannelUser(Parameter, this)));
+                    if (!this.StatusPrefix.ContainsKey(mode)) return;
+                    if (direction) {
+                        this.Channels[target].Users[parameter].Access |= ChannelAccess.Admin;
+                        if (parameter.Equals(this.Nickname, StringComparison.OrdinalIgnoreCase)) {
+                            this.OnChannelAdminSelf(new ChannelNicknameModeEventArgs(this.Users.Get(sender, false), target, new ChannelUser(parameter, this)));
                         } else {
-                            this.OnChannelAdmin(new ChannelNicknameModeEventArgs(new User(Sender), Target, new ChannelUser(Parameter, this)));
+                            this.OnChannelAdmin(new ChannelNicknameModeEventArgs(this.Users.Get(sender, false), target, new ChannelUser(parameter, this)));
                         }
                     } else {
-                        this.Channels[Target].Users[Parameter].Access &= ~ChannelAccess.Admin;
-                        if (Parameter.Equals(this.Nickname, StringComparison.OrdinalIgnoreCase)) {
-                            this.OnChannelDeAdminSelf(new ChannelNicknameModeEventArgs(new User(Sender), Target, new ChannelUser(Parameter, this)));
+                        this.Channels[target].Users[parameter].Access &= ~ChannelAccess.Admin;
+                        if (parameter.Equals(this.Nickname, StringComparison.OrdinalIgnoreCase)) {
+                            this.OnChannelDeAdminSelf(new ChannelNicknameModeEventArgs(this.Users.Get(sender, false), target, new ChannelUser(parameter, this)));
                         } else {
-                            this.OnChannelDeAdmin(new ChannelNicknameModeEventArgs(new User(Sender), Target, new ChannelUser(Parameter, this)));
+                            this.OnChannelDeAdmin(new ChannelNicknameModeEventArgs(this.Users.Get(sender, false), target, new ChannelUser(parameter, this)));
                         }
                     }
                     break;
                 case 'b':
-                    if (!this.ChanModes.TypeAModes.Contains(Mode)) return;
-                    matchedUsers = FindMatchingUsers(Target, Parameter);
-                    if (Direction) {
+                    if (!this.ChanModes.TypeA.Contains(mode)) return;
+                    matchedUsers = FindMatchingUsers(target, parameter);
+                    if (direction) {
                         if (matchedUsers.Any(user => this.CaseMappingComparer.Equals(user.Nickname, this.Nickname))) {
-                            this.OnChannelBanSelf(new ChannelListModeEventArgs(new User(Sender), Target, Parameter, matchedUsers));
+                            this.OnChannelBanSelf(new ChannelListModeEventArgs(this.Users.Get(sender, false), target, parameter, matchedUsers));
                         } else {
-                            this.OnChannelBan(new ChannelListModeEventArgs(new User(Sender), Target, Parameter, matchedUsers));
+                            this.OnChannelBan(new ChannelListModeEventArgs(this.Users.Get(sender, false), target, parameter, matchedUsers));
                         }
                     }
                     break;
                 case 'e':
-                    if (!this.ChanModes.TypeAModes.Contains(Mode)) return;
-                    matchedUsers = FindMatchingUsers(Target, Parameter);
-                    if (Direction) {
+                    if (!this.ChanModes.TypeA.Contains(mode)) return;
+                    matchedUsers = FindMatchingUsers(target, parameter);
+                    if (direction) {
                         if (matchedUsers.Any(user => this.CaseMappingComparer.Equals(user.Nickname, this.Nickname))) {
-                            this.OnChannelExemptSelf(new ChannelListModeEventArgs(new User(Sender), Target, Parameter, matchedUsers));
+                            this.OnChannelExemptSelf(new ChannelListModeEventArgs(this.Users.Get(sender, false), target, parameter, matchedUsers));
                         } else {
-                            this.OnChannelExempt(new ChannelListModeEventArgs(new User(Sender), Target, Parameter, matchedUsers));
+                            this.OnChannelExempt(new ChannelListModeEventArgs(this.Users.Get(sender, false), target, parameter, matchedUsers));
                         }
                     }
                     break;
                 case 'h':
-                    if (!this.StatusPrefix.ContainsKey(Mode)) return;
-                    if (Direction) {
-                        this.Channels[Target].Users[Parameter].Access |= ChannelAccess.HalfOp;
-                        if (Parameter.Equals(this.Nickname, StringComparison.OrdinalIgnoreCase)) {
-                            this.OnChannelHalfOpSelf(new ChannelNicknameModeEventArgs(new User(Sender), Target, new ChannelUser(Parameter, this)));
+                    if (!this.StatusPrefix.ContainsKey(mode)) return;
+                    if (direction) {
+                        this.Channels[target].Users[parameter].Access |= ChannelAccess.HalfOp;
+                        if (parameter.Equals(this.Nickname, StringComparison.OrdinalIgnoreCase)) {
+                            this.OnChannelHalfOpSelf(new ChannelNicknameModeEventArgs(this.Users.Get(sender, false), target, new ChannelUser(parameter, this)));
                         } else {
-                            this.OnChannelHalfOp(new ChannelNicknameModeEventArgs(new User(Sender), Target, new ChannelUser(Parameter, this)));
+                            this.OnChannelHalfOp(new ChannelNicknameModeEventArgs(this.Users.Get(sender, false), target, new ChannelUser(parameter, this)));
                         }
                     } else {
-                        this.Channels[Target].Users[Parameter].Access &= ~ChannelAccess.HalfOp;
-                        if (Parameter.Equals(this.Nickname, StringComparison.OrdinalIgnoreCase)) {
-                            this.OnChannelDeHalfOpSelf(new ChannelNicknameModeEventArgs(new User(Sender), Target, new ChannelUser(Parameter, this)));
+                        this.Channels[target].Users[parameter].Access &= ~ChannelAccess.HalfOp;
+                        if (parameter.Equals(this.Nickname, StringComparison.OrdinalIgnoreCase)) {
+                            this.OnChannelDeHalfOpSelf(new ChannelNicknameModeEventArgs(this.Users.Get(sender, false), target, new ChannelUser(parameter, this)));
                         } else {
-                            this.OnChannelDeHalfOp(new ChannelNicknameModeEventArgs(new User(Sender), Target, new ChannelUser(Parameter, this)));
+                            this.OnChannelDeHalfOp(new ChannelNicknameModeEventArgs(this.Users.Get(sender, false), target, new ChannelUser(parameter, this)));
                         }
                     }
                     break;
                 case 'o':
-                    if (!this.StatusPrefix.ContainsKey(Mode)) return;
-                    if (Direction) {
-                        this.Channels[Target].Users[Parameter].Access |= ChannelAccess.Op;
-                        if (Parameter.Equals(this.Nickname, StringComparison.OrdinalIgnoreCase)) {
-                            this.OnChannelOpSelf(new ChannelNicknameModeEventArgs(new User(Sender), Target, new ChannelUser(Parameter, this)));
+                    if (!this.StatusPrefix.ContainsKey(mode)) return;
+                    if (direction) {
+                        this.Channels[target].Users[parameter].Access |= ChannelAccess.Op;
+                        if (parameter.Equals(this.Nickname, StringComparison.OrdinalIgnoreCase)) {
+                            this.OnChannelOpSelf(new ChannelNicknameModeEventArgs(this.Users.Get(sender, false), target, new ChannelUser(parameter, this)));
                         } else {
-                            this.OnChannelOp(new ChannelNicknameModeEventArgs(new User(Sender), Target, new ChannelUser(Parameter, this)));
+                            this.OnChannelOp(new ChannelNicknameModeEventArgs(this.Users.Get(sender, false), target, new ChannelUser(parameter, this)));
                         }
                     } else {
-                        this.Channels[Target].Users[Parameter].Access &= ~ChannelAccess.Op;
-                        if (Parameter.Equals(this.Nickname, StringComparison.OrdinalIgnoreCase)) {
-                            this.OnChannelDeOpSelf(new ChannelNicknameModeEventArgs(new User(Sender), Target, new ChannelUser(Parameter, this)));
+                        this.Channels[target].Users[parameter].Access &= ~ChannelAccess.Op;
+                        if (parameter.Equals(this.Nickname, StringComparison.OrdinalIgnoreCase)) {
+                            this.OnChannelDeOpSelf(new ChannelNicknameModeEventArgs(this.Users.Get(sender, false), target, new ChannelUser(parameter, this)));
                         } else {
-                            this.OnChannelDeOp(new ChannelNicknameModeEventArgs(new User(Sender), Target, new ChannelUser(Parameter, this)));
+                            this.OnChannelDeOp(new ChannelNicknameModeEventArgs(this.Users.Get(sender, false), target, new ChannelUser(parameter, this)));
                         }
                     }
                     break;
                 case 'q':
-                    if (this.StatusPrefix.ContainsKey(Mode)) {
-                        if (Direction) {
-                            this.Channels[Target].Users[Parameter].Access |= ChannelAccess.Owner;
-                            if (Parameter.Equals(this.Nickname, StringComparison.OrdinalIgnoreCase)) {
-                                this.OnChannelOwnerSelf(new ChannelNicknameModeEventArgs(new User(Sender), Target, new ChannelUser(Parameter, this)));
+                    if (this.StatusPrefix.ContainsKey(mode)) {
+                        if (direction) {
+                            this.Channels[target].Users[parameter].Access |= ChannelAccess.Owner;
+                            if (parameter.Equals(this.Nickname, StringComparison.OrdinalIgnoreCase)) {
+                                this.OnChannelOwnerSelf(new ChannelNicknameModeEventArgs(this.Users.Get(sender, false), target, new ChannelUser(parameter, this)));
                             } else {
-                                this.OnChannelOwner(new ChannelNicknameModeEventArgs(new User(Sender), Target, new ChannelUser(Parameter, this)));
+                                this.OnChannelOwner(new ChannelNicknameModeEventArgs(this.Users.Get(sender, false), target, new ChannelUser(parameter, this)));
                             }
                         } else {
-                            this.Channels[Target].Users[Parameter].Access &= ~ChannelAccess.Owner;
-                            if (Parameter.Equals(this.Nickname, StringComparison.OrdinalIgnoreCase)) {
-                                this.OnChannelDeOwnerSelf(new ChannelNicknameModeEventArgs(new User(Sender), Target, new ChannelUser(Parameter, this)));
+                            this.Channels[target].Users[parameter].Access &= ~ChannelAccess.Owner;
+                            if (parameter.Equals(this.Nickname, StringComparison.OrdinalIgnoreCase)) {
+                                this.OnChannelDeOwnerSelf(new ChannelNicknameModeEventArgs(this.Users.Get(sender, false), target, new ChannelUser(parameter, this)));
                             } else {
-                                this.OnChannelDeOwner(new ChannelNicknameModeEventArgs(new User(Sender), Target, new ChannelUser(Parameter, this)));
+                                this.OnChannelDeOwner(new ChannelNicknameModeEventArgs(this.Users.Get(sender, false), target, new ChannelUser(parameter, this)));
                             }
                         }
-                    } else if (this.ChanModes.TypeAModes.Contains(Mode)) {
-                        matchedUsers = FindMatchingUsers(Target, Parameter);
-                        if (Direction) {
+                    } else if (this.ChanModes.TypeA.Contains(mode)) {
+                        matchedUsers = FindMatchingUsers(target, parameter);
+                        if (direction) {
                             if (matchedUsers.Any(user => this.CaseMappingComparer.Equals(user.Nickname, this.Nickname))) {
-                                this.OnChannelQuietSelf(new ChannelListModeEventArgs(new User(Sender), Target, Parameter, matchedUsers));
+                                this.OnChannelQuietSelf(new ChannelListModeEventArgs(this.Users.Get(sender, false), target, parameter, matchedUsers));
                             } else {
-                                this.OnChannelQuiet(new ChannelListModeEventArgs(new User(Sender), Target, Parameter, matchedUsers));
+                                this.OnChannelQuiet(new ChannelListModeEventArgs(this.Users.Get(sender, false), target, parameter, matchedUsers));
                             }
                         } else {
                             if (matchedUsers.Any(user => this.CaseMappingComparer.Equals(user.Nickname, this.Nickname))) {
-                                this.OnChannelUnQuietSelf(new ChannelListModeEventArgs(new User(Sender), Target, Parameter, matchedUsers));
+                                this.OnChannelUnQuietSelf(new ChannelListModeEventArgs(this.Users.Get(sender, false), target, parameter, matchedUsers));
                             } else {
-                                this.OnChannelUnQuiet(new ChannelListModeEventArgs(new User(Sender), Target, Parameter, matchedUsers));
+                                this.OnChannelUnQuiet(new ChannelListModeEventArgs(this.Users.Get(sender, false), target, parameter, matchedUsers));
                             }
                         }
                     }
                     break;
                 case 'v':
-                    if (!this.StatusPrefix.ContainsKey(Mode)) return;
-                    if (Direction) {
-                        this.Channels[Target].Users[Parameter].Access |= ChannelAccess.Voice;
-                        if (Parameter.Equals(this.Nickname, StringComparison.OrdinalIgnoreCase)) {
-                            this.OnChannelVoiceSelf(new ChannelNicknameModeEventArgs(new User(Sender), Target, new ChannelUser(Parameter, this)));
+                    if (!this.StatusPrefix.ContainsKey(mode)) return;
+                    if (direction) {
+                        this.Channels[target].Users[parameter].Access |= ChannelAccess.Voice;
+                        if (parameter.Equals(this.Nickname, StringComparison.OrdinalIgnoreCase)) {
+                            this.OnChannelVoiceSelf(new ChannelNicknameModeEventArgs(this.Users.Get(sender, false), target, new ChannelUser(parameter, this)));
                         } else {
-                            this.OnChannelVoice(new ChannelNicknameModeEventArgs(new User(Sender), Target, new ChannelUser(Parameter, this)));
+                            this.OnChannelVoice(new ChannelNicknameModeEventArgs(this.Users.Get(sender, false), target, new ChannelUser(parameter, this)));
                         }
                     } else {
-                        this.Channels[Target].Users[Parameter].Access &= ~ChannelAccess.Voice;
-                        if (Parameter.Equals(this.Nickname, StringComparison.OrdinalIgnoreCase)) {
-                            this.OnChannelDeVoiceSelf(new ChannelNicknameModeEventArgs(new User(Sender), Target, new ChannelUser(Parameter, this)));
+                        this.Channels[target].Users[parameter].Access &= ~ChannelAccess.Voice;
+                        if (parameter.Equals(this.Nickname, StringComparison.OrdinalIgnoreCase)) {
+                            this.OnChannelDeVoiceSelf(new ChannelNicknameModeEventArgs(this.Users.Get(sender, false), target, new ChannelUser(parameter, this)));
                         } else {
-                            this.OnChannelDeVoice(new ChannelNicknameModeEventArgs(new User(Sender), Target, new ChannelUser(Parameter, this)));
+                            this.OnChannelDeVoice(new ChannelNicknameModeEventArgs(this.Users.Get(sender, false), target, new ChannelUser(parameter, this)));
                         }
                     }
                     break;

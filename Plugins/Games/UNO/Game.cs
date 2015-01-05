@@ -12,13 +12,19 @@ namespace UNO {
         public string Channel { get; internal set; }
 
         public bool IsOpen;
-        public Timer GameTimer;
         public DateTime StartTime;
+        
+        public Timer GameTimer;
+        public DateTime TurnStartTime;
+        public int WaitTime;
+        public bool NoTimerReset;
 
         public List<Player> Players;
-        public int PlayersOut;
+        internal List<int> PlayersOut;
         public int Turn;
         public int IdleTurn;
+
+        internal List<string> RecordBreakers;
 
         public bool IsReversed;
         public byte DrawnCard;
@@ -44,6 +50,7 @@ namespace UNO {
             this.Deck = new List<byte>(108);
             this.Discards = new List<byte>(108);
             this.WildColour = (byte) Colour.None;
+            this.RecordBreakers = new List<string>(4);
             this.Lock = new object();
             this.DrawFourChallenger = -1;
             this.DrawFourUser = -1;
@@ -103,6 +110,12 @@ namespace UNO {
                     return i;
             }
             return -1;
+        }
+
+        public bool IsAIUp {
+            get {
+                return this.Players[this.Turn].Name == this.Connection.Nickname;
+            }
         }
     }
 }

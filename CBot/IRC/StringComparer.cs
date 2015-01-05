@@ -14,15 +14,15 @@ namespace IRC {
         char maxUppercase;
         char maxLowercase;
 
-        public static IRCStringComparer ASCIICaseInsensitiveComparer {
+        public static IRCStringComparer ASCII {
             get { return new IRCStringComparer(CaseMappingMode.ASCII); }
         }
 
-        public static IRCStringComparer RFC1459CaseInsensitiveComparer {
+        public static IRCStringComparer RFC1459 {
             get { return new IRCStringComparer(CaseMappingMode.RFC1459); }
         }
 
-        public static IRCStringComparer StrictRFC1459CaseInsensitiveComparer {
+        public static IRCStringComparer StrictRFC1459 {
             get { return new IRCStringComparer(CaseMappingMode.StrictRFC1459); }
         }
 

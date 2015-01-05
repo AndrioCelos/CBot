@@ -31,4 +31,18 @@
         AllowBluffing,
         Free
     }
+
+    public enum LeaderboardMode {
+        None,
+        Unsorted,
+        SortedByName,
+        SortedByScore,
+        SortedByPlays,
+        SortedByWins,
+        SortedByChallenge,
+        SortedByRecord,
+        SortedByStreak,
+        SortedByBestPeriod,
+        SortedByBestPeriodChallenge
+    }
 }

@@ -1,3 +1,8 @@
+Version 1.1.2 – 21 December 2014
+--------------------------------
+
+* **Fix:** No longer relays ZNC's 'Your message got lost' notifications.
+
 Version 1.1 – 24 September 2014
 -------------------------------
 

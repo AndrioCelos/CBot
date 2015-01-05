@@ -47,10 +47,14 @@ namespace IRC {
         private Channel[] array;
         private int count;
         private ChannelCollection.Enumerator enumerator;
+        private IRCClient client;
 
         public ChannelCollection() {
             this.array = new Channel[4];
             this.count = 0;
+        }
+        public ChannelCollection(IRCClient client) : this() {
+            this.client = client;
         }
 
         public ChannelCollection.Enumerator GetEnumerator() {
@@ -146,9 +150,15 @@ namespace IRC {
             return false;
         }
 
-        public bool TryGetValue(string nickname, out Channel value) {
+        public bool TryGetValue(string name, out Channel value) {
+            StringComparer comparer;
+            if (this.client == null)
+                comparer = IRCStringComparer.RFC1459;
+            else
+                comparer = this.client.CaseMappingComparer;
+
             for (int i = 0; i < this.count; ++i) {
-                if (this.array[i].Name.Equals(nickname, StringComparison.OrdinalIgnoreCase)) {
+                if (comparer.Equals(this.array[i].Name, name)) {
                     value = this.array[i];
                     return true;
                 }
@@ -157,13 +167,17 @@ namespace IRC {
             return false;
         }
 
-        public int IndexOf(string nickname) {
+        public int IndexOf(string name) {
+            StringComparer comparer;
+            if (this.client == null)
+                comparer = IRCStringComparer.RFC1459;
+            else
+                comparer = this.client.CaseMappingComparer;
+
             for (int i = 0; i < this.count; ++i)
-                if (this.array[i].Name.Equals(nickname, StringComparison.OrdinalIgnoreCase)) return this.count - 1 - i;
+                if (comparer.Equals(this.array[i].Name, name)) return this.count - 1 - i;
             return -1;
         }
-
-
     }
 }
 

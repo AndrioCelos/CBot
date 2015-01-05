@@ -47,10 +47,14 @@ namespace IRC {
         private User[] array;
         private int count;
         private UserCollection.Enumerator enumerator;
+        private IRCClient client;
 
         public UserCollection() {
             this.array = new User[4];
             this.count = 0;
+        }
+        public UserCollection(IRCClient client) : this() {
+            this.client = client;
         }
 
         public UserCollection.Enumerator GetEnumerator() {
@@ -146,9 +150,35 @@ namespace IRC {
             return false;
         }
 
+        internal User Get(string mask, bool add) {
+            User user;
+            string nickname; string username; string host;
+
+            System.Text.RegularExpressions.Match match = System.Text.RegularExpressions.Regex.Match(mask, @"([^!@]*)(?:!([^@]*))?(?:@(.*))?");
+            nickname = match.Groups[1].Value;
+            username = match.Groups[2].Success ? match.Groups[2].Value : "*";
+            host = match.Groups[3].Success ? match.Groups[3].Value : "*";
+
+            if (this.TryGetValue(nickname, out user)) {
+                if (username != "*") user.Username = username;
+                if (host != "*") user.Host = host;
+            } else {
+                user = new User(this.client, nickname, username, host);
+                if (add) this.Add(user);
+            }
+
+            return user;
+        }
+
         public bool TryGetValue(string nickname, out User value) {
+            StringComparer comparer;
+            if (this.client == null)
+                comparer = IRCStringComparer.RFC1459;
+            else
+                comparer = this.client.CaseMappingComparer;
+
             for (int i = 0; i < this.count; ++i) {
-                if (this.array[i].Nickname.Equals(nickname, StringComparison.OrdinalIgnoreCase)) {
+                if (comparer.Equals(this.array[i].Nickname, nickname)) {
                     value = this.array[i];
                     return true;
                 }
@@ -158,8 +188,14 @@ namespace IRC {
         }
 
         public int IndexOf(string nickname) {
+            StringComparer comparer;
+            if (this.client == null)
+                comparer = IRCStringComparer.RFC1459;
+            else
+                comparer = this.client.CaseMappingComparer;
+
             for (int i = 0; i < this.count; ++i)
-                if (this.array[i].Nickname.Equals(nickname, StringComparison.OrdinalIgnoreCase)) return this.count - 1 - i;
+                if (comparer.Equals(this.array[i].Nickname, nickname)) return this.count - 1 - i;
             return -1;
         }
 

@@ -1,3 +1,10 @@
+Version 3.1.1 – 5 November 2014
+-------------------------------
+
+* The collection classes in the IRC library now use the correct comparison method as specified by the RPL_ISUPPORT.
+* Most events that include a User object now use an object taken from the IRCClient.Users collection.
+* **Fixed** the permission system, which was returning false positives.
+
 Version 3.1 – 26 October 2014
 -----------------------------
 
