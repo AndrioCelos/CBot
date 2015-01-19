@@ -12,12 +12,17 @@ namespace UNO {
         public string Channel { get; internal set; }
 
         public bool IsOpen;
+        public bool Ended;
         public DateTime StartTime;
         
         public Timer GameTimer;
         public DateTime TurnStartTime;
         public int WaitTime;
         public bool NoTimerReset;
+
+        public Timer HintTimer;
+        public int Hint;
+        public int HintRecipient;
 
         public List<Player> Players;
         internal List<int> PlayersOut;

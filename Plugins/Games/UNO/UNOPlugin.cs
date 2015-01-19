@@ -15,6 +15,19 @@ namespace UNO
     [APIVersion(3, 1)]
     public class UNOPlugin : Plugin
     {
+        public static readonly string[] Hints = new string[] {
+            "It's your turn. Enter \u0002!play \u001Fcard\u000F to play a card from your hand with a matching colour, number or symbol. Here, you can play a {0} card, a {1} or a Wild card. If you have none, enter \u0002!draw\u0002.",
+            "If the card you just drew is playable, you may play it now. Otherwise, enter \u0002!pass\u0002.",
+            "Your goal is to go out, by playing all of your cards, before the other players do. There are special action cards that, when played, can hinder the next player from doing this.",
+            "If you lose track of the game, try using these commands: \u0002!hand !upcard !count !turn !time",
+            "Reverse cards act like Skips with two players. Go again!",
+            "In UNO, you must call 'UNO!' when you're down to one card. I don't enforce this rule here, though.",
+            "Keep in mind that I enforce a time limit. If you time out twice in a row, you'll be presumed gone.",
+            "I'm afraid you've timed out. It's still your turn, and you may still play if {0} doesn't jump in first.",
+            "Remember, you're not allowed to play a Wild Draw Four if you hold a card whose colour matches the up-card. You may \u0002!challenge\u0002 this Wild Draw Four if you think it's illegal; otherwise, \u0002!draw\u0002.",
+            "If you want to stop seeing these hints, enter \u0002!uset hints off\u0002."
+        };
+
         public Dictionary<string, Game> Games;
         public Dictionary<string, PlayerSettings> PlayerSettings;
         public Dictionary<string, PlayerStats> ScoreboardCurrent;
@@ -1661,6 +1674,7 @@ namespace UNO
             else {
                 lock (game.Lock) {
                     game.GameTimer.Stop();
+                    game.Ended = true;
                     this.Games.Remove(key);
                     Bot.Say(e.Connection, e.Channel, "\u000313The game has been cancelled.");
                 }
@@ -2425,6 +2439,10 @@ namespace UNO
         }
 
         public void AICheck(Game game) {
+            if (game.Ended) {
+                ConsoleUtils.WriteLine("%cRED[{0}] Error: The AI has been invoked on a game that already ended ({1}/{2}).", MyKey, game.Connection.NetworkName, game.Channel);
+                return;
+            }
             Thread AIThread = new Thread(() => this.AITurn(game));
             AIThread.Start();
         }
@@ -2579,6 +2597,7 @@ namespace UNO
             int nextPlayer = game.NextPlayer(game.IdleTurn);
             if (nextPlayer == game.Turn) {
                 // Stop the game if everyone idles out and it goes full circle.
+                game.Ended = true;
                 this.Games.Remove(game.Connection.NetworkName + "/" + game.Channel);
                 Bot.Say(game.Connection, game.Channel, "\u000313The game has been cancelled.");
                 return false;
@@ -2688,6 +2707,8 @@ namespace UNO
         }
 
         public void EndGame(Game game) {
+            game.Ended = true;
+
             // Calculate the duration.
             TimeSpan time; string timeMessage; string minutes = null; string seconds = null;
             time = DateTime.Now - game.StartTime;
@@ -3762,6 +3783,8 @@ namespace UNO
         }
 
 #endregion
+
+
     }
 
     [Serializable]
