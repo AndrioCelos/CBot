@@ -1,3 +1,9 @@
+Version 1.10 – 20 January 2015
+------------------------------
+
+* Added hints.
+* **Fix:** The AI will no longer continue playing a game that ended.
+
 Version 1.9.1 – 5 January 2015
 ------------------------------
 

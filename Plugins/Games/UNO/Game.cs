@@ -23,6 +23,7 @@ namespace UNO {
         public Timer HintTimer;
         public int Hint;
         public int HintRecipient;
+        public object[] HintParameters;
 
         public List<Player> Players;
         internal List<int> PlayersOut;
@@ -64,6 +65,7 @@ namespace UNO {
             this.Connection = connection;
             this.Channel = channel;
             this.GameTimer = new Timer(entryTime == 0 ? 60e+3 : entryTime * 1e+3) { AutoReset = false };
+            this.HintTimer = new Timer() { AutoReset = false };
 
             // Populate the deck.
             this.Deck.AddRange(new byte[] {
@@ -119,7 +121,8 @@ namespace UNO {
 
         public bool IsAIUp {
             get {
-                return this.Players[this.Turn].Name == this.Connection.Nickname;
+                int playerIndex = this.IndexOf(this.Connection.Nickname);
+                return (playerIndex != -1 && this.Players[playerIndex].CanMove);
             }
         }
     }

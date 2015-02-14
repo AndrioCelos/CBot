@@ -72,11 +72,13 @@ namespace BattleBot {
     public enum BattleType : short {
         Normal,
         Boss,
+        OrbFountain,
         Gauntlet,
         Mimic,
         NPC,
         President,
-        PvP
+        PvP,
+        Siege
     }
 
     public enum TechniqueType : short {

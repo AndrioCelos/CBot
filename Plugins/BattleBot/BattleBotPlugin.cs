@@ -2222,7 +2222,7 @@ namespace BattleBot
 #endregion
 
 #region My character
-        [ArenaRegex(@"^\x032You enter the arena with a total of\x02 (\d+) \x02Red Orbs to spend.")]
+        [ArenaRegex(@"^\x032You enter the arena with a total of\x02 (\d+) \x02.* to spend.")]
         internal void OnNewCharacterSelf(object sender, RegexEventArgs e) {
             if (!this.OwnCharacters.ContainsKey(e.Connection.Nickname))
                 this.OwnCharacters.Add(e.Connection.Nickname, new OwnCharacter());
@@ -2604,7 +2604,7 @@ namespace BattleBot
             this.viewInfoTechniqueCheck();
         }
 
-        [ArenaRegex(@"^\[\x034Base Power\x0312 (\d*)(?:\x03\d{0,2}|\x0F)\] \[\x034Base Cost \(before Shop Level\)\x0312 (\d+) red orbs(?:\x03\d{0,2}|\x0F)\] \[\x034Element of Tech\x0312 ([^\]]*)(?:\x03\d{0,2}|\x0F)\](?: \[\x034Stat Modifier\x0312 (?i:(STR)|(DEF)|(INT)|(SPD)|(HP)|(TP)|(IgnitionGauge))(?:\x03\d{0,2}|\x0F)\])?")]
+        [ArenaRegex(@"^\[\x034Base Power\x0312 (\d*)(?:\x03\d{0,2}|\x0F)\] \[\x034Base Cost \(before Shop Level\)\x0312 (\d+) [^\]]*(?:\x03\d{0,2}|\x0F)\] \[\x034Element of Tech\x0312 ([^\]]*)(?:\x03\d{0,2}|\x0F)\](?: \[\x034Stat Modifier\x0312 (?i:(STR)|(DEF)|(INT)|(SPD)|(HP)|(TP)|(IgnitionGauge))(?:\x03\d{0,2}|\x0F)\])?")]
         internal void OnViewInfoTechnique2(object sender, RegexEventArgs e) {
             if (this.ViewingTechnique == null)
                 this.ViewingTechnique = new Technique();
@@ -2890,12 +2890,21 @@ namespace BattleBot
 #endregion
 
 #region Battle preparation
-        [ArenaRegex(@"^\x034A dimensional portal has been detected\. The enemy force will arrive in (\d+(?:\.\d+)?) (?:(minute)|second)\(?s?\)?\. [Tt]ype \x02!enter\x02 if you wish to join the battle!")]
+        [ArenaRegex(@"^\x034(?:(A dimensional portal has been detected\. The enemy force will arrive)|(A powerful dimensional rift has been detected\. The enemy force will arrive)|(The Allied Forces have detected an orb fountain! The party will be sent to destroy it)|(The Allied Forces have opened the coliseum to allow players to fight one another. The PVP battle will begin)|(A Manual battle has been started. Bot Admins will need to add monsters, npcs and bosses individually\. The battle will begin)|(An outpost of the Allied Forces HQ \x02is under attack\x02! Reinforcements are requested immediately! The reinforcements will depart)) in (\d+(?:\.\d+)?) (?:(minute)|second)\(?s?\)?\. (?:Players can )?[Tt]ype \x02!enter\x02 (?:if you wish to join the battle|if they wish to join the battle|to join)")]
         internal void OnBattleOpenNormal(object sender, RegexEventArgs e) {
-            float time = float.Parse(e.Match.Groups[1].Value);
-            if (e.Match.Groups[2].Success)
+            float time = float.Parse(e.Match.Groups[7].Value);
+            if (e.Match.Groups[8].Success)
                 time *= 60;
-            this.OnBattleOpen(BattleType.Normal, time);
+            if (e.Match.Groups[2].Success)
+                this.OnBattleOpen(BattleType.Boss, time);
+            else if (e.Match.Groups[3].Success)
+                this.OnBattleOpen(BattleType.OrbFountain, time);
+            else if (e.Match.Groups[4].Success)
+                this.OnBattleOpen(BattleType.PvP, time);
+            else if (e.Match.Groups[6].Success)
+                this.OnBattleOpen(BattleType.Siege, time);
+            else
+                this.OnBattleOpen(BattleType.Normal, time);
         }
 
         [ArenaRegex(@"^\x034The doors to the \x02gauntlet\x02 are open\. Anyone willing to brave the gauntlet has (\d+(?:\.\d+)?) (?:(minute)|second)\(?s?\)? to enter before the doors close\. Type \x02!enter\x02 if you wish to join the battle!")]
@@ -2933,7 +2942,7 @@ namespace BattleBot
         internal void OnBattleOpen(BattleType type, float time) {
             // TODO: Call the event.
 
-            this.WriteLine(1, 8, "A battle is starting.");
+            this.WriteLine(1, 8, "A battle is starting. Type is {0}.", type);
 
             this.BattleOpen = true;
             this.BattleStarted = false;
@@ -3875,6 +3884,29 @@ namespace BattleBot
             this.TurnAoE = true;
         }
 
+        [ArenaRegex(@"^\x033\x02([^\x02]*) \x02has been healed for\x02 ([\d,]+) \x02health!")]
+        internal void OnHeal(object sender, RegexEventArgs e) {
+            if (!this.EnableAnalysis) return;
+            //this.TurnTarget = GetShortName(e.Match.Groups[1].Value, false, true);
+
+            if (this.TurnAbility != null && this.TurnAbility != "?") {
+                // Check for monsters absorbing attacks.
+                Technique technique;
+                if (this.Techniques.TryGetValue(this.TurnAbility, out technique) && technique.Type != TechniqueType.Heal && technique.Type != TechniqueType.AoEHeal && 
+                        technique.Element != null && !technique.Element.Equals("None", StringComparison.InvariantCultureIgnoreCase)) {
+                    Character character = this.GetCharacter(e.Match.Groups[1].Value, false);
+                    if (character != null) {
+                        if (character.ElementalAbsorbs == null) character.ElementalAbsorbs = new List<string>();
+                        if (!character.ElementalAbsorbs.Contains(technique.Element))
+                            character.ElementalAbsorbs.Add(technique.Element);
+                        this.WriteLine(2, 9, "{0} absorbed the {1} attack.", character.Name, technique.Element);
+                    }
+                }
+            }
+            
+            this.TurnAoE = true;
+        }
+
         [ArenaRegex(@"^\x02\x034(?>[^\x02]*)\x02can only attack monsters!")]
         internal void OnFailedAttackAlly(object sender, RegexEventArgs e) {
             // This is how we differentiate allies from monsters in old versions
@@ -4462,7 +4494,7 @@ namespace BattleBot
             this.Level = -int.Parse(e.Match.Groups[3].Value);
         }
 
-        [ArenaRegex(@"^\x03\x02Players\x02 have been rewarded with\x02 (\d+) \x02Red Orbs for their (efforts\.|victory!)")]
+        [ArenaRegex(@"^\x03\x02Players\x02 have been rewarded with\x02 (\d+) \x02.* for their (efforts\.|victory!)")]
         internal void OnOrbRewardLegacy(object sender, RegexEventArgs e) {
             if (this.LoggedIn != null) {
                 Character character = this.Characters[this.LoggedIn];

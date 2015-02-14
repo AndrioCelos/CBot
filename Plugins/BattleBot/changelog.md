@@ -1,3 +1,10 @@
+Version 2.7.6 – 14 February 2015
+--------------------------------
+
+* Now compatible with Battle Arena 3.0 February 12 beta.
+* The bot should now recognise when its own techniques are absorbed by enemies, and discontinue use of that element.
+* **Fix:** The AI should no longer heal enemies.
+
 Version 2.7.3 – 11 October 2014
 -------------------------------
 

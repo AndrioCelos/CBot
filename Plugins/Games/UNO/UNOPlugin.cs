@@ -17,6 +17,8 @@ namespace UNO
     {
         public static readonly string[] Hints = new string[] {
             "It's your turn. Enter \u0002!play \u001Fcard\u000F to play a card from your hand with a matching colour, number or symbol. Here, you can play a {0} card, a {1} or a Wild card. If you have none, enter \u0002!draw\u0002.",
+            "It's your turn. Enter \u0002!play \u001Fcard\u000F to play a card from your hand with a matching colour, number or symbol. Here, you can play a {0} card or a Wild card. If you have none, enter \u0002!draw\u0002.",
+            "It's your turn. Enter \u0002!play \u001Fcard\u000F to play a card from your hand with a matching colour, number or symbol. Here, no colour was chosen for the Wild card, so you may play anything. If you have none, enter \u0002!draw\u0002.",
             "If the card you just drew is playable, you may play it now. Otherwise, enter \u0002!pass\u0002.",
             "Your goal is to go out, by playing all of your cards, before the other players do. There are special action cards that, when played, can hinder the next player from doing this.",
             "If you lose track of the game, try using these commands: \u0002!hand !upcard !count !turn !time",
@@ -25,7 +27,10 @@ namespace UNO
             "Keep in mind that I enforce a time limit. If you time out twice in a row, you'll be presumed gone.",
             "I'm afraid you've timed out. It's still your turn, and you may still play if {0} doesn't jump in first.",
             "Remember, you're not allowed to play a Wild Draw Four if you hold a card whose colour matches the up-card. You may \u0002!challenge\u0002 this Wild Draw Four if you think it's illegal; otherwise, \u0002!draw\u0002.",
-            "If you want to stop seeing these hints, enter \u0002!uset hints off\u0002."
+            "If you want to stop seeing these hints, enter \u0002!uset hints off\u0002. If you would like them reset, enter \u0002!uset hints reset\u0002.",
+            "At the end of the game, those who go out are awarded points based on the cards their opponents still have. You can check the leaderboard with \u0002!utop\u0002.",
+            "Welcome to UNO! A guide to the game can be found at http://andriocelos.ml/irc/uno/guide/\u000F.",
+            "If you want to leave the game, you may do so using \u0002!uquit\u0002."
         };
 
         public Dictionary<string, Game> Games;
@@ -163,8 +168,16 @@ namespace UNO
             this.VictoryBonusValue = new int[] { 30, 10, 5 };
             this.HandBonus = true;
 
-            this.LoadConfig(key);
+            int version;
+            this.LoadConfig(key, out version);
             this.LoadStats(key + "-stats.dat");
+
+            if (version < 4) {
+                foreach (KeyValuePair<string, PlayerSettings> player in this.PlayerSettings) {
+                    PlayerStats stats;
+                    player.Value.Hints = !(this.ScoreboardAllTime.TryGetValue(player.Key, out stats) && stats.Plays >= 10);
+                }
+            }
         }
 
         public override void OnSave() {
@@ -181,7 +194,8 @@ namespace UNO
         }
 
 #region Filing
-        public void LoadConfig(string key) {
+        public void LoadConfig(string key, out int version) {
+            version = 0;
             string filename = Path.Combine("Config", key + ".ini");
             if (!File.Exists(filename)) return;
             StreamReader reader = new StreamReader(filename);
@@ -216,6 +230,17 @@ namespace UNO
 
                         if (section == null) continue;
                         switch (section.ToUpper()) {
+                            case "FILE":
+                                switch (field.ToUpper()) {
+                                    case "VERSION":
+                                        if (int.TryParse(value, out value3) && value3 >= 0) version = value3;
+                                        else ConsoleUtils.WriteLine("[{0}] Problem loading the configuration (line {1}): the value is invalid (expected a non-negative integer).", MyKey, lineNumber);
+                                        break;
+                                    default:
+                                        if (!string.IsNullOrWhiteSpace(field)) ConsoleUtils.WriteLine("[{0}] Problem loading the FAQ data (line {1}): the field name is unknown.", MyKey, lineNumber);
+                                        break;
+                                }
+                                break;
                             case "CONFIG":
                                 switch (field.ToUpper()) {
                                     case "JSONLEADERBOARD":
@@ -445,6 +470,9 @@ namespace UNO
             if (!Directory.Exists("Config"))
                 Directory.CreateDirectory("Config");
             StreamWriter writer = new StreamWriter(Path.Combine("Config", MyKey + ".ini"), false);
+            writer.WriteLine("[File]");
+            writer.WriteLine("Version=4");
+            writer.WriteLine();
             writer.WriteLine("[Config]");
             writer.WriteLine("JSONLeaderboard={0}", this.JSONLeaderboard.ToString());
             writer.WriteLine();
@@ -493,6 +521,11 @@ namespace UNO
                     writer.WriteLine("AutoSort=Rank");
                 else
                     writer.WriteLine("AutoSort=Off");
+
+                if (playerSettings.Value.Hints)
+                    writer.WriteLine("Hints=On");
+                else
+                    writer.WriteLine("Hints=Off");
 
                 writer.WriteLine("DuelWithBot={0}", playerSettings.Value.AllowDuelWithBot ? "Yes" : "No");
             }
@@ -1179,6 +1212,33 @@ namespace UNO
                             Bot.Say(e.Connection, e.Sender.Nickname, string.Format("I don't recognise '{0}' as a Boolean value. Please enter 'yes' or 'no'.", value));
                     }
                     break;
+                case "HINTS":
+                    if (value == null) {
+                        if (this.PlayerSettings.TryGetValue(e.Sender.Nickname, out player) && !player.Hints)
+                            Bot.Say(e.Connection, e.Channel, "\u0002{0}\u0002, I \u00034will not\u000F give you hints.", e.Sender.Nickname);
+                        else
+                            Bot.Say(e.Connection, e.Channel, "\u0002{0}\u0002, I \u00039may\u000F give you hints.", e.Sender.Nickname);
+                    } else {
+                        if (Bot.TryParseBoolean(value, out value3)) {
+                            if (!this.PlayerSettings.TryGetValue(e.Sender.Nickname, out player))
+                                this.PlayerSettings.Add(e.Sender.Nickname, player = new PlayerSettings());
+                            if (player.Hints = value3)
+                                Bot.Say(e.Connection, e.Channel, "\u0002{0}\u0002, I \u00039may now\u000F give you hints.", e.Sender.Nickname);
+                            else
+                                Bot.Say(e.Connection, e.Channel, "\u0002{0}\u0002, I \u00034will no longer\u000F give you hints.", e.Sender.Nickname);
+                        } else if (value.Equals("reset", StringComparison.InvariantCultureIgnoreCase)) {
+                            if (this.PlayerSettings.TryGetValue(e.Sender.Nickname, out player)) {
+                                for (int i = 0; i < UNOPlugin.Hints.Length; ++i) {
+                                    player.HintsSeen[i] = false;
+                                }
+                                Bot.Say(e.Connection, e.Channel, "\u0002{0}\u0002, your hints have been reset.", e.Sender.Nickname);
+                            } else {
+                                Bot.Say(e.Connection, e.Channel, "\u0002{0}\u0002, you don't seem to have a configuration entry.", e.Sender.Nickname);
+                            }
+                        } else
+                            Bot.Say(e.Connection, e.Sender.Nickname, string.Format("I don't recognise '{0}' as a Boolean value. Please enter 'yes', 'no' or 'reset'.", value));
+                    }
+                    break;
                 default:
                     Bot.Say(e.Connection, e.Sender.Nickname, string.Format("I don't manage a setting named \u0002{0}\u0002.", property));
                     break;
@@ -1219,6 +1279,7 @@ namespace UNO
                     game.Players.Add(new Player(e.Sender.Nickname));
                     Bot.Say(e.Connection, e.Channel, "\u000313\u0002{0}\u0002 is starting a game of UNO!", e.Sender.Nickname);
                     game.GameTimer.Elapsed += GameTimer_Elapsed;
+                    game.HintTimer.Elapsed += HintTimer_Elapsed;
                     Thread.Sleep(600);
                     try {
                         // Alert players.
@@ -1241,6 +1302,8 @@ namespace UNO
                         game.WaitTime = this.EntryTime;
                         game.GameTimer.Start();
                         Bot.Say(e.Connection, e.Channel, "\u000312Starting in \u0002{0}\u0002 seconds. Say \u000311!ujoin\u000312 if you wish to join the game.", this.EntryTime);
+                        if (!game.Connection.CaseMappingComparer.Equals(e.Sender.Nickname, game.Connection.Nickname))
+                            this.EntryHints(game, e.Sender.Nickname);
                     }
                 }
             }
@@ -1366,7 +1429,22 @@ namespace UNO
                 if (!game.IsOpen)
                     this.DealCards(game, game.Players.Count - 1, 7, true);
                 this.CheckPlayerCount(game);
+                if (!game.Connection.CaseMappingComparer.Equals(nickname, game.Connection.Nickname))
+                    this.EntryHints(game, nickname);
             }
+        }
+
+        protected void EntryHints(Game game, string nickname) {
+            PlayerSettings playerSettings;
+            if (!this.PlayerSettings.TryGetValue(nickname, out playerSettings))
+                this.PlayerSettings.Add(nickname, playerSettings = new PlayerSettings());
+            else if (!playerSettings.Hints) return;
+            if (!playerSettings.HintsSeen[13])
+                this.ShowHint(game, game.Players.Count - 1, 13, 3, null);
+            else if (!playerSettings.HintsSeen[14])
+                this.ShowHint(game, game.Players.Count - 1, 14, 3, null);
+            else if (playerSettings.HintsSeen[0] && !playerSettings.HintsSeen[11])
+                this.ShowHint(game, game.Players.Count - 1, 11, 3, null);
         }
 
         [Command(new string[] { "quit", "uquit", "leave", "uleave", "part", "upart" }, 0, 0, "uquit", "Removes you from the game of UNO.",
@@ -2244,6 +2322,13 @@ namespace UNO
                     Thread.Sleep(600);
                     game.DrawnCard = this.DealCards(game, playerIndex, 1, false)[0];
                     this.AICheck(game);
+
+                    PlayerSettings player;
+                    if (!this.PlayerSettings.TryGetValue(game.Players[playerIndex].Name, out player))
+                        this.PlayerSettings.Add(game.Players[playerIndex].Name, player = new PlayerSettings());
+                    else if (!player.Hints) return;
+                    if (!player.HintsSeen[5])
+                        this.ShowHint(game, game.Turn, 5, 15, null);
                 }
             }
         }
@@ -2438,13 +2523,108 @@ namespace UNO
             this.AICheck(game);
         }
 
+        private void HintTimer_Elapsed(object sender, ElapsedEventArgs e) {
+            foreach (Game game in this.Games.Values) {
+                if (game.HintTimer == sender) {
+                    PlayerSettings player;
+                    if (!this.PlayerSettings.TryGetValue(game.Players[game.HintRecipient].Name, out player))
+                        this.PlayerSettings.Add(game.Players[game.HintRecipient].Name, player = new PlayerSettings());
+                    else if (!player.Hints) return;
+
+                    if (game.HintParameters == null)
+                        game.Connection.Send("NOTICE " + game.Players[game.HintRecipient].Name + " :\u00032[\u000312?\u00032]\u000F " + UNOPlugin.Hints[game.Hint]);
+                    else
+                        game.Connection.Send("NOTICE " + game.Players[game.HintRecipient].Name + " :\u00032[\u000312?\u00032]\u000F " + string.Format(UNOPlugin.Hints[game.Hint], game.HintParameters));
+                    
+                    if (game.Hint <= 2) game.Hint = 0;
+                    player.HintsSeen[game.Hint] = true;
+                }
+                return;
+            }
+            ConsoleUtils.WriteLine("%cRED[{0}] Error: a game hint timer triggered, and I can't find which game it belongs to!", MyKey);
+        }
+        
+        public void ShowHint(Game game, int recipient, int index, int delay, object[] parameters) {
+            game.HintRecipient = recipient;
+            game.Hint = index;
+            game.HintTimer.Interval = delay * 1000;
+            game.HintParameters = parameters;
+            game.HintTimer.Start();
+        }
+
         public void AICheck(Game game) {
+            game.HintTimer.Stop();
             if (game.Ended) {
                 ConsoleUtils.WriteLine("%cRED[{0}] Error: The AI has been invoked on a game that already ended ({1}/{2}).", MyKey, game.Connection.NetworkName, game.Channel);
                 return;
             }
-            Thread AIThread = new Thread(() => this.AITurn(game));
-            AIThread.Start();
+            if (game.IsAIUp) {
+                Thread AIThread = new Thread(() => this.AITurn(game));
+                AIThread.Start();
+            } else if (game.DrawnCard == 255 && game.Hint != 6) {
+                PlayerSettings player;
+                if (!this.PlayerSettings.TryGetValue(game.Players[game.Turn].Name, out player))
+                    this.PlayerSettings.Add(game.Players[game.Turn].Name, player = new PlayerSettings());
+                else if (!player.Hints) return;
+                if (game.IdleTurn == game.Turn) {
+                    if (game.DrawFourChallenger == game.Turn) {
+                        if (!player.HintsSeen[10])
+                            this.ShowHint(game, game.Turn, 10, 15, null);
+                    } else {
+                        if (!player.HintsSeen[0]) {
+                            byte card = game.Discards[game.Discards.Count - 1];
+                            string colour = ""; string rank = ""; int index = 0;
+                            if (card >= 64) {
+                                index = 1;
+                                if (game.WildColour == 0) {
+                                    colour = "red";
+                                } else if (game.WildColour == 1) {
+                                    colour = "yellow";
+                                } else if (game.WildColour == 2) {
+                                    colour = "green";
+                                } else if (game.WildColour == 3) {
+                                    colour = "blue";
+                                } else {
+                                    index = 2;
+                                }
+                            } else {
+                                if ((card & 48) == 0) {
+                                    colour = "red";
+                                } else if ((card & 48) == 16) {
+                                    colour = "yellow";
+                                } else if ((card & 48) == 32) {
+                                    colour = "green";
+                                } else if ((card & 48) == 48) {
+                                    colour = "blue";
+                                } else {
+                                    colour = "\u00034unknown colour\u000F";
+                                }
+                                if ((card & 15) < 10) {
+                                    rank = (card & 15).ToString();
+                                } else if ((card & 15) == 10) {
+                                    rank = "Reverse";
+                                } else if ((card & 15) == 11) {
+                                    rank = "Skip";
+                                } else if ((card & 15) == 12) {
+                                    rank = "Draw Two";
+                                } else {
+                                    rank = "\u00034unknown rank\u000F";
+                                }
+                            }
+                            this.ShowHint(game, game.Turn, index, 15, new object[] { colour, rank });
+                        } else if (!player.HintsSeen[4]) {
+                            this.ShowHint(game, game.Turn, 4, 15, null);
+                        } else if (!player.HintsSeen[5]) {
+                            this.ShowHint(game, game.Turn, 5, 30, null);
+                        } else if (!player.HintsSeen[6]) {
+                            this.ShowHint(game, game.Turn, 6, this.TurnTime * 2 / 3, null);
+                        }
+                    }
+                } else {
+                    if (!player.HintsSeen[9])
+                        this.ShowHint(game, game.Turn, 9, 5, new object[] { game.Players[game.IdleTurn].Name });
+                }
+            }
         }
 
         public void AITurn(Game game) {
@@ -2841,6 +3021,18 @@ namespace UNO
             this.Games.Remove(game.Connection.NetworkName + "/" + game.Channel);
             this.OnSave();
             this.StartResetTimer();
+
+            foreach (Player player in game.Players) {
+                if (player.Name == game.Connection.Nickname) continue;
+
+                PlayerSettings playerSettings;
+                if (!this.PlayerSettings.TryGetValue(player.Name, out playerSettings))
+                    this.PlayerSettings.Add(player.Name, playerSettings = new PlayerSettings());
+                else if (!playerSettings.Hints || playerSettings.HintsSeen[12]) continue;
+
+                game.Connection.Send("NOTICE " + player.Name + " :\u00032[\u000312?\u00032]\u000F " + UNOPlugin.Hints[12]);
+                playerSettings.HintsSeen[12] = true;
+            }
         }
 
         [Command(new string[] { "ainudge", "nudge", "uainudge", "unudge" }, 0, 0, "ainudge", "Reminds me to take my turn")]

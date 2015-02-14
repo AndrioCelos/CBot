@@ -429,7 +429,7 @@ namespace BattleBot {
                         break;
                     case TechniqueType.Heal:
                         // Allies
-                        foreach (Combatant combatant2 in this.targets) {
+                        foreach (Combatant combatant2 in this.allies) {
                             targetScore = this.CheckTechniqueTargetHeal(character, combatant, technique, combatant2, score);
                             if (targetScore > 0F)
                                 this.Ratings.Add(new Tuple<Action, string, string, float>(Action.Technique, technique.Name, combatant2.ShortName, targetScore));
@@ -445,7 +445,7 @@ namespace BattleBot {
                         break;
                     case TechniqueType.AoEHeal:
                         AoEScore = 0;
-                        foreach (Combatant combatant2 in this.targets) {
+                        foreach (Combatant combatant2 in this.allies) {
                             if (targetName == null) targetName = combatant2.ShortName;
                             targetScore = this.CheckTechniqueTargetHeal(character, combatant, technique, combatant2, score);
                             AoEScore += targetScore * 0.6F;
@@ -502,9 +502,6 @@ namespace BattleBot {
                             this.Ratings.Add(new Tuple<Action, string, string, float>(Action.Technique, technique.Name, targetName, AoEScore));
                         break;
                 }
-
-
-
             }
         }
 

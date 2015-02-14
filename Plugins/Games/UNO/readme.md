@@ -67,6 +67,7 @@ The following settings are per-player, and thus anyone can use them:
 * `highlight` — if 'on', you will be alerted when a game starts.
 * `autosort` — if 'colour', your cards will be sorted by colour, then face value. If 'rank', your cards will be sorted by face value, then colour. If 'off', your cards will not be sorted.
 * `allowduelbot` — if this is set to 'no', the bot won't enter a two-player game with you.
+* `hints` — if this is enabled, the bot may give you hints to teach you how to play.
 
 Action cards
 ------------
