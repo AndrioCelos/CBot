@@ -514,22 +514,25 @@ namespace BattleBot
                                         character.EquippedAccessory = value;
                                         break;
                                     case "ELEMENTALWEAKNESSES":
-                                        character.ElementalWeaknesses = new List<string>(value.Split(new char[] { '.' }));
+                                        character.ElementalWeaknesses = new List<string>(value.Split(new char[] { '.' }, StringSplitOptions.RemoveEmptyEntries));
                                         break;
                                     case "WEAPONWEAKNESSES":
-                                        character.WeaponWeaknesses = new List<string>(value.Split(new char[] { '.' }));
+                                        character.WeaponWeaknesses = new List<string>(value.Split(new char[] { '.' }, StringSplitOptions.RemoveEmptyEntries));
                                         break;
                                     case "ELEMENTALRESISTANCES":
-                                        character.ElementalResistances = new List<string>(value.Split(new char[] { '.' }));
+                                        character.ElementalResistances = new List<string>(value.Split(new char[] { '.' }, StringSplitOptions.RemoveEmptyEntries));
                                         break;
                                     case "WEAPONRESISTANCES":
-                                        character.WeaponResistances = new List<string>(value.Split(new char[] { '.' }));
+                                        character.WeaponResistances = new List<string>(value.Split(new char[] { '.' }, StringSplitOptions.RemoveEmptyEntries));
                                         break;
                                     case "ABSORBS":
-                                        character.ElementalAbsorbs = new List<string>(value.Split(new char[] { '.' }));
+                                        character.ElementalAbsorbs = new List<string>(value.Split(new char[] { '.' }, StringSplitOptions.RemoveEmptyEntries));
                                         break;
                                     case "IMMUNITIES":
-                                        character.ElementalImmunities = new List<string>(value.Split(new char[] { '.' }));
+                                        character.ElementalImmunities = new List<string>(value.Split(new char[] { '.' }, StringSplitOptions.RemoveEmptyEntries));
+                                        break;
+                                    case "HURTBYTAUNT":
+                                        character.HurtByTaunt = Bot.ParseBoolean(value);
                                         break;
                                     case "UNDEAD":
                                         character.IsUndead = Bot.ParseBoolean(value);
@@ -542,45 +545,45 @@ namespace BattleBot
                                         break;
                                     case "WEAPONS":
                                         character.Weapons = new Dictionary<string, int>();
-                                        foreach (string _weapon in value.Split(new char[] { '.' })) {
+                                        foreach (string _weapon in value.Split(new char[] { '.' }, StringSplitOptions.RemoveEmptyEntries)) {
                                             string[] fields2 = _weapon.Split(new char[] { '|' });
                                             character.Weapons.Add(fields2[0], int.Parse(fields2[1]));
                                         }
                                         break;
                                     case "TECHNIQUES":
                                         character.Techniques = new Dictionary<string, int>();
-                                        foreach (string _technique in value.Split(new char[] { '.' })) {
+                                        foreach (string _technique in value.Split(new char[] { '.' }, StringSplitOptions.RemoveEmptyEntries)) {
                                             string[] fields2 = _technique.Split(new char[] { '|' });
                                             character.Techniques.Add(fields2[0], int.Parse(fields2[1]));
                                         }
                                         break;
                                     case "SKILLS":
                                         character.Skills = new Dictionary<string, int>();
-                                        foreach (string _skill in value.Split(new char[] { '.' })) {
+                                        foreach (string _skill in value.Split(new char[] { '.' }, StringSplitOptions.RemoveEmptyEntries)) {
                                             string[] fields2 = _skill.Split(new char[] { '|' });
                                             character.Skills.Add(fields2[0], int.Parse(fields2[1]));
                                         }
                                         break;
                                     case "STYLES":
                                         character.Styles = new Dictionary<string, int>();
-                                        foreach (string _style in value.Split(new char[] { '.' })) {
+                                        foreach (string _style in value.Split(new char[] { '.' }, StringSplitOptions.RemoveEmptyEntries)) {
                                             string[] fields2 = _style.Split(new char[] { '|' });
                                             character.Styles.Add(fields2[0], int.Parse(fields2[1]));
                                         }
                                         break;
                                     case "STYLEEXP":
                                         character.StyleExperience = new Dictionary<string, int>();
-                                        foreach (string _style in value.Split(new char[] { '.' })) {
+                                        foreach (string _style in value.Split(new char[] { '.' }, StringSplitOptions.RemoveEmptyEntries)) {
                                             string[] fields2 = _style.Split(new char[] { '|' });
                                             character.StyleExperience.Add(fields2[0], int.Parse(fields2[1]));
                                         }
                                         break;
                                     case "IGNITIONS":
-                                        character.Ignitions = new List<string>(value.Split(new char[] { '.' }));
+                                        character.Ignitions = new List<string>(value.Split(new char[] { '.' }, StringSplitOptions.RemoveEmptyEntries));
                                         break;
                                     case "ITEMS":
                                         character.Items = new Dictionary<string, int>();
-                                        foreach (string _item in value.Split(new char[] { '.' })) {
+                                        foreach (string _item in value.Split(new char[] { '.' }, StringSplitOptions.RemoveEmptyEntries)) {
                                             string[] fields2 = _item.Split(new char[] { '|' });
                                             character.Items.Add(fields2[0], int.Parse(fields2[1]));
                                         }
@@ -632,7 +635,7 @@ namespace BattleBot
                                         weapon.Element = value;
                                         break;
                                     case "TECHNIQUES":
-                                        weapon.Techniques = new List<string>(value.Split(new char[] { '.' }));
+                                        weapon.Techniques = new List<string>(value.Split(new char[] { '.' }, StringSplitOptions.RemoveEmptyEntries));
                                         break;
                                     case "ISWELLKNOWN":
                                         weapon.IsWellKnown = Bot.ParseBoolean(value);
@@ -810,6 +813,8 @@ namespace BattleBot
                     writer.WriteLine("Absorbs={0}", string.Join(".", character.ElementalAbsorbs));
                 if (character.ElementalImmunities != null)
                     writer.WriteLine("Immunities={0}", string.Join(".", character.ElementalImmunities));
+                if (character.HurtByTaunt)
+                    writer.WriteLine("HurtByTaunt=Yes");
                 if (character.IsUndead)
                     writer.WriteLine("Undead=Yes");
                 if (character.IsElemental)
@@ -2059,7 +2064,7 @@ namespace BattleBot
             this.viewInfoStatsCheck();
         }
 
-        [ArenaRegex(@"^\[\x034Current Weapons? Equipped ?\x0312 ?([^ ]*) (?:\x034and\x0312 ([^ ]*))?(?:\x03\d{0,2}|\x0F)\](?: \[\x034Current Accessory(?: Equipped)? \x0312([^ ]*)(?:\x03\d{0,2}|\x0F)\](?: \[\x034Current Head Armor \x0312([^ ]*)(?:\x03\d{0,2}|\x0F)\] \[\x034Current Body Armor \x0312([^ ]*)(?:\x03\d{0,2}|\x0F)\] \[\x034Current Leg Armor \x0312([^ ]*)(?:\x03\d{0,2}|\x0F)\] \[\x034Current Feet Armor \x0312([^ ]*)(?:\x03\d{0,2}|\x0F)\] \[\x034Current Hand Armor \x0312([^ ]*)(?:\x03\d{0,2}|\x0F)\])?)?")]
+        [ArenaRegex(@"^\[\x034Current Weapons? Equipped ?\x0312 ?([^ \x03]*)(?: \x034and\x0312 ([^ \x03]*))?(?:\x03\d{0,2}|\x0F)\](?: \[\x034Current Accessory (?:Equipped )?\x0312([^ ]*)(?:\x03\d{0,2}|\x0F)\](?: \[\x034Current Head Armor \x0312([^ \x03]*)(?:\x03\d{0,2}|\x0F)\] \[\x034Current Body Armor \x0312([^ \x03]*)(?:\x03\d{0,2}|\x0F)\] \[\x034Current Leg Armor \x0312([^ \x03]*)(?:\x03\d{0,2}|\x0F)\] \[\x034Current Feet Armor \x0312([^ \x03]*)(?:\x03\d{0,2}|\x0F)\] \[\x034Current Hand Armor \x0312([^ \x03]*)(?:\x03\d{0,2}|\x0F)\])?)?")]
         internal void OnStats3(object sender, RegexEventArgs e) {
             if (this.ViewingStatsCharacter == null) {
                 this.ViewingStatsCharacter = new Character();
@@ -2511,7 +2516,7 @@ namespace BattleBot
             this.viewInfoWeaponCheck();
         }
 
-        [ArenaRegex(@"\[\x034Base Power\x0312 (\d*)(?:\x03\d{0,2}|\x0F)\] \[\x034Cost\x0312 (\d*) black orb\(?s?\)?(?:\x03\d{0,2}|\x0F)\] \[\x034Element of Weapon\x0312 ([^\x03\x0F]*)(?:\x03\d{0,2}|\x0F)\](?: \[\x034Is the weapon 2 Handed\?\x0312 (?:(yes)|(no))\x034\])?")]
+        [ArenaRegex(@"\[\x034Base Power\x0312 (\d*)(?:\x03\d{0,2}|\x0F)\] \[\x034Cost\x0312 (\d*) black orb\(?s?\)?(?:\x03\d{0,2}|\x0F)\] \[\x034Element of Weapon\x0312 ([^\x03\x0F\]]*)(?:\x03\d{0,2}|\x0F)\](?: \[\x034Is the weapon 2 Handed\?\x0312 (?:(yes)|(no))\x034\])?")]
         internal void OnViewInfoWeapon2(object sender, RegexEventArgs e) {
             if (this.ViewingWeapon == null)
                 this.ViewingWeapon = new Weapon();
@@ -2890,11 +2895,12 @@ namespace BattleBot
 #endregion
 
 #region Battle preparation
-        [ArenaRegex(@"^\x034(?:(A dimensional portal has been detected\. The enemy force will arrive)|(A powerful dimensional rift has been detected\. The enemy force will arrive)|(The Allied Forces have detected an orb fountain! The party will be sent to destroy it)|(The Allied Forces have opened the coliseum to allow players to fight one another. The PVP battle will begin)|(A Manual battle has been started. Bot Admins will need to add monsters, npcs and bosses individually\. The battle will begin)|(An outpost of the Allied Forces HQ \x02is under attack\x02! Reinforcements are requested immediately! The reinforcements will depart)) in (\d+(?:\.\d+)?) (?:(minute)|second)\(?s?\)?\. (?:Players can )?[Tt]ype \x02!enter\x02 (?:if you wish to join the battle|if they wish to join the battle|to join)")]
+        [ArenaRegex(@"^\x034(?:(A dimensional portal has been detected\. The enemy force will arrive)|(A powerful dimensional rift has been detected\. The enemy force will arrive)|(The Allied Forces have detected an orb fountain! The party will be sent to destroy it)|(The Allied Forces have opened the coliseum to allow players to fight one another. The PVP battle will begin)|(A Manual battle has been started. Bot Admins will need to add monsters, npcs and bosses individually\. The battle will begin)|(An outpost of the Allied Forces HQ \x02is under attack\x02! Reinforcements are requested immediately! The reinforcements will depart)) in(?: (\d+(?:\.\d+)?) ?min(?:ute)?\(?s?\)?)?(?: (\d+(?:\.\d+)?) ?sec(?:ond)?\(?s?\)?)?\. (?:Players \S+ )?[Tt]ype \x02!enter\x02 (?:if you wish to join the battle|if they wish to join the battle|to join)")]
         internal void OnBattleOpenNormal(object sender, RegexEventArgs e) {
-            float time = float.Parse(e.Match.Groups[7].Value);
-            if (e.Match.Groups[8].Success)
-                time *= 60;
+            float time = 0f;
+            if (e.Match.Groups[7].Success) time += float.Parse(e.Match.Groups[7].Value) * 60f;
+            if (e.Match.Groups[8].Success) time += float.Parse(e.Match.Groups[8].Value);
+
             if (e.Match.Groups[2].Success)
                 this.OnBattleOpen(BattleType.Boss, time);
             else if (e.Match.Groups[3].Success)
@@ -2907,35 +2913,39 @@ namespace BattleBot
                 this.OnBattleOpen(BattleType.Normal, time);
         }
 
-        [ArenaRegex(@"^\x034The doors to the \x02gauntlet\x02 are open\. Anyone willing to brave the gauntlet has (\d+(?:\.\d+)?) (?:(minute)|second)\(?s?\)? to enter before the doors close\. Type \x02!enter\x02 if you wish to join the battle!")]
+        [ArenaRegex(@"^\x034The doors to the \x02gauntlet\x02 are open\. Anyone willing to brave the gauntlet has(?: (\d+(?:\.\d+)?) ?min(?:ute)?\(?s?\)?)?(?: (\d+(?:\.\d+)?) ?sec(?:ond)?\(?s?\)?)? to enter before the doors close\. Type \x02!enter\x02 if you wish to join the battle!")]
         internal void OnBattleOpenGauntlet(object sender, RegexEventArgs e) {
-            float time = float.Parse(e.Match.Groups[1].Value);
-            if (e.Match.Groups[2].Success)
-                time *= 60;
+            float time = 0f;
+            if (e.Match.Groups[1].Success) time += float.Parse(e.Match.Groups[1].Value) * 60f;
+            if (e.Match.Groups[2].Success) time += float.Parse(e.Match.Groups[2].Value);
+
             this.OnBattleOpen(BattleType.Gauntlet, time);
         }
 
-        [ArenaRegex(@"^\x0314\x02The President of the Allied Forces\x02 has been \x02kidnapped by monsters\x02! Are you a bad enough dude to save the president\? \x034The rescue party will depart in (\d+(?:\.\d+)?) (?:(minute)|second)\(?s?\)?\. Type \x02!enter\x02 if you wish to join the battle!")]
+        [ArenaRegex(@"^\x0314\x02The President of the Allied Forces\x02 has been \x02kidnapped by monsters\x02! Are you a bad enough dude to save the president\? \x034The rescue party will depart in(?: (\d+(?:\.\d+)?) ?min(?:ute)?\(?s?\)?)?(?: (\d+(?:\.\d+)?) ?sec(?:ond)?\(?s?\)?)?\. Type \x02!enter\x02 if you wish to join the battle!")]
         internal void OnBattleOpenPresident(object sender, RegexEventArgs e) {
-            float time = float.Parse(e.Match.Groups[1].Value);
-            if (e.Match.Groups[2].Success)
-                time *= 60;
+            float time = 0f;
+            if (e.Match.Groups[1].Success) time += float.Parse(e.Match.Groups[1].Value) * 60f;
+            if (e.Match.Groups[2].Success) time += float.Parse(e.Match.Groups[2].Value);
+
             this.OnBattleOpen(BattleType.President, time);
         }
 
-        [ArenaRegex(@"^\x034An \x02evil treasure chest Mimic\x02 is ready to fight\S? The battle will begin in (\d+(?:\.\d+)?) (?:(minute)|second)\(?s?\)?\. Type \x02!enter\x02 if you wish to join the battle!")]
+        [ArenaRegex(@"^\x034An \x02evil treasure chest Mimic\x02 is ready to fight\S? The battle will begin in(?: (\d+(?:\.\d+)?) ?min(?:ute)?\(?s?\)?)?(?: (\d+(?:\.\d+)?) ?sec(?:ond)?\(?s?\)?)?\. Type \x02!enter\x02 if you wish to join the battle!")]
         internal void OnBattleOpenMimic(object sender, RegexEventArgs e) {
-            float time = float.Parse(e.Match.Groups[1].Value);
-            if (e.Match.Groups[2].Success)
-                time *= 60;
+            float time = 0f;
+            if (e.Match.Groups[1].Success) time += float.Parse(e.Match.Groups[1].Value) * 60f;
+            if (e.Match.Groups[2].Success) time += float.Parse(e.Match.Groups[2].Value);
+
             this.OnBattleOpen(BattleType.Mimic, time);
         }
 
-        [ArenaRegex(@"\x034A \x021 vs 1 AI Match\x02 is about to begin! The battle will begin in (\d+(?:\.\d+)?) (?:(minute)|second)\(?s?\)?.")]
+        [ArenaRegex(@"\x034A \x021 vs 1 AI Match\x02 is about to begin! The battle will begin in(?: (\d+(?:\.\d+)?) ?min(?:ute)?\(?s?\)?)?(?: (\d+(?:\.\d+)?) ?sec(?:ond)?\(?s?\)?)?\.")]
         internal void OnBattleOpenNPC(object sender, RegexEventArgs e) {
-            float time = float.Parse(e.Match.Groups[1].Value);
-            if (e.Match.Groups[2].Success)
-                time *= 60;
+            float time = 0f;
+            if (e.Match.Groups[1].Success) time += float.Parse(e.Match.Groups[1].Value) * 60f;
+            if (e.Match.Groups[2].Success) time += float.Parse(e.Match.Groups[2].Value);
+
             this.OnBattleOpen(BattleType.NPC, time);
         }
 
@@ -3190,6 +3200,54 @@ namespace BattleBot
             this.Darkness = true;
         }
 
+        [ArenaRegex(@"\x0304\[Turn #:\x0312\x02 (\d*)\x02\x0304\] \[Weather:\x0312\x02 ([^\x03]*)\x0304\x02\] \[Moon Phase:\x0312\x02 ([^\x03]*)\x0304\x02\] \[Time of Day:\x0312\x02 ([^\x03]*)\x0304\x02\] \[Battlefield:\x0312\x02 ([^\x02]*)\x02\x0304\](?: \[Conditions:\x0312\x02 ([^\x02]*)\x02\x0304\])?")]
+        internal void OnBattleInfo(object sender, RegexEventArgs e) {
+            // Check the battlefield conditions.
+            if (e.Match.Groups[6].Success) {
+                this.BattleConditions &= ~(BattleCondition.CurseNight | BattleCondition.BloodMoon);
+                var matches = Regex.Matches(e.Match.Groups[6].Value, @"(?<=no-)([a-vx-z]+)|(?<=enhance-)([a-vx-z]+)|weatherlock", RegexOptions.IgnoreCase);
+                foreach (Match match in matches) {
+                    if (match.Groups[2].Success) {
+                        if (match.Groups[2].Value.StartsWith("melee", StringComparison.OrdinalIgnoreCase)) {
+                            this.BattleConditions |= BattleCondition.EnhanceMelee;
+                        } else if (match.Groups[2].Value.StartsWith("tech", StringComparison.OrdinalIgnoreCase)) {
+                            this.BattleConditions |= BattleCondition.EnhanceTechniques;
+                        } else if (match.Groups[2].Value.StartsWith("item", StringComparison.OrdinalIgnoreCase)) {
+                            this.BattleConditions |= BattleCondition.EnhanceItems;
+                        }
+                    } else if (match.Groups[1].Success) {
+                        if (match.Groups[2].Value.StartsWith("tech", StringComparison.OrdinalIgnoreCase)) {
+                            this.BattleConditions |= BattleCondition.NoTechniques;
+                        } else if (match.Groups[2].Value.StartsWith("item", StringComparison.OrdinalIgnoreCase)) {
+                            this.BattleConditions |= BattleCondition.ItemLock;
+                        } else if (match.Groups[2].Value.StartsWith("flee", StringComparison.OrdinalIgnoreCase)) {
+                            this.BattleConditions |= BattleCondition.NoFleeing;
+                        } else if (match.Groups[2].Value.StartsWith("skill", StringComparison.OrdinalIgnoreCase)) {
+                            this.BattleConditions |= BattleCondition.NoSkills;
+                        } else if (match.Groups[2].Value.StartsWith("quicksilver", StringComparison.OrdinalIgnoreCase)) {
+                            this.BattleConditions |= BattleCondition.NoQuicksilver;
+                        } else if (match.Groups[2].Value.StartsWith("ignition", StringComparison.OrdinalIgnoreCase)) {
+                            this.BattleConditions |= BattleCondition.NoIgnitions;
+                        } else if (match.Groups[2].Value.StartsWith("playerignition", StringComparison.OrdinalIgnoreCase)) {
+                            this.BattleConditions |= BattleCondition.NoPlayerIgnitions;
+                        } else if (match.Groups[2].Value.StartsWith("mech", StringComparison.OrdinalIgnoreCase)) {
+                            this.BattleConditions |= BattleCondition.NoMech;
+                        } else if (match.Groups[2].Value.StartsWith("summon", StringComparison.OrdinalIgnoreCase)) {
+                            this.BattleConditions |= BattleCondition.NoSummons;
+                        } else if (match.Groups[2].Value.StartsWith("npc", StringComparison.OrdinalIgnoreCase)) {
+                            this.BattleConditions |= BattleCondition.NoAllies;
+                        } else if (match.Groups[2].Value.StartsWith("trust", StringComparison.OrdinalIgnoreCase)) {
+                            this.BattleConditions |= BattleCondition.NoTrusts;
+                        } else if (match.Groups[2].Value.StartsWith("battlefieldeffect", StringComparison.OrdinalIgnoreCase)) {
+                            this.BattleConditions |= BattleCondition.NoBattlefieldEvents;
+                        }
+                    } else {
+                        this.BattleConditions |= BattleCondition.WeatherLock;
+                    }
+                }
+            }
+        }
+
         [ArenaRegex(@"^\x034\[Battle Order: (.*)\x034\]")]
         internal void OnBattleList(object sender, RegexEventArgs e) {
             // Check for the no-monster fix.
@@ -3264,7 +3322,8 @@ namespace BattleBot
                             Name = fullName, ShortName = shortName,
                             IsUndead = upperName.Contains("UNDEAD") || upperName.Contains("ZOMBIE") || upperName.Contains("GHOST") || upperName.Contains("VAMPIRE"),
                             IsElemental = upperName.Contains("ELEMENTAL"),
-                            IsEthereal = upperName.Contains("GHOST")
+                            IsEthereal = upperName.Contains("GHOST"),
+                            HurtByTaunt = (upperName == "CRYSTAL SHADOW WARRIOR")
                         };
                         if (realEntry.StartsWith("\u00035"))
                             character.Category = Category.Monster;
@@ -3416,7 +3475,8 @@ namespace BattleBot
                             Name = fullName, ShortName = shortName,
                             IsUndead = upperName.Contains("UNDEAD") || upperName.Contains("ZOMBIE") || upperName.Contains("GHOST") || upperName.Contains("VAMPIRE"),
                             IsElemental = upperName.Contains("ELEMENTAL"),
-                            IsEthereal = upperName.Contains("GHOST")
+                            IsEthereal = upperName.Contains("GHOST"),
+                            HurtByTaunt = (upperName == "CRYSTAL SHADOW WARRIOR")
                         };
 
                         this.Characters.Add(character.ShortName, character);
@@ -3483,7 +3543,8 @@ namespace BattleBot
                             Name = fullName.Name, ShortName = shortName.Name,
                             IsUndead = upperName.Contains("UNDEAD") || upperName.Contains("ZOMBIE") || upperName.Contains("GHOST") || upperName.Contains("VAMPIRE"),
                             IsElemental = upperName.Contains("ELEMENTAL"),
-                            IsEthereal = upperName.Contains("GHOST")
+                            IsEthereal = upperName.Contains("GHOST"),
+                            HurtByTaunt = (upperName == "CRYSTAL SHADOW WARRIOR")
                         };
                         if (shortName.Category == Category.Monster)
                             character.Category = Category.Monster;
@@ -3536,7 +3597,8 @@ namespace BattleBot
                         Name = fullName.Name, ShortName = shortName.Name,
                         IsUndead = upperName.Contains("UNDEAD") || upperName.Contains("ZOMBIE") || upperName.Contains("GHOST") || upperName.Contains("VAMPIRE"),
                         IsElemental = upperName.Contains("ELEMENTAL"),
-                        IsEthereal = upperName.Contains("GHOST")
+                        IsEthereal = upperName.Contains("GHOST"),
+                        HurtByTaunt = (upperName == "CRYSTAL SHADOW WARRIOR")
                     };
                     if (shortName.Category == Category.Monster)
                         character.Category = Category.Monster;
@@ -3575,7 +3637,7 @@ namespace BattleBot
 
         [ArenaRegex(@"^\x0314\x02An ancient Melee-Only symbol glows on the ground of the battlefield\.")]
         internal void OnMeleeLock(object sender, RegexEventArgs e) {
-            this.BattleConditions |= BattleCondition.MeleeLock;
+            this.BattleConditions |= BattleCondition.NoTechniques;
         }
 
         [ArenaRegex(@"^(?:\x032\x02|\x02\x032)([^\x02]*) \x02steps up first in the battle!")]

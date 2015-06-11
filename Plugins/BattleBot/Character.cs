@@ -73,6 +73,8 @@ namespace BattleBot {
         public bool IsUnderThirdEye;
         public string ShadowCopyName;
 
+        public bool HurtByTaunt;
+
         public List<string> EquippedTechniques;
 
         public bool IsWellKnown;

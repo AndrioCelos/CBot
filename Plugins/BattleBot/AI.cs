@@ -177,9 +177,10 @@ namespace BattleBot {
             this.Ratings = new List<Tuple<Action,string,string,float>>();
 
             this.CheckAttacks(character, combatant);
-            if ((this.plugin.BattleConditions & BattleCondition.MeleeLock) == 0 && character.Techniques != null)
+            if ((this.plugin.BattleConditions & BattleCondition.NoTechniques) == 0 && character.Techniques != null)
                 this.CheckTechniques(character, combatant);
             this.CheckSkills(character, combatant);
+            this.CheckTaunt(character, combatant);
         }
 
         private void CheckAttacks(Character character, Combatant combatant) {
@@ -261,6 +262,8 @@ namespace BattleBot {
 
                 // Check targets.
                 foreach (Combatant combatant2 in this.targets) {
+                    if (combatant2.Character.HurtByTaunt) break;
+
                     float targetScore = score;
                     if (combatant2.Character.AttacksAllies) targetScore /= 1.5F;
                     if (combatant2.Status.Contains("ethereal")) continue;
@@ -351,6 +354,8 @@ namespace BattleBot {
         }
 
         private void CheckTechniques(Character character, Combatant combatant) {
+            if ((this.plugin.BattleConditions & BattleCondition.NoTechniques) != 0) return;
+
             foreach (string techniqueName in this.CanSwitchWeapon() ?
                 (IEnumerable<string>) character.Techniques.Keys :
                 (IEnumerable<string>) character.EquippedTechniques) {
@@ -506,6 +511,8 @@ namespace BattleBot {
         }
 
         private float CheckTechniqueTarget(Character character, Combatant combatant, Technique technique, Combatant target, float score) {
+            if (target.Character.HurtByTaunt) return 0;
+
             float targetScore = score;
             if (target.Character.AttacksAllies) targetScore /= 1.5F;
             if (target.Status.Contains("ethereal", StringComparer.InvariantCultureIgnoreCase) && !technique.IsMagic) return 0F;
@@ -630,6 +637,8 @@ namespace BattleBot {
         }
 
         private void CheckSkills(Character character, Combatant combatant) {
+            if ((this.plugin.BattleConditions & BattleCondition.NoSkills) != 0) return;
+            
             float topScore = 0F;
             foreach (Tuple<Action, string, string, float> entry in this.Ratings)
                 topScore = Math.Max(topScore, entry.Item4);
@@ -700,6 +709,15 @@ namespace BattleBot {
                 }
             }
 
+        }
+
+        private void CheckTaunt(Character character, Combatant combatant) {
+            // Taunt targets that are weak to it.
+            foreach (Combatant combatant2 in this.targets) {
+                if (combatant2.Character.HurtByTaunt) {
+                    this.Ratings.Add(new Tuple<Action, string, string, float>(Action.Taunt, null, combatant2.ShortName, 200));
+                }
+            }
         }
 
         public void Act(Action action, string ability, string target) {

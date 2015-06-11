@@ -60,13 +60,29 @@ namespace BattleBot {
         Random = short.MaxValue
     }
 
-    public enum BattleCondition : short {
+    [Flags]
+    public enum BattleCondition {
         None = 0,
         CurseNight = 1,
         BloodMoon = 2,
+        NoTechniques = 4,
+        [System.ComponentModel.EditorBrowsable(System.ComponentModel.EditorBrowsableState.Never)]
         MeleeLock = 4,
         ItemLock = 8,
-        WeatherLock = 16
+        WeatherLock = 16,
+        NoFleeing = 32,
+        NoSkills = 64,
+        NoQuicksilver = 128,
+        NoIgnitions = 256,
+        NoPlayerIgnitions = 512,
+        NoMech = 1024,
+        NoSummons = 2048,
+        NoAllies = 4096,
+        NoTrusts = 8192,
+        NoBattlefieldEvents = 16384,
+        EnhanceMelee = 32768,
+        EnhanceTechniques = 65536,
+        EnhanceItems = 131072
     }
 
     public enum BattleType : short {
