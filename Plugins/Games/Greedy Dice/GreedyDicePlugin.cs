@@ -43,7 +43,7 @@ namespace GreedyDice {
             this.WinCondition = WinCondition.Turns;
             this.AIEnabled = true;
             this.EntryTime = 30;
-            this.TurnTime = 20;
+            this.TurnTime = 120;
             this.EntryWaitLimit = 120;
             this.TurnWaitLimit = 240;
 
@@ -103,12 +103,12 @@ namespace GreedyDice {
                                         else ConsoleUtils.WriteLine("[{0}] Problem loading the configuration (line {1}): the value is invalid (expected a non-negative integer).", MyKey, lineNumber);
                                         break;
                                     default:
-                                        if (!string.IsNullOrWhiteSpace(field)) ConsoleUtils.WriteLine("[{0}] Problem loading the FAQ data (line {1}): the field name is unknown.", MyKey, lineNumber);
+                                        if (!string.IsNullOrWhiteSpace(field)) ConsoleUtils.WriteLine("[{0}] Problem loading the configuration (line {1}): the field name is unknown.", MyKey, lineNumber);
                                         break;
                                 }
                                 break;
                             default:
-                                if (!string.IsNullOrWhiteSpace(field)) ConsoleUtils.WriteLine("[{0}] Problem loading the FAQ data (line {1}): found a stray field or unknown section.", MyKey, lineNumber);
+                                if (!string.IsNullOrWhiteSpace(field)) ConsoleUtils.WriteLine("[{0}] Problem loading the configuration (line {1}): found a stray field or unknown section.", MyKey, lineNumber);
                                 break;
                         }
                     }
