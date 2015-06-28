@@ -32,7 +32,23 @@ namespace BashQuotes
     public class BashQuotesPlugin : Plugin
     {
         private System.Timers.Timer QuoteTimer;
-        private Thread GetQuotesThread;
+        private Task getQuotesTask;
+
+        QuoteSource source1;
+        public QuoteSource LastSource {
+            get { return this.source1; }
+        }
+
+        private QuoteSource source2;
+        public QuoteSource Source {
+            get {
+                return this.source2;
+            }
+            set {
+                if (value == null) throw new ArgumentNullException();
+                this.source2 = value;
+            }
+        }
 
         private SortedDictionary<int, Quote> Quotes1;
         private SortedDictionary<int, Quote> Quotes2;
@@ -40,7 +56,7 @@ namespace BashQuotes
         private int FailureCount;
         private string FailureMessage;
 
-        public const string UserAgent = "CBot (annihilator127@gmail.com)";
+        public const string UserAgent = "CBot-Quotes/1.3 (annihilator127@gmail.com)";
         public static Regex Regex = new Regex(@"<p class=""quote""><a (?>[^>]*)><b>#(\d+)</b>.*?\((?:<font (?>[^>]*)>)?(-?\d+)(?:</font>)?\).*?<p class=""qt"">((?>[^<]*)(?:<br />(?>[^<]*))*)</p>", RegexOptions.IgnoreCase | RegexOptions.Singleline);
 
         public override string Name {
@@ -50,7 +66,7 @@ namespace BashQuotes
         }
 
         public override string Help(string Topic) {
-            if (Topic == null) return "bash.org quotes are being provided in this channel.";
+            if (Topic == null) return "Quotes are being provided in this channel.";
             return null;
         }
 
@@ -61,31 +77,33 @@ namespace BashQuotes
         public override void OnUnload() {
             base.OnUnload();
             QuoteTimer.Dispose();
-            GetQuotesThread = null;
             Quotes1 = null;
             Quotes2 = null;
         }
 
         private void Initialise() {
             if (this.QuoteTimer == null) {
+                this.source1 = new BashQuoteSource(UserAgent);
+                this.source2 = this.source1;
+
+                this.getQuotesTask = Task.Run(async () => await this.GetQuotes());
+
                 this.QuoteTimer = new System.Timers.Timer(60e+3);
                 QuoteTimer.Elapsed += QuoteTimer_Elapsed;
                 this.QuoteTimer.Start();
-                this.GetQuotesThread = new Thread(GetQuotes);
-                this.GetQuotesThread.Start();
             }
         }
 
-        public static string Colourise(string line) {
-            Match match = Regex.Match(line, @"^(\s*[<\[(\-][ +%@&!]?)([A-}0-9-]+)([>\])\-]:?\s+.*)");
+        public static string Colourize(string line) {
+            Match match = Regex.Match(line, @"^(\s*[<\[(\-]?[ +%@&!~]?)([A-}0-9-]+)([>\])\-]:?\s+.*)");
             if (match.Success)
                 line = match.Groups[1].Value + IRC.Colours.NicknameColour(match.Groups[2].Value) + match.Groups[2].Value + "\u000F" + match.Groups[3].Value;
             else {
-                match = Regex.Match(line, @"^([ +%@&!]?)([A-}0-9-]+)(:\s+.*)");
+                match = Regex.Match(line, @"^([ +%@&!~]?)([A-}0-9-]+)(:\s+.*)");
                 if (match.Success)
                     line = match.Groups[1].Value + IRC.Colours.NicknameColour(match.Groups[2].Value) + match.Groups[2].Value + "\u000F" + match.Groups[3].Value;
                 else {
-                    match = Regex.Match(line, @"^(\*(?:\*\*)? )([A-}0-9-]+)(\s+(?!Now talking)(?!Topic)(?:Joins: |Parts: )?.*)");
+                    match = Regex.Match(line, @"^(\*+ )([A-}0-9-]+)(\s+(?!Now talking)(?!Topic)(?:Joins: |Parts: )?.*)");
                     if (match.Success)
                         line = match.Groups[1].Value + IRC.Colours.NicknameColour(match.Groups[2].Value) + match.Groups[2].Value + "\u000F" + match.Groups[3].Value;
                 }
@@ -101,11 +119,11 @@ namespace BashQuotes
             if (this.Channels.Length == 0) return;
             if (Quotes1 != null && Index < Quotes1.Count) {
                 // Show a quote.
-                this.SayToAllChannels(string.Format("\u0002-------- bash #{0} - \u0002Rating:\u0002 {1} --------", Quotes1.Keys.ElementAt(Index), Quotes1.Values.ElementAt(Index).Rating));
+                this.SayToAllChannels(string.Format("\u0002-------- {2} #{0} - \u0002Rating:\u0002 {1} --------", Quotes1.Keys.ElementAt(Index), Quotes1.Values.ElementAt(Index).Rating, this.source1.Name));
                 foreach (string line in Quotes1.Values.ElementAt(Index).Text.Split(new string[] { "<br />", '\r'.ToString(), '\n'.ToString() }, StringSplitOptions.RemoveEmptyEntries)) {
                     if (line.Length <= 4) continue;
 
-                    string newLine = BashQuotesPlugin.Colourise(line);
+                    string newLine = BashQuotesPlugin.Colourize(line);
 
                     Thread.Sleep(1000);
                     if (newLine.Length > 350) {
@@ -129,9 +147,8 @@ namespace BashQuotes
 
             // Check whether we need to download new quotes.
             if (Quotes2 == null) {
-                if (!GetQuotesThread.IsAlive && (Quotes1 == null || Index >= Quotes1.Count - 5)) {
-                    GetQuotesThread = new Thread(GetQuotes);
-                    GetQuotesThread.Start();
+                if (this.getQuotesTask.IsCompleted && (Quotes1 == null || Index >= Quotes1.Count - 5)) {
+                    this.getQuotesTask = Task.Run(async () => await this.GetQuotes());
                 }
             } else {
                 // Swap the second list in when we reach the end of the first list.
@@ -142,7 +159,8 @@ namespace BashQuotes
                 }
             }
         }
-
+        
+        /*
         public void GetQuotes() {
             try {
                 TcpClient client = new TcpClient();
@@ -251,6 +269,25 @@ namespace BashQuotes
                         Quotes2.Add(int.Parse(match.Groups[1].Value), new Quote(System.Web.HttpUtility.HtmlDecode(match.Groups[3].Value), int.Parse(match.Groups[2].Value)));
                     }
                     Console.WriteLine("[Bash Quotes] Got {0} new quotes.", Quotes2.Count);
+                }
+            } catch (Exception ex) {
+                this.FailureMessage = "\u00034Failed to download the quotes page: " + ex.Message;
+                this.LogError("GetQuotes", ex);
+            }
+        }
+         */
+
+        private async Task GetQuotes() {
+            try {
+                SortedDictionary<int, Quote> result = await source2.GetQuotes();
+                if (result == null || result.Count == 0) {
+                    ++this.FailureCount;
+                    if (this.FailureCount == 3) {
+                        this.FailureMessage = "\u00034No quotes were found three times in a row. Retrying in 20 minutes.";
+                    }
+                } else {
+                    this.FailureCount = 0;
+                    this.Quotes2 = result;
                 }
             } catch (Exception ex) {
                 this.FailureMessage = "\u00034Failed to download the quotes page: " + ex.Message;
