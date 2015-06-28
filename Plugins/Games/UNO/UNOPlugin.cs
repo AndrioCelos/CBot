@@ -237,7 +237,7 @@ namespace UNO
                                         else ConsoleUtils.WriteLine("[{0}] Problem loading the configuration (line {1}): the value is invalid (expected a non-negative integer).", MyKey, lineNumber);
                                         break;
                                     default:
-                                        if (!string.IsNullOrWhiteSpace(field)) ConsoleUtils.WriteLine("[{0}] Problem loading the FAQ data (line {1}): the field name is unknown.", MyKey, lineNumber);
+                                        if (!string.IsNullOrWhiteSpace(field)) ConsoleUtils.WriteLine("[{0}] Problem loading the configuration (line {1}): the field name is unknown.", MyKey, lineNumber);
                                         break;
                                 }
                                 break;
@@ -281,12 +281,12 @@ namespace UNO
                                                 this.JSONLeaderboard = LeaderboardMode.SortedByChallenge;
                                                 break;
                                             default:
-                                                ConsoleUtils.WriteLine("[{0}] Problem loading the FAQ data (line {1}): the value is invalid (expected 'off', 'unsorted', 'sortedbyname', 'sortedbyscore', 'sortedbyplays', 'sortedbywins' or 'sortedbychallenge').", MyKey, lineNumber);
+                                                ConsoleUtils.WriteLine("[{0}] Problem loading the configuration (line {1}): the value is invalid (expected 'off', 'unsorted', 'sortedbyname', 'sortedbyscore', 'sortedbyplays', 'sortedbywins' or 'sortedbychallenge').", MyKey, lineNumber);
                                                 break;
                                         }
                                         break;
                                     default:
-                                        if (!string.IsNullOrWhiteSpace(field)) ConsoleUtils.WriteLine("[{0}] Problem loading the FAQ data (line {1}): the field name is unknown.", MyKey, lineNumber);
+                                        if (!string.IsNullOrWhiteSpace(field)) ConsoleUtils.WriteLine("[{0}] Problem loading the configuration (line {1}): the field name is unknown.", MyKey, lineNumber);
                                         break;
                                 }
                                 break;
@@ -317,7 +317,7 @@ namespace UNO
                                         else ConsoleUtils.WriteLine("[{0}] Problem loading the configuration (line {1}): the value is invalid (expected 'yes' or 'no').", MyKey, lineNumber);
                                         break;
                                     default:
-                                        if (!string.IsNullOrWhiteSpace(field)) ConsoleUtils.WriteLine("[{0}] Problem loading the FAQ data (line {1}): the field name is unknown.", MyKey, lineNumber);
+                                        if (!string.IsNullOrWhiteSpace(field)) ConsoleUtils.WriteLine("[{0}] Problem loading the configuration (line {1}): the field name is unknown.", MyKey, lineNumber);
                                         break;
                                 }
                                 break;
@@ -357,7 +357,7 @@ namespace UNO
                                         this.VictoryBonusValue = value4.ToArray();
                                         break;
                                     default:
-                                        if (!string.IsNullOrWhiteSpace(field)) ConsoleUtils.WriteLine("[{0}] Problem loading the FAQ data (line {1}): the field name is unknown.", MyKey, lineNumber);
+                                        if (!string.IsNullOrWhiteSpace(field)) ConsoleUtils.WriteLine("[{0}] Problem loading the configuration (line {1}): the field name is unknown.", MyKey, lineNumber);
                                         break;
                                 }
                                 break;
@@ -389,7 +389,7 @@ namespace UNO
                                                 this.WildDrawFour = WildDrawFourRule.Free;
                                                 break;
                                             default:
-                                                ConsoleUtils.WriteLine("[{0}] Problem loading the FAQ data (line {1}): the value is invalid (expected 'BluffOff', 'BluffOn' or 'Free').", MyKey, lineNumber);
+                                                ConsoleUtils.WriteLine("[{0}] Problem loading the configuration (line {1}): the value is invalid (expected 'BluffOff', 'BluffOn' or 'Free').", MyKey, lineNumber);
                                                 break;
                                         }
                                         break;
@@ -398,13 +398,13 @@ namespace UNO
                                         else ConsoleUtils.WriteLine("[{0}] Problem loading the configuration (line {1}): the value is invalid (expected 'yes' or 'no').", MyKey, lineNumber);
                                         break;
                                     default:
-                                        if (!string.IsNullOrWhiteSpace(field)) ConsoleUtils.WriteLine("[{0}] Problem loading the FAQ data (line {1}): the field name is unknown.", MyKey, lineNumber);
+                                        if (!string.IsNullOrWhiteSpace(field)) ConsoleUtils.WriteLine("[{0}] Problem loading the configuration (line {1}): the field name is unknown.", MyKey, lineNumber);
                                         break;
                                 }
                                 break;
                             default:
                                 if (playerSettings == null) {
-                                    if (!string.IsNullOrWhiteSpace(field)) ConsoleUtils.WriteLine("[{0}] Problem loading the FAQ data (line {1}): found a stray field or unknown section.", MyKey, lineNumber);
+                                    if (!string.IsNullOrWhiteSpace(field)) ConsoleUtils.WriteLine("[{0}] Problem loading the configuration (line {1}): found a stray field or unknown section.", MyKey, lineNumber);
                                     break;
                                 } else {
                                     switch (field.ToUpper()) {
@@ -424,7 +424,7 @@ namespace UNO
                                                     playerSettings.Highlight = HighlightOptions.OnTemporary;
                                                     break;
                                                 default:
-                                                    ConsoleUtils.WriteLine("[{0}] Problem loading the FAQ data (line {1}): the value is invalid (expected 'Off', 'On' or 'Temporary').", MyKey, lineNumber);
+                                                    ConsoleUtils.WriteLine("[{0}] Problem loading the configuration (line {1}): the value is invalid (expected 'Off', 'On' or 'Temporary').", MyKey, lineNumber);
                                                     break;
                                             }
                                             break;
@@ -445,7 +445,7 @@ namespace UNO
                                                     playerSettings.AutoSort = AutoSortOptions.ByRank;
                                                     break;
                                                 default:
-                                                    ConsoleUtils.WriteLine("[{0}] Problem loading the FAQ data (line {1}): the value is invalid (expected 'Off', 'Colour' or 'Rank').", MyKey, lineNumber);
+                                                    ConsoleUtils.WriteLine("[{0}] Problem loading the configuration (line {1}): the value is invalid (expected 'Off', 'Colour' or 'Rank').", MyKey, lineNumber);
                                                     break;
                                             }
                                             break;
@@ -453,8 +453,12 @@ namespace UNO
                                             if (Bot.TryParseBoolean(value, out value2)) playerSettings.AllowDuelWithBot = value2;
                                             else ConsoleUtils.WriteLine("[{0}] Problem loading the configuration (line {1}): the value is invalid (expected 'yes' or 'no').", MyKey, lineNumber);
                                             break;
+                                        case "HINTS":
+                                            if (Bot.TryParseBoolean(value, out value2)) playerSettings.Hints = value2;
+                                            else ConsoleUtils.WriteLine("[{0}] Problem loading the configuration (line {1}): the value is invalid (expected 'yes' or 'no').", MyKey, lineNumber);
+                                            break;
                                         default:
-                                            if (!string.IsNullOrWhiteSpace(field)) ConsoleUtils.WriteLine("[{0}] Problem loading the FAQ data (line {1}): the field name is unknown.", MyKey, lineNumber);
+                                            if (!string.IsNullOrWhiteSpace(field)) ConsoleUtils.WriteLine("[{0}] Problem loading the configuration (line {1}): the field name is unknown.", MyKey, lineNumber);
                                             break;
                                     }
                                 }

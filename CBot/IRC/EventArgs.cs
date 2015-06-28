@@ -138,10 +138,12 @@ namespace IRC {
 
     public class ChannelDeniedEventArgs : EventArgs {
         public string Channel { get; set; }
+        public ChannelJoinDeniedReason Reason { get; private set; }
         public string Message { get; set; }
 
-        public ChannelDeniedEventArgs(string channel, string message) {
+        public ChannelDeniedEventArgs(string channel, ChannelJoinDeniedReason reason, string message) {
             this.Channel = channel;
+            this.Reason = reason;
             this.Message = message;
         }
     }
@@ -193,6 +195,7 @@ namespace IRC {
             this.Key = key;
         }
     }
+    
     public class ChannelLimitEventArgs : EventArgs {
         public User Sender { get; set; }
         public string Channel { get; set; }
@@ -347,11 +350,23 @@ namespace IRC {
         }
     }
 
+    public class RawParsedEventArgs : RawEventArgs {
+        public string Prefix { get; set; }
+        public string Numeric { get; set; }
+        public string[] Parameters { get; set; }
+
+        public RawParsedEventArgs(string data, string prefix, string numeric, string[] parameters) : base(data) {
+            this.Prefix = prefix;
+            this.Numeric = numeric;
+            this.Parameters = parameters;
+        }
+    }
+
     public class RawEventArgs : EventArgs {
         public string Data { get; set; }
 
-        public RawEventArgs(string command) {
-            this.Data = command;
+        public RawEventArgs(string data) {
+            this.Data = data;
         }
     }
 

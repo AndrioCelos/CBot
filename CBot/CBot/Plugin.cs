@@ -2,42 +2,91 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
-using System.Runtime.CompilerServices;
+using System.Text;
 using System.Text.RegularExpressions;
 
 using IRC;
 
 namespace CBot {
-    public class Plugin {
-        private string[] _Channels;
+    /// <summary>Provides a base class for CBot plugin main classes.</summary>
+    public abstract class Plugin {
+        private string[] _Channels = new string[0];
+        /// <summary>
+        /// Sets or returns the list of channels that this plugin will receive events for.
+        /// This property can be overridden.
+        /// </summary>
         public virtual string[] Channels {
             get { return this._Channels; }
-            set { this._Channels = value; }
-        }
-
-        public virtual string Name {
-            get {
-                return "New Plugin";
+            set {
+                if (value == null) this._Channels = new string[0];
+                else this._Channels = value;
             }
         }
 
+        /// <summary>
+        /// When overridden, returns the name of the plugin.
+        /// </summary>
+        public abstract string Name { get; }
+
+        /// <summary>
+        /// Returns the key used to refer to this plugin.
+        /// </summary>
+        public string Key { get; internal set; }
+
+        /// <summary>
+        /// Returns the path to this plugin file.
+        /// </summary>
+        public string FilePath { get; internal set; }
+
+        /// <summary>
+        /// Returns the key used to refer to this plugin.
+        /// </summary>
+        [Obsolete("This property is deprecated because it is insecure and inefficient. Use Plugin.Key instead.")]
         public string MyKey {
             get {
-                foreach (KeyValuePair<string, PluginEntry> plugin in Bot.Plugins) {
-                    if (plugin.Value.Obj == this)
-                        return plugin.Key;
-                }
-                return null;
+                return this.Key;
             }
         }
 
-        public Plugin() {
-        }
+        /// <summary>
+        /// Contains the message formats currently in use by this plugin.
+        /// </summary>
+        /// <remarks>
+        /// Message formats can contain the following sequences:
+        ///     {...}   The same sequences as in string.Format
+        ///     {nick}  The relevant nickname, usually that of the user executing a command.
+        ///     {chan}  The relevant channel, usually that in which the command is executed or the plugin is active.
+        ///     {(} {)} {|} Escape, respectively, a (, ) or | character. (To escape a { or }, double it.)
+        ///     ((option1||option2||option3))   Chooses one of the options at random each time. Can be nested and can contain other sequences.
+        /// </remarks>
+        protected Dictionary<string, string> language = new Dictionary<string,string>();
+        /// <summary>
+        /// Contains the default message formats currently in use by this plugin.
+        /// When an entry is not found in the Language list, the function should fall back to this list.
+        /// </summary>
+        protected Dictionary<string, string> defaultLanguage = new Dictionary<string, string>();
+        private Random random = new Random();
 
+        /// <summary>
+        /// Creates a new instance of the Plugin class.
+        /// </summary>
+        protected Plugin() { }
+
+        /// <summary>
+        /// When overridden, returns help text on a specific user-specified topic, if it is available and relevant to this plugin; otherwise, null.
+        /// If no topic was specified, the implementation may return a brief description of what this plugin is doing.
+        /// </summary>
+        /// <param name="Topic">The topic the user asked for help on, or null if none was specified.</param>
         public virtual string Help(string Topic) {
             return null;
         }
 
+        /// <summary>
+        /// Returns true if the specified channel is in this plugin's Channels list.
+        /// </summary>
+        /// <param name="connection">The connection to the place where the channel is.</param>
+        /// <param name="channel">The channel to check.</param>
+        /// <returns>True if the specified channel is in the Channels list; false otherwise.</returns>
         public bool IsActiveChannel(IRCClient connection, string channel) {
             if (!connection.IsChannel(channel)) return false; //return IsActivePM(connection, channel);
 
@@ -53,6 +102,13 @@ namespace CBot {
             return false;
         }
 
+        /// <summary>
+        /// Returns true if the specified PM target is in this plugin's Channels list.
+        /// Whether or not the user can be seen, or is online, is not relevant.
+        /// </summary>
+        /// <param name="connection">The connection to the place where the channel is.</param>
+        /// <param name="sender">The nickname of the user to check.</param>
+        /// <returns>True if the specified user is in the Channels list; false otherwise.</returns>
         public bool IsActivePM(IRCClient connection, string sender) {
             foreach (string channelName in this.Channels) {
                 string[] fields = channelName.Split(new char[] { '/' }, 2);
@@ -73,6 +129,15 @@ namespace CBot {
             return false;
         }
 
+        /// <summary>
+        /// Processes a command line and runs a matching command if one exists and the user has access to it.
+        /// </summary>
+        /// <param name="Connection">The connection from whence the command came.</param>
+        /// <param name="Sender">The user sending the command.</param>
+        /// <param name="Channel">The channel in which the command was sent, or the sender's nickname if it was in a private message.</param>
+        /// <param name="InputLine">The message text.</param>
+        /// <param name="globalCommand">True if the global command syntax was used; false otherwise.</param>
+        /// <returns>True if a command was matched (even if it was denied); false otherwise.</returns>
         public bool RunCommand(IRCClient Connection, User Sender, string Channel, string InputLine, bool globalCommand = false) {
             string command = InputLine.Split(new char[] { ' ' })[0];
 
@@ -99,7 +164,7 @@ namespace CBot {
             if (attribute.Permission == null)
                 permission = null;
             else if (attribute.Permission != "" && attribute.Permission.StartsWith("."))
-                permission = MyKey + attribute.Permission;
+                permission = this.Key + attribute.Permission;
             else
                 permission = attribute.Permission;
 
@@ -127,13 +192,22 @@ namespace CBot {
                 CommandEventArgs e = new CommandEventArgs(Connection, Channel, user, fields);
                 method.Invoke(this, new object[] { this, e });
             } catch (Exception ex) {
-                Bot.LogError(MyKey, method.Name, ex);
-                while (ex is TargetInvocationException) ex = ex.InnerException;
+                Bot.LogError(this.Key, method.Name, ex);
+                while (ex is TargetInvocationException || ex is AggregateException) ex = ex.InnerException;
                 Bot.Say(Connection, Channel, "\u00034The command failed. This incident has been logged. ({0})", ex.Message.Replace('\n', ' '));
             }
             return true;
         }
 
+        /// <summary>
+        /// Processes a command line and runs any matching regex-bound procedures that the user has access to.
+        /// </summary>
+        /// <param name="Connection">The connection from whence the command came.</param>
+        /// <param name="Sender">The user sending the command.</param>
+        /// <param name="Channel">The channel in which the command was sent, or the sender's nickname if it was in a private message.</param>
+        /// <param name="InputLine">The message text, excluding the bot's nickname if it started with such.</param>
+        /// <param name="UsedMyNickname">True if the message was prefixed with the bot's nickname; false otherwise.</param>
+        /// <returns>True if a command was matched (even if it was denied); false otherwise.</returns>
         public bool RunRegex(IRCClient Connection, User Sender, string Channel, string InputLine, bool UsedMyNickname) {
             MethodInfo method = null; RegexAttribute attribute = null; Match match = null;
 
@@ -161,7 +235,7 @@ namespace CBot {
             if (attribute.Permission == null)
                 permission = null;
             else if (attribute.Permission != "" && attribute.Permission.StartsWith("."))
-                permission = MyKey + attribute.Permission;
+                permission = this.Key + attribute.Permission;
             else
                 permission = attribute.Permission;
 
@@ -195,19 +269,42 @@ namespace CBot {
             try {
                 method.Invoke(this, parameters);
             } catch (Exception ex) {
-                Bot.LogError(MyKey, method.Name, ex);
+                Bot.LogError(this.Key, method.Name, ex);
+                while (ex is TargetInvocationException || ex is AggregateException) ex = ex.InnerException;
                 Bot.Say(Connection, Channel, "\u00034The command failed. This incident has been logged. ({0})", ex.Message);
             }
             return true;
         }
 
-        public void SayToAllChannels(string Message, SayOptions Options = 0, string[] Exclude = null) {
-            if (Message == null || Message == "") return;
+        /// <summary>
+        /// Sends a message to all channels in which the bot is active. Channel names containing wildcards are excluded.
+        /// </summary>
+        /// <param name="message">The text to send.</param>
+        /// <param name="options">A SayOptions value specifying how to send the message.</param>
+        /// <param name="exclude">A list of channel names that should be excloded. May be null or empty to exclude nothing.</param>
+        public void SayToAllChannels(string message, SayOptions options = 0, string[] exclude = null) {
+            this.SayToAllChannels(message, options, exclude, false, null, null, null);
+        }
+        /// <summary>
+        /// Invokes GetMessage and sends the result to all channels in which the bot is active. Channel names containing wildcards are excluded.
+        /// </summary>
+        /// <param name="key">The key to retrieve.</param>
+        /// <param name="nickname">The nickname of the user who sent the command that this message is response to, or null if not applicable.</param>
+        /// <param name="channel">The channel that the command was given in, or is otherwise relevant to this message, or null if none is.</param>
+        /// <param name="options">A SayOptions value specifying how to send the message.</param>
+        /// <param name="exclude">A list of channel names that should be excloded. May be null or empty to exclude nothing.</param>
+        /// <param name="args">Implementation-defined elements to be included in the formatted message.</param>
+        public void SayLanguageToAllChannels(string key, string nickname, string channel, SayOptions options = 0, string[] exclude = null, params object[] args) {
+            this.SayToAllChannels(key, options, exclude, true, nickname, channel, args);
+        }
+
+        private void SayToAllChannels(string message, SayOptions options, string[] exclude, bool isLanguage, string nickname, string channel, params object[] args) {
+            if (message == null || message == "") return;
             if (this.Channels == null) return;
 
-            if ((Options & SayOptions.Capitalise) != 0) {
-                char c = char.ToUpper(Message[0]);
-                if (c != Message[0]) Message = c + Message.Substring(1);
+            if ((options & SayOptions.Capitalise) != 0) {
+                char c = char.ToUpper(message[0]);
+                if (c != message[0]) message = c + message.Substring(1);
             }
 
             List<string>[] privmsgTarget = new List<string>[Bot.Clients.Count];
@@ -215,35 +312,35 @@ namespace CBot {
 
             foreach (string channel2 in this.Channels) {
                 string address;
-                string channel;
+                string channel3;
 
                 string[] fields = channel2.Split(new char[] { '/' }, 2);
                 if (fields.Length == 2) {
                     address = fields[0];
-                    channel = fields[1];
+                    channel3 = fields[1];
                 } else {
                     address = null;
-                    channel = fields[0];
+                    channel3 = fields[0];
                 }
-                if (channel == "*") continue;
+                if (channel3 == "*") continue;
 
                 bool notice = false;
-                string target = channel;
+                string target = channel3;
 
                 for (int index = 0; index < Bot.Clients.Count; ++index) {
                     if (address == null || address == "*" || address.Equals(Bot.Clients[index].Client.Address, StringComparison.OrdinalIgnoreCase) || address.Equals(Bot.Clients[index].Name, StringComparison.OrdinalIgnoreCase)) {
-                        if (Bot.Clients[index].Client.IsChannel(channel)) {
-                            if ((address == null || address == "*") && !Bot.Clients[index].Client.Channels.Contains(channel)) continue;
-                            if ((Options & SayOptions.OpsOnly) != 0) {
-                                target = "@" + channel;
+                        if (Bot.Clients[index].Client.IsChannel(channel3)) {
+                            if ((address == null || address == "*") && !Bot.Clients[index].Client.Channels.Contains(channel3)) continue;
+                            if ((options & SayOptions.OpsOnly) != 0) {
+                                target = "@" + channel3;
                                 notice = true;
                             }
                         } else
                             notice = true;
 
-                        if ((Options & SayOptions.NoticeAlways) != 0)
+                        if ((options & SayOptions.NoticeAlways) != 0)
                             notice = true;
-                        if ((Options & SayOptions.NoticeNever) != 0)
+                        if ((options & SayOptions.NoticeNever) != 0)
                             notice = false;
 
                         if (notice) {
@@ -258,30 +355,144 @@ namespace CBot {
                         else
                             selectedTarget = privmsgTarget[index];
 
-                            if (!selectedTarget.Contains(target))
-                                selectedTarget.Add(target);
+                        if (!selectedTarget.Contains(target))
+                            selectedTarget.Add(target);
                     }
                 }
 
             }
 
+            string key = message;
             for (int index = 0; index < Bot.Clients.Count; ++index) {
+                if (isLanguage)
+                    message = this.GetMessage(key, nickname, channel, args);
+
                 if (privmsgTarget[index] != null)
-                    Bot.Clients[index].Client.Send("PRIVMSG {0} :{1}", string.Join(",", privmsgTarget[index]), Message);
+                    Bot.Clients[index].Client.Send("PRIVMSG {0} :{1}", string.Join(",", privmsgTarget[index]), message);
                 if (noticeTarget[index] != null)
-                    Bot.Clients[index].Client.Send("NOTICE {0} :{1}", string.Join(",", noticeTarget[index]), Message);
+                    Bot.Clients[index].Client.Send("NOTICE {0} :{1}", string.Join(",", noticeTarget[index]), message);
             }
         }
 
-        public virtual void OnSave() {
+        /// <summary>
+        /// Returns the formatted message corresponding to the given key in the Language list.
+        /// </summary>
+        /// <param name="key">The key to retrieve.</param>
+        /// <param name="nickname">The nickname of the user who sent the command that this message is response to, or null if not applicable.</param>
+        /// <param name="channel">The channel that the command was given in, or is otherwise relevant to this message, or null if none is.</param>
+        /// <param name="args">Implementation-defined elements to be included in the formatted message.</param>
+        /// <returns>The formatted message, or null if the key given is not in either Language list.</returns>
+        public string GetMessage(string key, string nickname, string channel, params object[] args) {
+            string format;
+            if (!this.language.TryGetValue(key, out format))
+                if (!this.defaultLanguage.TryGetValue(key, out format))
+                    return null;
+
+            return string.Format(this.ProcessMessage(format, nickname, channel), args ?? new object[0]);
+        }
+        private string ProcessMessage(string format, string nickname, string channel) {
+            int braceLevel = 0;
+            StringBuilder builder = new StringBuilder(format.Length);
+
+            for (int i = 0; i < format.Length; ++i) {
+                    if (i <= format.Length - 3 && format[i] == '{' && format.Substring(i, 3) == "{(}") {
+                        builder.Append("(");
+                        i += 2;
+                    } else if (i <= format.Length - 3 && format[i] == '{' && format.Substring(i, 3) == "{)}") {
+                        builder.Append(")");
+                        i += 2;
+                    } else if (i <= format.Length - 3 && format[i] == '{' && format.Substring(i, 3) == "{|}") {
+                        builder.Append("|");
+                        i += 2;
+                    } else if (i <= format.Length - 2 && format[i] == '(' && format[i + 1] == '(') {
+                        i += 2;
+                        int start = i;
+                        braceLevel = 1;
+                        List<Tuple<int, int>> options = new List<Tuple<int, int>>();
+
+                        for (; i < format.Length; ++i) {
+                            if (i < format.Length - 1) {
+                                if (format[i] == '{' && i <= format.Length - 3) {
+                                    if (format.Substring(i, 3) == "{(}") {
+                                        builder.Append("(");
+                                        i += 2;
+                                    } else if (format.Substring(i, 3) == "{)}") {
+                                        builder.Append(")");
+                                        i += 2;
+                                    } else if (format.Substring(i, 3) == "{|}") {
+                                        builder.Append("|");
+                                        i += 2;
+                                    }
+                                } else if (braceLevel == 1 && format[i] == '|' && format[i + 1] == '|') {
+                                    options.Add(new Tuple<int, int>(start, i));
+                                    i += 1;
+                                    start = i + 1;
+                                } else if (format[i] == ')' && format[i + 1] == ')') {
+                                    --braceLevel;
+                                    if (braceLevel == 0) {
+                                        options.Add(new Tuple<int, int>(start, i));
+                                        i += 1;
+                                        break;
+                                    }
+                                    i += 1;
+                                } else if (format[i] == '(' && format[i + 1] == '(') {
+                                    ++braceLevel;
+                                    i += 1;
+                                }
+                            } else {
+                                throw new FormatException("The format string contains unclosed braces.");
+                            }
+                        }
+
+                        // Pick an option at random.
+                        Tuple<int, int> choice = options[this.random.Next(options.Count)];
+                        builder.Append(ProcessMessage(format.Substring(choice.Item1, choice.Item2 - choice.Item1), nickname, channel));
+                    } else if (i <= format.Length - 6 && format[i] == '{' && format.Substring(i, 6) == "{nick}") {
+                        builder.Append(nickname);
+                        i += 5;
+                    } else if (i <= format.Length - 6 && format[i] == '{' && format.Substring(i, 6) == "{chan}") {
+                        builder.Append(channel);
+                        i += 5;
+                    } else {
+                        builder.Append(format[i]);
+                    }
+            }
+
+            return builder.ToString();
         }
 
+        /// <summary>
+        /// When overridden, runs after all plugins are instantiated by CBot during startup, or after this plugin is instantiated at run time.
+        /// </summary>
+        public virtual void Initialize() { }
+
+        /// <summary>
+        /// When overridden, saves any configuration and other data needed by this plugin.
+        /// </summary>
+        /// <remarks>
+        /// This method is intended to be used to provide a standard means to tell plugins to save data.
+        /// A plugin might call this method in all loaded plugins on command from a user.
+        /// </remarks>
+        public virtual void OnSave() { }
+
+        /// <summary>
+        /// When overridden, runs just before this plugin is removed. The default implementation simply calls OnSave.
+        /// </summary>
+        /// <remarks>
+        /// This method is intended to be used to provide a standard means to tell plugins to clean up.
+        /// Failing to do so may cause unintended continued interaction.
+        /// </remarks>
         public virtual void OnUnload() {
             this.OnSave();
         }
 
+        /// <summary>
+        /// Reports an exception to the user, and logs it.
+        /// </summary>
+        /// <param name="Procedure">The human-readable name of the procedure that had the problem.</param>
+        /// <param name="ex">The exception that was thrown.</param>
         protected void LogError(string Procedure, Exception ex) {
-            Bot.LogError(this.MyKey, Procedure, ex);
+            Bot.LogError(this.Key, Procedure, ex);
         }
 
         public virtual bool OnAwayCancelled(object sender, AwayEventArgs e) { return false; }
@@ -319,10 +530,7 @@ namespace CBot {
         public virtual bool OnChannelInviteExemptSelf(object sender, ChannelListModeEventArgs e) { return false; }
         public virtual bool OnChannelJoin(object sender, ChannelJoinEventArgs e) { return false; }
         public virtual bool OnChannelJoinSelf(object sender, ChannelJoinEventArgs e) { return false; }
-        public virtual bool OnChannelJoinDeniedBanned(object sender, ChannelDeniedEventArgs e) { return false; }
-        public virtual bool OnChannelJoinDeniedFull(object sender, ChannelDeniedEventArgs e) { return false; }
-        public virtual bool OnChannelJoinDeniedInvite(object sender, ChannelDeniedEventArgs e) { return false; }
-        public virtual bool OnChannelJoinDeniedKey(object sender, ChannelDeniedEventArgs e) { return false; }
+        public virtual bool OnChannelJoinDenied(object sender, ChannelDeniedEventArgs e) { return false; }
         public virtual bool OnChannelKick(object sender, ChannelKickEventArgs e) { return false; }
         public virtual bool OnChannelKickSelf(object sender, ChannelKickEventArgs e) { return false; }
         public virtual bool OnChannelMessage(object sender, ChannelMessageEventArgs e) {
@@ -335,7 +543,7 @@ namespace CBot {
 
             bool handled = false;
             if (e.Message != "") {
-                if (Bot.getCommandPrefixes((IRCClient) sender, e.Channel).Contains(message[0].ToString()))
+                if (Bot.GetCommandPrefixes((IRCClient) sender, e.Channel).Contains(message[0].ToString()))
                     handled = this.RunCommand((IRCClient) sender, e.Sender, e.Channel, message.Substring(1), false);
                 else if (match.Success) {
                     handled = this.RunCommand((IRCClient) sender, e.Sender, e.Channel, message, false);
@@ -413,7 +621,7 @@ namespace CBot {
 
             bool handled = false;
             if (e.Message != "") {
-                if (Bot.getCommandPrefixes((IRCClient) sender, e.Sender.Nickname).Contains(message[0].ToString()))
+                if (Bot.GetCommandPrefixes((IRCClient) sender, e.Sender.Nickname).Contains(message[0].ToString()))
                     handled = this.RunCommand((IRCClient) sender, e.Sender, e.Sender.Nickname, message.Substring(1), false);
                 else if (match.Success) {
                     handled = this.RunCommand((IRCClient) sender, e.Sender, e.Sender.Nickname, message, false);
@@ -428,15 +636,13 @@ namespace CBot {
         }
         public virtual bool OnQuit(object sender, QuitEventArgs e) { return false; }
         public virtual bool OnQuitSelf(object sender, QuitEventArgs e) { return false; }
-        public virtual bool OnRawLineReceived(object sender, RawEventArgs e) { return false; }
+        public virtual bool OnRawLineReceived(object sender, RawParsedEventArgs e) { return false; }
         public virtual bool OnRawLineSent(object sender, RawEventArgs e) { return false; }
         public virtual bool OnUserModesGet(object sender, UserModesEventArgs e) { return false; }
         public virtual bool OnUserModesSet(object sender, UserModesEventArgs e) { return false; }
         public virtual bool OnWallops(object sender, PrivateMessageEventArgs e) { return false; }
         public virtual bool OnServerNotice(object sender, PrivateMessageEventArgs e) { return false; }
         public virtual bool OnServerError(object sender, ServerErrorEventArgs e) { return false; }
-        public virtual bool OnServerMessage(object sender, ServerMessageEventArgs e) { return false; }
-        public virtual bool OnServerMessageUnhandled(object sender, ServerMessageEventArgs e) { return false; }
         public virtual bool OnSSLHandshakeComplete(object sender, EventArgs e) { return false; }
         public virtual bool OnTimeOut(object sender, EventArgs e) { return false; }
         public virtual bool OnWhoList(object sender, WhoListEventArgs e) { return false; }

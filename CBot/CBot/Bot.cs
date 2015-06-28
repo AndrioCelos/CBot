@@ -18,24 +18,29 @@ using System.Xml;
 
 using IRC;
 
+
 namespace CBot {
-    public enum SayOptions : short {
-        OpsOnly = 9,
-        Capitalise = 2,
-        NoticeAlways = 8,
-        NoticeNever = 4,
-    }
-
+    /// <summary>
+    /// The main class of CBot.
+    /// </summary>
     public static class Bot {
+        /// <summary>Returns the version of the bot, as returned to a CTCP VERSION request.</summary>
         public static string ClientVersion { get; private set; }
-        public static Version Version { get; private set; }
+        /// <summary>Returns the version of the bot.</summary>
+        public static Version Version { get { return Assembly.GetExecutingAssembly().GetName().Version; } }
 
+        /// <summary>The list of IRC connections the bot has.</summary>
         public static List<ClientEntry> Clients = new List<ClientEntry>();
+        /// <summary>The list of loaded plugins.</summary>
         public static Dictionary<string, PluginEntry> Plugins = new Dictionary<string, PluginEntry>(StringComparer.OrdinalIgnoreCase);
+        /// <summary>The list of users who are identified.</summary>
         public static Dictionary<string, Identification> Identifications = new Dictionary<string, Identification>(StringComparer.OrdinalIgnoreCase);
+        /// <summary>The list of user accounts that are known to the bot.</summary>
         public static Dictionary<string, Account> Accounts = new Dictionary<string, Account>(StringComparer.OrdinalIgnoreCase);
 
-        public static string[] DefaultCommandPrefixes;
+        /// <summary>The list of default command prefixes. A command line can start with any of these if not in a channel that has its own set.</summary>
+        public static string[] DefaultCommandPrefixes = new string[] { "!" };
+        /// <summary>The collection of channel command prefixes. The keys are channel names in the form NetworkName/#channel, and the corresponding value is the array of command prefixes for that channel.</summary>
         public static Dictionary<string, string[]> ChannelCommandPrefixes = new Dictionary<string, string[]>(StringComparer.OrdinalIgnoreCase);
 
         internal static string[] dNicknames = new string[] { "CBot" };
@@ -47,64 +52,53 @@ namespace CBot {
         private static bool ConfigFileFound;
         private static bool UsersFileFound;
         private static bool PluginsFileFound;
+        private static Random rng;
 
+        /// <summary>The minimum compatible plugin API version with this version of CBot.</summary>
         public static readonly Version MinPluginVersion = new Version(3, 1);
 
-        public static string[] getCommandPrefixes() {
-            return Bot.DefaultCommandPrefixes;
+        /// <summary>Returns the command prefixes in use in a specified channel.</summary>
+        /// <param name="channel">The name of the channel to check.</param>
+        /// <returns>The specified channel's command prefixes, or the default set if no custom set is present.</returns>
+        public static string[] GetCommandPrefixes(string channel) {
+            string[] prefixes;
+            if (!Bot.ChannelCommandPrefixes.TryGetValue(channel, out prefixes))
+                prefixes = Bot.DefaultCommandPrefixes;
+            return prefixes;
         }
-        public static string[] getCommandPrefixes(string Channel) {
-            bool flag = Bot.ChannelCommandPrefixes.ContainsKey(Channel);
-            string[] CommandPrefixes;
-            if (flag) {
-                CommandPrefixes = Bot.ChannelCommandPrefixes[Channel];
-            } else {
-                CommandPrefixes = Bot.DefaultCommandPrefixes;
-            }
-            return CommandPrefixes;
-        }
-        public static string[] getCommandPrefixes(ClientEntry client, string Channel) {
-            string[] CommandPrefixes;
+        /// <summary>Returns the command prefixes in use in a specified channel.</summary>
+        /// <param name="client">The IRC connection to the network on which the channel to check is.</param>
+        /// <param name="channel">The name of the channel to check.</param>
+        /// <returns>The specified channel's command prefixes, or the default set if no custom set is present.</returns>
+        public static string[] GetCommandPrefixes(ClientEntry client, string channel) {
             if (client == null) {
-                CommandPrefixes = Bot.getCommandPrefixes(Channel.Split(new char[]
-					{
-						'/'
-					})[0] + "/" + Channel.Split(new char[]
-					{
-						'/'
-					})[1]);
+                return Bot.GetCommandPrefixes(channel);
             } else {
-                if (Bot.ChannelCommandPrefixes.ContainsKey((client.Name + "/" + Channel).ToLower())) {
-                    CommandPrefixes = Bot.ChannelCommandPrefixes[(client.Name + "/" + Channel).ToLower()];
-                } else {
-                    CommandPrefixes = Bot.DefaultCommandPrefixes;
-                }
+                return Bot.GetCommandPrefixes(client.Name + "/" + channel);
             }
-            return CommandPrefixes;
+        }
+        /// <summary>Returns the command prefixes in use in a specified channel.</summary>
+        /// <param name="client">The IRC connection to the network on which the channel to check is.</param>
+        /// <param name="channel">The name of the channel to check.</param>
+        /// <returns>The specified channel's command prefixes, or the default set if no custom set is present.</returns>
+        public static string[] GetCommandPrefixes(IRCClient client, string channel) {
+            if (client == null) {
+                return Bot.GetCommandPrefixes(channel);
+            } else {
+                return Bot.GetCommandPrefixes(client.NetworkName + "/" + channel);
+            }
         }
 
-        public static string[] getCommandPrefixes(IRCClient Connection, string Channel) {
-            bool flag = Connection == null;
-            string[] CommandPrefixes;
-            if (flag) {
-                CommandPrefixes = Bot.getCommandPrefixes(Channel.Split(new char[]
-					{
-						'/'
-					})[0] + "/" + Channel.Split(new char[]
-					{
-						'/'
-					})[1]);
-            } else {
-                flag = Bot.ChannelCommandPrefixes.ContainsKey((Connection.NetworkName + "/" + Channel).ToLower());
-                if (flag) {
-                    CommandPrefixes = Bot.ChannelCommandPrefixes[(Connection.NetworkName + "/" + Channel).ToLower()];
-                } else {
-                    CommandPrefixes = Bot.DefaultCommandPrefixes;
-                }
-            }
-            return CommandPrefixes;
-        }
-
+        /// <summary>
+        /// Creates and adds a new IRCClient object, but does not connect to any IRC networks.
+        /// </summary>
+        /// <param name="name">The IRC network name.</param>
+        /// <param name="address">The address to connect to.</param>
+        /// <param name="port">The remote port number to connect on.</param>
+        /// <param name="nicknames">A list of nicknames to use on IRC, in order of preference.</param>
+        /// <param name="username">The identd username to use on IRC.</param>
+        /// <param name="fullName">The full name to use on IRC.</param>
+        /// <returns>The new ClientEntry object.</returns>
         public static ClientEntry NewClient(string name, string address, int port, string[] nicknames, string username, string fullName) {
             IRCClient newClient = new IRCClient {
                 Address = address,
@@ -121,8 +115,10 @@ namespace CBot {
             return newEntry;
         }
 
+        /// <summary>Adds CBot's event handlers to an IRCClient object. This can be called by plugins creating their own IRCClient objects.</summary>
+        /// <param name="newClient">The IRCClient object to add event handlers to.</param>
         public static void SetUpClientEvents(IRCClient newClient) {
-            newClient.RawLineReceived += delegate(object sender, RawEventArgs e) {
+            newClient.RawLineReceived += delegate(object sender, RawParsedEventArgs e) {
                 ConsoleUtils.WriteLine("%cDKGRAY{0} %cDKGREEN>>%cDKGRAY {1}%r", ((IRCClient) sender).Address, e.Data);
             };
             newClient.RawLineSent += delegate(object sender, RawEventArgs e) {
@@ -132,14 +128,42 @@ namespace CBot {
                     ConsoleUtils.WriteLine("%cDKGRAY{0} %cDKRED<<%cDKGRAY {1}%r", ((IRCClient) sender).Address, "AUTHENTICATE ***");
                 else if (e.Data.StartsWith("OPER ", StringComparison.OrdinalIgnoreCase))
                     ConsoleUtils.WriteLine("%cDKGRAY{0} %cDKRED<<%cDKGRAY {1}%r", ((IRCClient) sender).Address, "OPER ***");
+                else if (e.Data.StartsWith("DIE ", StringComparison.OrdinalIgnoreCase))
+                    ConsoleUtils.WriteLine("%cDKGRAY{0} %cDKRED<<%cDKGRAY {1}%r", ((IRCClient) sender).Address, "DIE ***");
+                else if (e.Data.StartsWith("RESTART ", StringComparison.OrdinalIgnoreCase))
+                    ConsoleUtils.WriteLine("%cDKGRAY{0} %cDKRED<<%cDKGRAY {1}%r", ((IRCClient) sender).Address, "RESTART ***");
+
                 else if (e.Data.StartsWith("PRIVMSG NickServ :IDENTIFY ", StringComparison.OrdinalIgnoreCase))
                     ConsoleUtils.WriteLine("%cDKGRAY{0} %cDKRED<<%cDKGRAY {1}%r", ((IRCClient) sender).Address, "PRIVMSG NickServ :IDENTIFY ***");
                 else if (e.Data.StartsWith("PRIVMSG NickServ :GHOST ", StringComparison.OrdinalIgnoreCase))
                     ConsoleUtils.WriteLine("%cDKGRAY{0} %cDKRED<<%cDKGRAY {1}%r", ((IRCClient) sender).Address, "PRIVMSG NickServ :GHOST ***");
+                else if (e.Data.StartsWith("PRIVMSG NickServ :REGAIN ", StringComparison.OrdinalIgnoreCase))
+                    ConsoleUtils.WriteLine("%cDKGRAY{0} %cDKRED<<%cDKGRAY {1}%r", ((IRCClient) sender).Address, "PRIVMSG NickServ :REGAIN ***");
+                else if (e.Data.StartsWith("PRIVMSG NickServ :REGISTER ", StringComparison.OrdinalIgnoreCase))
+                    ConsoleUtils.WriteLine("%cDKGRAY{0} %cDKRED<<%cDKGRAY {1}%r", ((IRCClient) sender).Address, "PRIVMSG NickServ :REGISTER ***");
+
+                else if (e.Data.StartsWith("NICKSERV IDENTIFY ", StringComparison.OrdinalIgnoreCase))
+                    ConsoleUtils.WriteLine("%cDKGRAY{0} %cDKRED<<%cDKGRAY {1}%r", ((IRCClient) sender).Address, "NICKSERV IDENTIFY ***");
+                else if (e.Data.StartsWith("NICKSERV GHOST ", StringComparison.OrdinalIgnoreCase))
+                    ConsoleUtils.WriteLine("%cDKGRAY{0} %cDKRED<<%cDKGRAY {1}%r", ((IRCClient) sender).Address, "NICKSERV GHOST ***");
+                else if (e.Data.StartsWith("NICKSERV REGAIN ", StringComparison.OrdinalIgnoreCase))
+                    ConsoleUtils.WriteLine("%cDKGRAY{0} %cDKRED<<%cDKGRAY {1}%r", ((IRCClient) sender).Address, "NICKSERV REGAIN ***");
+                else if (e.Data.StartsWith("NICKSERV REGISTER ", StringComparison.OrdinalIgnoreCase))
+                    ConsoleUtils.WriteLine("%cDKGRAY{0} %cDKRED<<%cDKGRAY {1}%r", ((IRCClient) sender).Address, "NICKSERV REGISTER ***");
+
+                else if (e.Data.StartsWith("NS IDENTIFY ", StringComparison.OrdinalIgnoreCase))
+                    ConsoleUtils.WriteLine("%cDKGRAY{0} %cDKRED<<%cDKGRAY {1}%r", ((IRCClient) sender).Address, "NS IDENTIFY ***");
+                else if (e.Data.StartsWith("NS GHOST ", StringComparison.OrdinalIgnoreCase))
+                    ConsoleUtils.WriteLine("%cDKGRAY{0} %cDKRED<<%cDKGRAY {1}%r", ((IRCClient) sender).Address, "NS GHOST ***");
+                else if (e.Data.StartsWith("NS REGAIN ", StringComparison.OrdinalIgnoreCase))
+                    ConsoleUtils.WriteLine("%cDKGRAY{0} %cDKRED<<%cDKGRAY {1}%r", ((IRCClient) sender).Address, "NS REGAIN ***");
+                else if (e.Data.StartsWith("NS REGISTER ", StringComparison.OrdinalIgnoreCase))
+                    ConsoleUtils.WriteLine("%cDKGRAY{0} %cDKRED<<%cDKGRAY {1}%r", ((IRCClient) sender).Address, "NS REGISTER ***");
+
                 else
                     ConsoleUtils.WriteLine("%cDKGRAY{0} %cDKRED<<%cDKGRAY {1}%r", ((IRCClient) sender).Address, e.Data);
             };
-            
+
             newClient.AwayCancelled += Bot.OnAwayCancelled;
             newClient.AwaySet += Bot.OnAwaySet;
             newClient.BanList += Bot.OnBanList;
@@ -173,10 +197,7 @@ namespace CBot {
             newClient.ChannelInviteExemptSelf += Bot.OnChannelInviteExemptSelf;
             newClient.ChannelJoin += Bot.OnChannelJoin;
             newClient.ChannelJoinSelf += Bot.OnChannelJoinSelf;
-            newClient.ChannelJoinDeniedBanned += Bot.OnChannelJoinDeniedBanned;
-            newClient.ChannelJoinDeniedFull += Bot.OnChannelJoinDeniedFull;
-            newClient.ChannelJoinDeniedInvite += Bot.OnChannelJoinDeniedInvite;
-            newClient.ChannelJoinDeniedKey += Bot.OnChannelJoinDeniedKey;
+            newClient.ChannelJoinDenied += Bot.OnChannelJoinDenied;
             newClient.ChannelKick += Bot.OnChannelKick;
             newClient.ChannelKickSelf += Bot.OnChannelKickSelf;
             newClient.ChannelMessage += Bot.OnChannelMessage;
@@ -249,8 +270,6 @@ namespace CBot {
             newClient.Wallops += Bot.OnWallops;
             newClient.ServerNotice += Bot.OnServerNotice;
             newClient.ServerError += Bot.OnServerError;
-            newClient.ServerMessage += Bot.OnServerMessage;
-            newClient.ServerMessageUnhandled += Bot.OnServerMessageUnhandled;
             newClient.SSLHandshakeComplete += Bot.OnSSLHandshakeComplete;
             newClient.TimeOut += Bot.OnTimeOut;
             newClient.WhoList += Bot.OnWhoList;
@@ -268,31 +287,32 @@ namespace CBot {
             newClient.WhoWasEnd += Bot.OnWhoWasEnd;
         }
 
+        /// <summary>The program's entry point.</summary>
         public static void Main() {
+            if (Environment.OSVersion.Platform >= PlatformID.Unix)
+                Console.TreatControlCAsInput = true;  // There is a bug in Windows that occurs when this is set.
+
             Assembly assembly = Assembly.GetExecutingAssembly();
-            Bot.Version = assembly.GetName().Version;
 
-            //Console.TreatControlCAsInput = true;
-
-            string title = ""; string author = "";
+            string title = null; string author = null;
             foreach (object attribute in assembly.GetCustomAttributes(false)) {
                 if (attribute is AssemblyTitleAttribute)
                     title = ((AssemblyTitleAttribute) attribute).Title;
                 else if (attribute is AssemblyCompanyAttribute)
                     author = ((AssemblyCompanyAttribute) attribute).Company;
             }
-            Bot.ClientVersion = string.Format("CBot by {1} : version {2}.{3}", title, author, Bot.Version.Major, Bot.Version.Minor, Bot.Version.Revision, Bot.Version.Build);
+            Bot.ClientVersion = string.Format("{0} by {1} : version {2}.{3}", title, author, Bot.Version.Major, Bot.Version.Minor, Bot.Version.Revision, Bot.Version.Build);
+            Bot.rng = new Random();
 
             Console.ForegroundColor = ConsoleColor.Gray;
-            Bot.DefaultCommandPrefixes = new string[] { "!" };
 
+            // Add the console client.
             ConsoleConnection consoleClient = new ConsoleConnection();
             Bot.Clients.Add(new ClientEntry("!Console", consoleClient));
             SetUpClientEvents(consoleClient);
 
             Console.Write("Loading configuration file...");
-            bool flag = File.Exists("CBotConfig.ini");
-            if (flag) {
+            if (File.Exists("CBotConfig.ini")) {
                 Bot.ConfigFileFound = true;
                 try {
                     Bot.LoadConfig();
@@ -301,15 +321,15 @@ namespace CBot {
                     ConsoleUtils.WriteLine(" %cREDFailed%r");
                     ConsoleUtils.WriteLine("%cREDI couldn't load the configuration file: " + ex.Message + "%r");
                     ConsoleUtils.WriteLine("%cWHITEPress Escape to exit, or any other key to continue . . .");
-                    if (Console.ReadKey(true).Key == ConsoleKey.Escape) Environment.Exit(0);
+                    if (Console.ReadKey(true).Key == ConsoleKey.Escape) Environment.Exit(2);
                 }
                 Bot.Clients[0].Client.Nickname = dNicknames[0];
             } else {
                 ConsoleUtils.WriteLine(" %cBLUEFile CBotConfig.ini is missing.%r");
             }
+
             Console.Write("Loading user configuration file...");
-            flag = File.Exists("CBotUsers.ini");
-            if (flag) {
+            if (File.Exists("CBotUsers.ini")) {
                 Bot.UsersFileFound = true;
                 try {
                     Bot.LoadUsers();
@@ -323,9 +343,9 @@ namespace CBot {
             } else {
                 ConsoleUtils.WriteLine(" %cBLUEFile CBotUsers.ini is missing.%r");
             }
+
             Console.WriteLine("Loading plugins...");
-            flag = File.Exists("CBotPlugins.ini");
-            if (flag) {
+            if (File.Exists("CBotPlugins.ini")) {
                 Bot.PluginsFileFound = true;
                 try {
                     Bot.LoadPlugins();
@@ -411,68 +431,108 @@ namespace CBot {
             }
         }
 
-        public static bool LoadPlugin(string Key, string Filename, params string[] Channels) {
-            Assembly assembly = Assembly.LoadFrom(Filename);
-            AssemblyName assemblyName = assembly.GetName();
-            Type pluginClass = null;
+        /// <summary>Loads a plugin and adds it to CBot's list of active plugins.</summary>
+        /// <param name="Key">A key to identify the newly loaded plugin.</param>
+        /// <param name="Filename">The file to load.</param>
+        /// <param name="Channels">A list of channels in which this plugin should be active.</param>
+        /// <exception cref="System.ArgumentException">A plugin with the specified key is already loaded.</exception>
+        /// <exception cref="CBot.InvalidPluginException">The plugin could not be constructed.</exception>
+        public static void LoadPlugin(string Key, string Filename, params string[] Channels) {
+            Assembly assembly;
+            AssemblyName assemblyName;
+            Type pluginType = null;
+            string errorMessage = null;
 
-            foreach (Type type in assembly.GetTypes()) {
-                if (typeof(Plugin).IsAssignableFrom(type)) {
-                    pluginClass = type;
-                    break;
+            if (Bot.Plugins.ContainsKey(Key)) throw new ArgumentException(string.Format("A plugin with key {0} is already loaded.", Key), "key");
+
+            ConsoleUtils.Write("  Loading plugin %cWHITE" + Key + "%r...");
+            int x = Console.CursorLeft; int y = Console.CursorTop; int x2; int y2;
+            Console.WriteLine();
+
+            try {
+                assembly = Assembly.LoadFrom(Filename);
+                assemblyName = assembly.GetName();
+
+                foreach (Type type in assembly.GetTypes()) {
+                    if (typeof(Plugin).IsAssignableFrom(type)) {
+                        pluginType = type;
+                        break;
+                    }
                 }
-            }
-            if (pluginClass == null) throw new EntryPointNotFoundException("This is not a valid plugin (no class was found that inherits from the base plugin class).");
-
-            Version pluginVersion = null;
-            foreach (APIVersionAttribute attribute in pluginClass.GetCustomAttributes(typeof(APIVersionAttribute), false)) {
-                if (pluginVersion == null || pluginVersion < attribute.Version)
-                    pluginVersion = attribute.Version;
-            }
-            if (pluginVersion == null) {
-                ConsoleUtils.WriteLine(" %cREDOutdated plugin – no API version is specified.%r");
-                return false;
-            } else if (pluginVersion < Bot.MinPluginVersion) {
-                ConsoleUtils.WriteLine(" %cREDOutdated plugin – built for version {0}.{1}.%r", pluginVersion.Major, pluginVersion.Minor);
-                return false;
-            } else if (pluginVersion > Bot.Version) {
-                ConsoleUtils.WriteLine(" %cREDOutdated bot – the plugin is built for version {0}.{1}.%r", pluginVersion.Major, pluginVersion.Minor);
-                return false;
-            }
-
-            int constructorType = -1;
-            foreach (ConstructorInfo constructor in pluginClass.GetConstructors()) {
-                ParameterInfo[] parameters = constructor.GetParameters();
-                if (parameters.Length == 0) {
-                    if (constructorType < 0) constructorType = 0;
-                } else if (parameters.Length == 1 && parameters[0].ParameterType.IsAssignableFrom(typeof(string))) {
-                    if (constructorType < 1) constructorType = 1;
-                } else if (parameters.Length == 2 && parameters[0].ParameterType.IsAssignableFrom(typeof(string)) && parameters[1].ParameterType.IsArray && parameters[1].ParameterType.GetElementType() == typeof(string)) {
-                    constructorType = 2;
-                    break;
+                if (pluginType == null) {
+                    errorMessage = "Invalid – no valid plugin class.";
+                    throw new InvalidPluginException(Filename, string.Format("The file '{0}' does not contain a class that inherits from the base plugin class.", Filename));
                 }
+
+                Version pluginVersion = null;
+                foreach (APIVersionAttribute attribute in pluginType.GetCustomAttributes(typeof(APIVersionAttribute), false)) {
+                    if (pluginVersion == null || pluginVersion < attribute.Version)
+                        pluginVersion = attribute.Version;
+                }
+                if (pluginVersion == null) {
+                    errorMessage = "Outdated plugin – no API version is specified.";
+                    throw new InvalidPluginException(Filename, string.Format("The class '{0}' in '{1}' does not specify the version of CBot for which it was built.", pluginType.Name, Filename));
+                } else if (pluginVersion < Bot.MinPluginVersion) {
+                    errorMessage = string.Format("Outdated plugin – built for version {0}.{1}.", pluginVersion.Major, pluginVersion.Minor);
+                    throw new InvalidPluginException(Filename, string.Format("The class '{0}' in '{1}' was built for older version {2}.{3}.", pluginType.Name, Filename, pluginVersion.Major, pluginVersion.Minor));
+                } else if (pluginVersion > Bot.Version) {
+                    errorMessage = string.Format("Outdated bot – the plugin is built for version {0}.{1}.", pluginVersion.Major, pluginVersion.Minor);
+                    throw new InvalidPluginException(Filename, string.Format("The class '{0}' in '{1}' was built for newer version {2}.{3}.", pluginType.Name, Filename, pluginVersion.Major, pluginVersion.Minor));
+                }
+
+                int constructorType = -1;
+                foreach (ConstructorInfo constructor in pluginType.GetConstructors()) {
+                    ParameterInfo[] parameters = constructor.GetParameters();
+                    if (parameters.Length == 0) {
+                        if (constructorType < 0) constructorType = 0;
+                    } else if (parameters.Length == 1 && parameters[0].ParameterType.IsAssignableFrom(typeof(string))) {
+                        if (constructorType < 1) constructorType = 1;
+                    } else if (parameters.Length == 2 && parameters[0].ParameterType.IsAssignableFrom(typeof(string)) && parameters[1].ParameterType.IsArray && parameters[1].ParameterType.GetElementType() == typeof(string)) {
+                        constructorType = 2;
+                        break;
+                    }
+                }
+
+                Plugin plugin;
+                if (constructorType == 0)
+                    plugin = (Plugin) Activator.CreateInstance(pluginType);
+                else if (constructorType == 1)
+                    plugin = (Plugin) Activator.CreateInstance(pluginType, new object[] { Key });
+                else if (constructorType == 2)
+                    plugin = (Plugin) Activator.CreateInstance(pluginType, new object[] { Key, Channels });
+                else {
+                    errorMessage = "Invalid – no valid constructor on the plugin class.";
+                    throw new InvalidPluginException(Filename, string.Format("The class '{0}' in '{1}' does not contain a supported constructor.\n" +
+                                                                             "It should be defined as 'public SamplePlugin()'", pluginType.Name, Filename));
+                }
+
+                plugin.Key = Key;
+                plugin.Channels = Channels ?? new string[0];
+                Bot.Plugins.Add(Key, new PluginEntry() { Filename = Filename, Obj = plugin });
+                plugin.Initialize();
+
+                x2 = Console.CursorLeft; y2 = Console.CursorTop;
+                Console.SetCursorPosition(x, y);
+                ConsoleUtils.WriteLine(" {0} ({1}) OK", plugin.Name, assemblyName.Version);
+                Console.SetCursorPosition(x2, y2);
+            } catch (Exception ex) {
+                x2 = Console.CursorLeft; y2 = Console.CursorTop;
+                Console.SetCursorPosition(x, y);
+                ConsoleUtils.Write(" %cRED");
+                ConsoleUtils.Write(errorMessage ?? "Failed");
+                ConsoleUtils.WriteLine("%r");
+                Console.SetCursorPosition(x2, y2);
+                Bot.LogError(Key, "Loading", ex);
+
+                throw ex;
             }
-
-            Plugin plugin;
-            if (constructorType == 0)
-                plugin = (Plugin) Activator.CreateInstance(pluginClass);
-            else if (constructorType == 1)
-                plugin = (Plugin) Activator.CreateInstance(pluginClass, new object[] { Key });
-            else if (constructorType == 2)
-                plugin = (Plugin) Activator.CreateInstance(pluginClass, new object[] { Key, Channels });
-            else
-                throw new InvalidCastException("This is not a valid plugin (no compatible constructor was found).");
-
-            plugin.Channels = Channels ?? new string[0];
-            ConsoleUtils.Write(" {0} ({1})", plugin.Name, assemblyName.Version);
-            Bot.Plugins.Add(Key, new PluginEntry() { Filename = Filename, Obj = plugin });
-            return true;
         }
 
-        public static void FirstRun() {
+        private static void FirstRun() {
             if (!Bot.ConfigFileFound) {
                 Console.WriteLine();
                 Console.WriteLine("This appears to be the first time I have been run here. Let us take a moment to set up.");
+
                 Console.WriteLine("Please enter the identity details I should use on IRC.");
                 Bot.dNicknames = new string[0];
                 while (Bot.dNicknames.Length == 0) {
@@ -495,6 +555,7 @@ namespace CBot {
                         }
                     }
                 }
+
                 Bot.dUsername = "";
                 while (Bot.dUsername == "") {
                     Console.Write("Username: ");
@@ -507,16 +568,19 @@ namespace CBot {
                         }
                     }
                 }
+
                 Bot.dFullName = "";
                 while (Bot.dFullName == "") {
                     Console.Write("Full name: ");
                     Bot.dFullName = Console.ReadLine();
                 }
+
                 Bot.dUserInfo = "";
                 while (Bot.dUserInfo == "") {
                     Console.Write("User info for CTCP: ");
                     Bot.dUserInfo = Console.ReadLine();
                 }
+
                 Bot.DefaultCommandPrefixes = null;
                 while (Bot.DefaultCommandPrefixes == null) {
                     Console.Write("What do you want my command prefix to be? ");
@@ -554,7 +618,7 @@ namespace CBot {
                     ushort NetworkPort = 0;
                     bool UseSSL = false;
                     bool AcceptInvalidSSLCertificate = false;
-                    string[] AutoJoinChannels;
+                    IEnumerable<AutoJoinChannel> AutoJoinChannels;
 
                     do {
                         Console.Write("What is the name of the IRC network? ");
@@ -638,8 +702,8 @@ namespace CBot {
                             Input[0] == 'S' || Input[0] == 's' ||
                             Input[0] == 'O' || Input[0] == 'o' ||
                             Input[0] == 'J' || Input[0] == 'j') {
-                                NickServ = new NickServSettings();
-                                break;
+                            NickServ = new NickServSettings();
+                            break;
                         } else if (Input[0] == 'N' || Input[0] == 'n' ||
                                    Input[0] == 'A' || Input[0] == 'a' ||
                                    Input[0] == 'P' || Input[0] == 'p') {
@@ -699,7 +763,7 @@ namespace CBot {
                     do {
                         Console.Write("What channels (comma- or space-separated) should I join upon connecting? ");
                         string Input = Console.ReadLine();
-                        AutoJoinChannels = Input.Split(new char[] { ',', ' ' }, StringSplitOptions.RemoveEmptyEntries);
+                        AutoJoinChannels = Input.Split(new char[] { ',', ' ' }, StringSplitOptions.RemoveEmptyEntries).Select(c => new AutoJoinChannel(c));
                     } while (AutoJoinChannels == null);
 
                     ClientEntry client = Bot.NewClient(NetworkName, NetworkAddress, (int) NetworkPort, Bot.dNicknames, Bot.dUsername, Bot.dFullName);
@@ -707,13 +771,13 @@ namespace CBot {
                     client.Client.AllowInvalidCertificate = AcceptInvalidSSLCertificate;
                     if (NickServ != null)
                         client.NickServ = NickServ;
-                    if (AutoJoinChannels.Length != 0)
-                        client.AutoJoin.AddRange(AutoJoinChannels);
+                    client.AutoJoin.AddRange(AutoJoinChannels);
                     Console.WriteLine("OK, that's the IRC connection configuration done.");
                     Console.WriteLine("Press any key to continue . . .");
                     Console.ReadKey(true);
                 }
             }
+
             if (!Bot.UsersFileFound) {
                 string AccountName; StringBuilder passwordBuilder = null;
 
@@ -736,13 +800,12 @@ namespace CBot {
                 RNGCryptoServiceProvider RNG = new RNGCryptoServiceProvider();
                 SHA256Managed SHA256M = new SHA256Managed();
                 do {
-                    Console.Write("Please enter a password.      ");
+                    Console.Write("Please enter a password. ");
                     Input = "";
                     while (true) {
                         ConsoleKeyInfo c = Console.ReadKey(true);
                         if (c.Key == ConsoleKey.Enter) break;
                         Input += c.KeyChar.ToString();
-                        Console.Write('*');
                     }
                     Console.WriteLine();
                     if (Input == "") continue;
@@ -761,7 +824,6 @@ namespace CBot {
                         ConsoleKeyInfo c = Console.ReadKey(true);
                         if (c.Key == ConsoleKey.Enter) break;
                         Input += c.KeyChar.ToString();
-                        Console.Write('*');
                     }
                     Console.WriteLine();
                     if (Input == "" || Input.Contains(" ")) {
@@ -793,6 +855,7 @@ namespace CBot {
             }
         }
 
+        /// <summary>Loads configuration data from the file CBotConfig.ini if it is present.</summary>
         public static void LoadConfig() {
             if (File.Exists("CBotConfig.ini")) {
                 try {
@@ -867,7 +930,7 @@ namespace CBot {
                                         if (client.NickServ == null && (
                                             Field.StartsWith("NickServ", StringComparison.OrdinalIgnoreCase) ||
                                             Field.StartsWith("NS", StringComparison.OrdinalIgnoreCase))) {
-                                                client.NickServ = new NickServSettings();
+                                            client.NickServ = new NickServSettings();
                                         }
                                         switch (Field.ToUpper()) {
                                             case "ADDRESS":
@@ -912,14 +975,14 @@ namespace CBot {
                                                 client.Client.FullName = Value;
                                                 break;
                                             case "AUTOJOIN":
-                                                client.AutoJoin.AddRange(Value.Split(new char[] { ',', ' ' }, StringSplitOptions.RemoveEmptyEntries));
+                                                client.AutoJoin.AddRange(Value.Split(new char[] { ',', ' ' }, StringSplitOptions.RemoveEmptyEntries).Select(c => new AutoJoinChannel(c)));
                                                 break;
                                             case "SSL":
                                             case "USESSL":
                                                 if (Value.Equals("Yes", StringComparison.OrdinalIgnoreCase) ||
                                                     Value.Equals("True", StringComparison.OrdinalIgnoreCase) ||
                                                     Value.Equals("On", StringComparison.OrdinalIgnoreCase)) {
-                                                        client.Client.SSL = true;
+                                                    client.Client.SSL = true;
                                                 } else if (Value.Equals("No", StringComparison.OrdinalIgnoreCase) ||
                                                            Value.Equals("False", StringComparison.OrdinalIgnoreCase) ||
                                                            Value.Equals("Off", StringComparison.OrdinalIgnoreCase)) {
@@ -930,7 +993,7 @@ namespace CBot {
                                                 if (Value.Equals("Yes", StringComparison.OrdinalIgnoreCase) ||
                                                     Value.Equals("True", StringComparison.OrdinalIgnoreCase) ||
                                                     Value.Equals("On", StringComparison.OrdinalIgnoreCase)) {
-                                                        client.Client.AllowInvalidCertificate = true;
+                                                    client.Client.AllowInvalidCertificate = true;
                                                 } else if (Value.Equals("No", StringComparison.OrdinalIgnoreCase) ||
                                                            Value.Equals("False", StringComparison.OrdinalIgnoreCase) ||
                                                            Value.Equals("Off", StringComparison.OrdinalIgnoreCase)) {
@@ -956,7 +1019,7 @@ namespace CBot {
                                                 if (Value.Equals("Yes", StringComparison.OrdinalIgnoreCase) ||
                                                     Value.Equals("True", StringComparison.OrdinalIgnoreCase) ||
                                                     Value.Equals("On", StringComparison.OrdinalIgnoreCase)) {
-                                                        client.NickServ.AnyNickname = true;
+                                                    client.NickServ.AnyNickname = true;
                                                 } else if (Value.Equals("No", StringComparison.OrdinalIgnoreCase) ||
                                                            Value.Equals("False", StringComparison.OrdinalIgnoreCase) ||
                                                            Value.Equals("Off", StringComparison.OrdinalIgnoreCase)) {
@@ -968,7 +1031,7 @@ namespace CBot {
                                                 if (Value.Equals("Yes", StringComparison.OrdinalIgnoreCase) ||
                                                     Value.Equals("True", StringComparison.OrdinalIgnoreCase) ||
                                                     Value.Equals("On", StringComparison.OrdinalIgnoreCase)) {
-                                                        client.NickServ.UseGhostCommand = true;
+                                                    client.NickServ.UseGhostCommand = true;
                                                 } else if (Value.Equals("No", StringComparison.OrdinalIgnoreCase) ||
                                                            Value.Equals("False", StringComparison.OrdinalIgnoreCase) ||
                                                            Value.Equals("Off", StringComparison.OrdinalIgnoreCase)) {
@@ -1006,6 +1069,7 @@ namespace CBot {
             }
         }
 
+        /// <summary>Loads user data from the file CBotUsers.ini if it is present.</summary>
         public static void LoadUsers() {
             if (File.Exists("CBotUsers.ini")) {
                 try {
@@ -1053,6 +1117,7 @@ namespace CBot {
             }
         }
 
+        /// <summary>Loads active plugin data from the file CBotPlugins.ini if it is present.</summary>
         public static void LoadPlugins() {
             bool error = false;
             if (File.Exists("CBotPlugins.ini")) {
@@ -1074,14 +1139,9 @@ namespace CBot {
                         if (Match.Success) {
                             if (Filename != null) {
                                 try {
-                                    ConsoleUtils.Write("  Loading plugin %cWHITE" + Section + "%r...");
-                                    if (Bot.LoadPlugin(Section, Filename, Channels))
-                                        ConsoleUtils.WriteLine(" OK");
-                                    else
-                                        error = true;
-                                } catch (Exception ex) {
-                                    ConsoleUtils.WriteLine("%cRED Failed%r");
-                                    Bot.LogError(Section, "Initialisation", ex);
+                                    Bot.LoadPlugin(Section, Filename, Channels);
+                                } catch (Exception) {
+                                    // LoadPlugin already reports the exception.
                                     error = true;
                                 }
                             }
@@ -1117,14 +1177,8 @@ namespace CBot {
                     }
                     if (Filename != null) {
                         try {
-                            ConsoleUtils.Write("  Loading plugin %cWHITE" + Section + "%r...");
-                            if (Bot.LoadPlugin(Section, Filename, Channels))
-                                ConsoleUtils.WriteLine(" OK");
-                            else
-                                error = true;
-                        } catch (Exception ex) {
-                            ConsoleUtils.WriteLine("%cRED Failed%r");
-                            Bot.LogError(Section, "Initialisation", ex);
+                            Bot.LoadPlugin(Section, Filename, Channels);
+                        } catch (Exception) {
                             error = true;
                         }
                     }
@@ -1142,6 +1196,7 @@ namespace CBot {
             }
         }
 
+        /// <summary>Writes configuration data to the file CBotConfig.ini.</summary>
         public static void SaveConfig() {
             StreamWriter Writer = new StreamWriter("CBotConfig.ini", false);
             Writer.WriteLine("[Me]");
@@ -1189,6 +1244,7 @@ namespace CBot {
             Writer.Close();
         }
 
+        /// <summary>Writes user data to the file CBotUsers.ini.</summary>
         public static void SaveUsers() {
             StreamWriter Writer = new StreamWriter("CBotUsers.ini", false);
             foreach (KeyValuePair<string, Account> User in Bot.Accounts) {
@@ -1204,6 +1260,7 @@ namespace CBot {
             Writer.Close();
         }
 
+        /// <summary>Writes active plugin data to the file CBotPlugins.ini.</summary>
         public static void SavePlugins() {
             StreamWriter Writer = new StreamWriter("CBotPlugins.ini", false);
             foreach (KeyValuePair<string, PluginEntry> Plugin in Bot.Plugins) {
@@ -1219,11 +1276,17 @@ namespace CBot {
             Writer.Close();
         }
 
-        public static bool CheckMessage(IRCClient Connection, User Sender, string Channel, string Message) {
-            string[] fields = Message.Split(new char[] { ' ' }, 2, StringSplitOptions.RemoveEmptyEntries);
+        /// <summary>Handles a message from an IRC user. This includes checking for commands.</summary>
+        /// <param name="connection">The IRC connection on which the message was received.</param>
+        /// <param name="sender">The user sending the message.</param>
+        /// <param name="channel">The channel in which the message was received, or the user's nickname if it was private.</param>
+        /// <param name="message">The message text.</param>
+        /// <returns></returns>
+        public static bool CheckMessage(IRCClient connection, User sender, string channel, string message) {
+            string[] fields = message.Split(new char[] { ' ' }, 2, StringSplitOptions.RemoveEmptyEntries);
             if (fields.Length <= 1) return false;
 
-            foreach (string c in Bot.getCommandPrefixes(Connection, Channel))
+            foreach (string c in Bot.GetCommandPrefixes(connection, channel))
                 if (fields[0].StartsWith(c)) {
                     fields[0] = fields[0].Substring(1);
                     break;
@@ -1232,13 +1295,20 @@ namespace CBot {
             // Check global commands.
             foreach (KeyValuePair<string, PluginEntry> plugin in Bot.Plugins) {
                 if (fields[0].Equals(plugin.Key, StringComparison.OrdinalIgnoreCase)) {
-                    if (plugin.Value.Obj.RunCommand(Connection, Sender, Channel, fields[1], true))
+                    if (plugin.Value.Obj.RunCommand(connection, sender, channel, fields[1], true))
                         return true;
                 }
             }
             return false;
         }
 
+        /// <summary>
+        /// Determines whether a specified string matches a specified pattern.
+        /// The wildcards * and ? are used.
+        /// </summary>
+        /// <param name="input">The string to check.</param>
+        /// <param name="mask">The pattern to check the given string against.</param>
+        /// <returns>true if the input matches the mask; false otherwise.</returns>
         public static bool MaskCheck(string input, string mask) {
             StringBuilder exBuilder = new StringBuilder();
 
@@ -1269,6 +1339,7 @@ namespace CBot {
                 client.NickServ.IdentifyTime = DateTime.Now;
             }
         }
+
         private static void OnCTCPMessage(IRCClient Connection, string Sender, string Message) {
             string[] fields = Message.Split(' ');
 
@@ -1383,35 +1454,57 @@ namespace CBot {
             }
         }
 
+        /// <summary>Returns the bot's default nickname, even if none is specified in configuration.</summary>
+        /// <returns>The first default nickname, or 'CBot' if none are set.</returns>
         public static object Nickname() {
-            bool flag = Bot.dNicknames.Count<string>() == 0;
-            object Nickname;
-            if (flag) {
-                Nickname = "CBot";
-            } else {
-                Nickname = Bot.dNicknames[0];
-            }
-            return Nickname;
+            if (Bot.dNicknames.Length == 0) return "CBot";
+            return Bot.dNicknames[0];
         }
 
-        public static bool UserHasPermission(IRCClient Connection, string Channel, string User, string Permission) {
-            if (Connection == null) throw new ArgumentNullException("Connection");
-            if (Permission == null || Permission == "") return true;
+        /// <summary>Determines whether a user on IRC has a specified permission.</summary>
+        /// <param name="connection">The IRC connection on which the user is.</param>
+        /// <param name="channel">The channel in which the user is attempting to perform a command or similar action.</param>
+        /// <param name="user">The user's nickname.</param>
+        /// <param name="permission">The permission to check for.</param>
+        /// <returns>true if permission is null or empty, or if the user has the permission; false otherwise.</returns>
+        /// <exception cref="System.ArgumentNullException">connection is null.</exception>
+        public static bool UserHasPermission(IRCClient connection, string channel, string user, string permission) {
+            if (connection == null) throw new ArgumentNullException("connection");
+            if (permission == null || permission == "") return true;
+            return Bot.UserHasPermissionSub(Bot.GetPermissions(connection, channel, user), permission);
+        }
+        /// <summary>Determines whether an account has a specified permission.</summary>
+        /// <param name="accountName">The name of the account to check.</param>
+        /// <param name="permission">The permission to check for.</param>
+        /// <returns>true if permission is null or empty, or if the account has the permission; false otherwise.</returns>
+        public static bool UserHasPermission(string accountName, string permission) {
+            if (permission == null || permission == "") return true;
+            // TODO: check the * account too.
+            return Bot.UserHasPermissionSub(Bot.Accounts[accountName].Permissions, permission);
+        }
 
-            string nickname = User.Split(new char[] { '/' }, 2)[0];
+        /// <summary>Returns the list of permissions that a user has.</summary>
+        /// <param name="connection">The IRC connection on which the user is.</param>
+        /// <param name="channel">The channel in which the user is attempting to perform a command or similar action.</param>
+        /// <param name="nickname">The user's nickname.</param>
+        /// <returns>An array containing the perimissions the specified user has.</returns>
+        /// <exception cref="System.ArgumentNullException">connection is null.</exception>
+        // TODO: cache this?
+        public static string[] GetPermissions(IRCClient connection, string channel, string nickname) {
+            if (connection == null) throw new ArgumentNullException("connection");
 
-            List<string> UserPermissions = new List<string>();
-            string AccountName = null;
-            {
-                if (Bot.Identifications.ContainsKey(Connection.Address + "/" + nickname)) {
-                    AccountName = Bot.Identifications[Connection.Address + "/" + nickname].AccountName;
-                }
-            }
-            foreach (KeyValuePair<string, Account> Account in Bot.Accounts) {
+            List<string> permissions = new List<string>();
+            string accountName = null;
+
+            Identification ID;
+            if (Bot.Identifications.TryGetValue(connection.Address + "/" + nickname, out ID))
+                accountName = ID.AccountName;
+
+            foreach (KeyValuePair<string, Account> account in Bot.Accounts) {
                 bool match = false;
-                if (Account.Key == "*") match = true;
-                else if (Account.Key.StartsWith("$")) {
-                    string[] fields = Account.Key.Split(new char[] { ':' }, 2);
+                if (account.Key == "*") match = true;
+                else if (account.Key.StartsWith("$")) {
+                    string[] fields = account.Key.Split(new char[] { ':' }, 2);
                     string[] fields2;
                     IRC.ChannelAccess access = ChannelAccess.Normal;
 
@@ -1440,79 +1533,91 @@ namespace CBot {
                     }
 
                     if (access != ChannelAccess.Normal) {
-                        IRCClient client;
+                        // Check that the user has the required access on the given "network/channel".
+                        IRCClient client = null;
 
-                        if (Channel == null) continue;
+                        if (channel == null) continue;
                         fields2 = fields[1].Split(new char[] { '/' }, 2);
                         if (fields2.Length == 1) fields2 = new string[] { null, fields2[0] };
 
+                        // Find the network.
                         if (fields2[0] != null) {
-                            client = null;
                             foreach (ClientEntry _client in Bot.Clients) {
-                                if (_client.Client.Address.Equals(fields2[0], StringComparison.OrdinalIgnoreCase) || (_client.Client.NetworkName ?? "").Equals(fields2[0], StringComparison.OrdinalIgnoreCase)) {
+                                if ((_client.Client.NetworkName ?? "").Equals(fields2[0], StringComparison.OrdinalIgnoreCase)) {
                                     client = _client.Client;
                                     break;
                                 }
                             }
-                        } else
-                            client = null;
+                        }
 
-                        IRC.Channel channel;
+                        // Find the channel.
+                        Channel channel2;
+                        ChannelUser user;
                         if (client == null) {
                             if (fields2[0] != null) match = false;
                             else {
                                 match = false;
                                 foreach (ClientEntry _client in Bot.Clients) {
-                                    if (_client.Client.Channels.Contains(fields2[1])) {
-                                        channel = _client.Client.Channels[fields2[1]];
-                                        if (channel.Users[nickname].Access >= access) {
-                                            match = true;
-                                            break;
-                                        }
+                                    if (_client.Client.Channels.TryGetValue(fields2[1], out channel2) && channel2.Users.TryGetValue(nickname, out user) &&
+                                        user.Access >= access) {
+                                        match = true;
+                                        break;
                                     }
                                 }
                             }
                         } else {
                             match = false;
-                            if (client.Channels.Contains(fields2[1])) {
-                                channel = client.Channels[fields2[1]];
-                                if (channel.Users.Contains(nickname) && channel.Users[nickname].Access >= access)
-                                    match = true;
+                            if (client.Channels.TryGetValue(fields2[1], out channel2) && channel2.Users.TryGetValue(nickname, out user) &&
+                                user.Access >= access) {
+                                match = true;
                             }
                         }
                     }
 
                 } else {
-                    if (Account.Key.Contains("@")) {
+                    // Check for a hostmask match.
+                    if (account.Key.Contains("@")) {
                         User user;
-                        if (Connection.Users.TryGetValue(nickname, out user))
-                            match = Bot.MaskCheck(user.ToString(), Account.Key);
+                        if (connection.Users.TryGetValue(nickname, out user))
+                            match = Bot.MaskCheck(user.ToString(), account.Key);
                     } else
-                        match = AccountName != null && Account.Key.Equals(AccountName, StringComparison.OrdinalIgnoreCase);
+                        match = (accountName != null && account.Key.Equals(accountName, StringComparison.OrdinalIgnoreCase));
                 }
 
                 if (match)
-                    UserPermissions.AddRange(Account.Value.Permissions);
+                    permissions.AddRange(account.Value.Permissions);
             }
 
-            return Bot.UserHasPermissionSub(UserPermissions.ToArray(), Permission);
+            return permissions.ToArray();
         }
-        public static bool UserHasPermission(string AccountName, string Permission) {
-            return Bot.UserHasPermissionSub(Bot.Accounts[AccountName].Permissions, Permission);
+        /// <summary>Returns the list of permissions that an account has.</summary>
+        /// <param name="accountName">The name of the account to check.</param>
+        /// <returns>An array containing the perimissions the specified account has, or the permissions of * if there is no such account.</returns>
+        public static string[] GetPermissions(string AccountName) {
+            Account account;
+            if (Bot.Accounts.TryGetValue(AccountName, out account)) return account.Permissions.ToArray();
+            // Calling ToArray on an array actually creates a deep copy.
+            if (Bot.Accounts.TryGetValue("*", out account)) return account.Permissions.ToArray();
+            return new string[0];
         }
-        public static bool UserHasPermissionSub(string[] Permissions, string Permission) {
+
+        /// <summary>Determines whether a list of permissions grants a specified condition, checking wildcards.</summary>
+        /// <param name="permissions">The list of permissions to search.</param>
+        /// <param name="permission">The permission to search for.</param>
+        /// <returns>true if the specified permission is in the given list; false otherwise.</returns>
+        public static bool UserHasPermissionSub(IEnumerable<string> permissions, string permission) {
             int score = 0;
 
-            string[] needleFields = Permission.Split(new char[] { '.' });
+            string[] needleFields = permission.Split(new char[] { '.' });
             bool IRCPermission = needleFields[0].Equals("irc", StringComparison.OrdinalIgnoreCase);
 
-            foreach (string permission in Permissions) {
+            foreach (string permission2 in permissions) {
                 string[] hayFields;
-                if (permission == "*" && !IRCPermission) {
+                if (permission2 == "*" && !IRCPermission) {
                     if (score <= 1) score = 1;
                 } else {
                     bool polarity = true;
-                    hayFields = permission.Split(new char[] { '.' });
+                    hayFields = permission2.Split(new char[] { '.' });
                     if (hayFields[0].StartsWith("-")) {
                         polarity = false;
                         hayFields[0] = hayFields[0].Substring(1);
@@ -1537,34 +1642,69 @@ namespace CBot {
 
             return ((score & 1) == 1);
         }
+
+        /// <summary>Returns one of the parameters, selected at random.</summary>
+        /// <param name="args">The list of parameters to choose between.</param>
+        /// <returns>One of the parameters, chosen at random.</returns>
+        /// <exception cref="System.ArgumentNullException">args is null.</exception>
+        /// <exception cref="System.ArgumentException">args is empty.</exception>
         public static T Choose<T>(params T[] args) {
             if (args == null) throw new ArgumentNullException("args");
             if (args.Length == 0) throw new ArgumentException("args must not be empty.");
-            Random RNG = new Random();
-            return args[RNG.Next(args.Length)];
+            return args[Bot.rng.Next(args.Length)];
         }
-        public static T Choose<T>(int Seed, params T[] args) {
+        /// <summary>Returns one of the parameters, selected psuedo-randomly by initialising the random number generator to a specified seed.</summary>
+        /// <param name="seed">The seed to use to select a parameter.</param>
+        /// <param name="args">The list of parameters to choose between.</param>
+        /// <returns>One of the parameters, chosen at random.</returns>
+        /// <exception cref="System.ArgumentNullException">args is null.</exception>
+        /// <exception cref="System.ArgumentException">args is empty.</exception>
+        public static T Choose<T>(int seed, params T[] args) {
             if (args == null) throw new ArgumentNullException("args");
             if (args.Length == 0) throw new ArgumentException("args must not be empty.");
-            Random RNG = new Random(Seed);
-            return args[RNG.Next(args.Length)];
+            Random rng = new Random(seed);
+            return args[rng.Next(args.Length)];
         }
+
+        /// <summary>Immediately shuts down CBot.</summary>
         public static void Die() {
             Environment.Exit(0);
         }
+
+        /// <summary>Parses a string representing a Boolean value.</summary>
+        /// <param name="s">The string to parse.</param>
+        /// <returns>The Boolean value represented by the given string.</returns>
+        /// <exception cref="System.ArgumentException">The string was not recognised as a Boolean value.</exception>
+        /// <remarks>
+        ///   The following values are recognised as true:  'true', 't', 'yes', 'y', 'on'.
+        ///   The following values are recognised as false: 'false', 'f', 'no', 'n', 'off'.
+        ///   The checks are case-insensitive.
+        /// </remarks>
         public static bool ParseBoolean(string s) {
             bool result;
             if (Bot.TryParseBoolean(s, out result)) return result;
             throw new ArgumentException("'" + s + "' is not recognised as true or false.", "value");
         }
+        /// <summary>
+        ///   Parses a string representing a Boolean value, and returns a value indicating whether it succeeded.
+        ///   This overload will not throw an exception if the operation fails.
+        /// </summary>
+        /// <param name="s">The string to parse.</param>
+        /// <param name="result">Returns the Boolean value represented by the given string, if the operation succeeded.</param>
+        /// <returns>true if the string was recognised; false otherwise.</returns>
+        /// <remarks>
+        ///   The following values are recognised as true:  'true', 't', 'yes', 'y', 'on'.
+        ///   The following values are recognised as false: 'false', 'f', 'no', 'n', 'off'.
+        ///   The checks are case-insensitive.
+        /// </remarks>
         public static bool TryParseBoolean(string s, out bool result) {
             if (s.Equals("True", StringComparison.OrdinalIgnoreCase) ||
                 s.Equals("T", StringComparison.OrdinalIgnoreCase) ||
                 s.Equals("Yes", StringComparison.OrdinalIgnoreCase) ||
                 s.Equals("Y", StringComparison.OrdinalIgnoreCase) ||
                 s.Equals("On", StringComparison.OrdinalIgnoreCase)) {
-                    result = true;
-                    return true;
+                result = true;
+                return true;
             }
             if (s.Equals("False", StringComparison.OrdinalIgnoreCase) ||
                 s.Equals("F", StringComparison.OrdinalIgnoreCase) ||
@@ -1577,12 +1717,10 @@ namespace CBot {
             result = default(bool);
             return false;
         }
+
         internal static void LogConnectionError(IRCClient Server, Exception ex) {
-            Exception RealException;
-            if (ex is TargetInvocationException)
-                RealException = ex.InnerException;
-            else
-                RealException = ex;
+            Exception RealException = (ex is TargetInvocationException) ? ex.InnerException : ex;
+
             ConsoleUtils.WriteLine("%cGRAY[%cREDERROR%cGRAY] occurred in the connection to '%cWHITE{0}%cGRAY!", Server.Address);
             ConsoleUtils.WriteLine("%cGRAY[%cDKREDERROR%cGRAY] %cWHITE{0} :%cGRAY {1}%r", RealException.GetType().FullName, RealException.Message);
             string[] array = RealException.StackTrace.Split(new string[] { "\r\n", "\r", "\n" }, StringSplitOptions.None);
@@ -1625,75 +1763,99 @@ namespace CBot {
             ErrorLogWriter.Close();
         }
 
-        public static bool Identify(string Target, string AccountName, string Password, out Identification Identification) {
+        /// <summary>Attempts to log in a user with a given password.</summary>
+        /// <param name="target">The name and location of the user, in the form NetworkName/Nickname.</param>
+        /// <param name="accountName">The name of the account to identify to.</param>
+        /// <param name="password">The given password.</param>
+        /// <param name="identification">If the identification succeeds, returns the identification data. Otherwise, returns null.</param>
+        /// <returns>true if the identification succeeded; false otherwise.</returns>
+        public static bool Identify(string target, string accountName, string password, out Identification identification) {
             string text = null;
-            return Bot.Identify(Target, AccountName, Password, out Identification, out text);
+            return Bot.Identify(target, accountName, password, out identification, out text);
         }
-        public static bool Identify(string Target, string AccountName, string Password, out Identification Identification, out string Message) {
-            Account Account;
-            bool flag = !Bot.Accounts.TryGetValue(AccountName, out Account);
-            checked {
-                bool Identify;
-                if (flag) {
-                    Message = "The account name or password is invalid.";
-                    Identification = null;
-                    Identify = false;
+        /// <summary>Attempts to log in a user with a given password.</summary>
+        /// <param name="target">The name and location of the user, in the form NetworkName/Nickname.</param>
+        /// <param name="accountName">The name of the account to identify to.</param>
+        /// <param name="password">The given password.</param>
+        /// <param name="identification">If the identification succeeds, returns the identification data. Otherwise, returns null.</param>
+        /// <param name="message">Returns a status message to be shown to the user.</param>
+        /// <returns>true if the identification succeeded; false otherwise.</returns>
+        public static bool Identify(string target, string accountName, string password, out Identification identification, out string message) {
+            bool success; Account account;
+
+            if (!Bot.Accounts.TryGetValue(accountName, out account)) {
+                // No such account.
+                message = "The account name or password is invalid.";
+                identification = null;
+                success = false;
+            } else {
+                if (Bot.Identifications.TryGetValue(target, out identification) && identification.AccountName == accountName) {
+                    // The user is already identified.
+                    message = string.Format("You are already identified as \u000312{0}\u000F.", identification.AccountName);
+                    success = false;
                 } else {
-                    flag = Bot.Identifications.TryGetValue(Target, out Identification);
-                    if (flag) {
-                        Message = "You are already identified as \u000312" + Bot.Identifications[Target].AccountName + "\u000F.";
-                        Identify = false;
+                    // Verify the password.
+                    byte[] salt = new byte[32];
+                    byte[] hash2 = new byte[32];
+                    StringBuilder hashBuilder = new StringBuilder();
+
+                    // First, decode the salt and correct hash.
+                    for (int i = 0; i < 32; ++i)
+                        salt[i] = Convert.ToByte(account.Password.Substring(i * 2, 2), 16);
+                    for (int i = 0; i < 32; ++i)
+                        hash2[i] = Convert.ToByte(account.Password.Substring(i * 2 + 64, 2), 16);
+
+                    // Hash the input password.
+                    // TODO: upgrade to bcrypt at some point... maybe.
+                    HashAlgorithm hashAlgorithm = new SHA256Managed();
+                    byte[] hash = hashAlgorithm.ComputeHash(salt.Concat(Encoding.UTF8.GetBytes(password)).ToArray());
+
+                    // Compare the hashes: they should be the same.
+                    if (Bot.SlowEquals(hash2, hash)) {
+                        identification = new Identification { AccountName = accountName, Channels = new List<string>() };
+                        Bot.Identifications.Add(target, identification);
+                        message = string.Format("You have identified successfully as \u000309{0}\u000F.", accountName);
+                        success = true;
                     } else {
-                        byte[] Salt = new byte[32];
-                        byte[] OHash = new byte[32];
-                        StringBuilder sbHash = new StringBuilder();
-                        int i = 0;
-                        int arg_B6_0;
-                        int num;
-                        do {
-                            Salt[i] = Convert.ToByte(Account.Password.Substring(i * 2, 2), 16);
-                            ++i;
-                            arg_B6_0 = i;
-                            num = 31;
-                        }
-                        while (arg_B6_0 <= num);
-                        int j = 0;
-                        int arg_E8_0;
-                        do {
-                            OHash[j] = Convert.ToByte(Account.Password.Substring(j * 2 + 64, 2), 16);
-                            ++j;
-                            arg_E8_0 = j;
-                            num = 31;
-                        }
-                        while (arg_E8_0 <= num);
-                        SHA256Managed SHA256M = new SHA256Managed();
-                        byte[] Hash = SHA256M.ComputeHash(Salt.Concat(Encoding.UTF8.GetBytes(Password)).ToArray<byte>());
-                        flag = Bot.SlowEquals(OHash, Hash);
-                        if (flag) {
-                            Identification = new Identification {
-                                AccountName = AccountName,
-                                Channels = new List<string>()
-                            };
-                            Bot.Identifications.Add(Target, Identification);
-                            Message = "You have identified successfully as \u000309" + AccountName + "\u000F.";
-                            Identify = true;
-                        } else {
-                            Message = "The account name or password is invalid.";
-                            Identification = null;
-                            Identify = false;
-                        }
+                        message = string.Format("The account name or password is invalid.", accountName);
+                        identification = null;
+                        success = false;
                     }
                 }
-                return Identify;
             }
+            return success;
         }
-        public static bool SlowEquals(byte[] Data1, byte[] Data2) {
-            int diff = Data1.Length ^ Data2.Length;  // The XOr operation returns 0 if, and only if, the operands are identical.
-            for (int i = 0; i < 32; ++i)
-                diff |= (int) (Data1[i] ^ Data2[i]);
+
+        /// <summary>Compares two byte arrays in constant time.</summary>
+        /// <param name="v1">The first array to compare.</param>
+        /// <param name="v2">The second array to compare.</param>
+        /// <returns>true if the two arrays have the same length and content; false otherwise.</returns>
+        /// <remarks>
+        ///   The time-constant comparison is used for security purposes.
+        ///   The term refers to the property that the time taken by this function is unrelated to the content of the arrays,
+        ///     but is related to their lengths (specifically, the smaller of their lengths).
+        ///   In theory, variations in the time taken to compare the arrays could be used to gain secret information
+        ///   about a user's credentials. In practice, such an attack would be difficult to perform over IRC, but
+        ///   we use time-constant comparisons anyway.
+        ///   For more information, see https://crackstation.net/hashing-security.htm
+        ///     'Why does the hashing code on this page compare the hashes in "length-constant" time?'
+        /// </remarks>
+        public static bool SlowEquals(byte[] v1, byte[] v2) {
+            int diff = v1.Length ^ v2.Length;  // The XOr operation returns 0 if, and only if, the operands are identical.
+            for (int i = 0; i < v1.Length && i < v2.Length; ++i)
+                diff |= (int) (v1[i] ^ v2[i]);
             return (diff == 0);
         }
 
+        /// <summary>Sends a message to a channel or user on IRC using an appropriate command.</summary>
+        /// <param name="connection">The IRC connection to send to.</param>
+        /// <param name="channel">The name of the channel or user to send to.</param>
+        /// <param name="message">The message to send.</param>
+        /// <param name="options">A SayOptions value specifying how to send the message.</param>
+        /// <remarks>
+        ///   By default, PRIVMSG is used for channels, and NOTICE is used for private messages. The options parameter
+        ///   can override this behaviour.
+        /// </remarks>
         public static void Say(this IRCClient connection, string channel, string message, SayOptions options) {
             if (message == null || message == "") return;
 
@@ -1717,17 +1879,66 @@ namespace CBot {
 
             connection.Send("{0} {1} :{2}", notice ? "NOTICE" : "PRIVMSG", channel, message);
         }
+        /// <summary>Sends a message to a channel or user on IRC using an appropriate command.</summary>
+        /// <param name="connection">The IRC connection to send to.</param>
+        /// <param name="channel">The name of the channel or user to send to.</param>
+        /// <param name="message">The message to send.</param>
+        /// <remarks>
+        ///   By default, PRIVMSG is used for channels, and NOTICE is used for private messages. The options parameter
+        ///   can override this behaviour.
+        /// </remarks>
         public static void Say(this IRCClient connection, string channel, string message) {
             Bot.Say(connection, channel, message, 0);
         }
+        /// <summary>Sends a message to a channel or user on IRC using an appropriate command.</summary>
+        /// <param name="connection">The IRC connection to send to.</param>
+        /// <param name="channel">The name of the channel or user to send to.</param>
+        /// <param name="format">The format of the message to send, as per string.Format.</param>
+        /// <param name="args">The parameters to include in the message text./param>
+        /// <remarks>
+        ///   By default, PRIVMSG is used for channels, and NOTICE is used for private messages. The options parameter
+        ///   can override this behaviour.
+        /// </remarks>
         public static void Say(this IRCClient connection, string channel, string format, params object[] args) {
             Bot.Say(connection, channel, string.Format(format, args), 0);
         }
+        /// <summary>Sends a message to a channel or user on IRC using an appropriate command.</summary>
+        /// <param name="connection">The IRC connection to send to.</param>
+        /// <param name="channel">The name of the channel or user to send to.</param>
+        /// <param name="format">The format of the message to send, as per string.Format.</param>
+        /// <param name="options">A SayOptions value specifying how to send the message.</param>
+        /// <param name="args">The parameters to include in the message text./param>
+        /// <remarks>
+        ///   By default, PRIVMSG is used for channels, and NOTICE is used for private messages. The options parameter
+        ///   can override this behaviour.
+        /// </remarks>
         public static void Say(this IRCClient connection, string channel, string format, SayOptions options, params object[] args) {
             Bot.Say(connection, channel, string.Format(format, args), options);
         }
 
-        public static bool EventCheck(IRCClient client, string channel, string procedureName, params object[] parameters) {
+        /// <summary>Replaces commands prefixed with a ! in the given text with the correct command prefix.</summary>
+        /// <param name="text">The text to edit.</param>
+        /// <param name="client">The IRC connection on which the channel to use a command prefix for is.</param>
+        /// <param name="channel">The channel to use a command prefix for.</param>
+        /// <returns>A copy of text with commands prefixed with a ! replaced with the correct command prefix.</returns>
+        /// <remarks>This method will also correctly replace commands prefixed with an IRC formatting code followed by a !.</remarks>
+        public static string ReplaceCommands(this string text, IRCClient client, string channel) {
+            return Bot.ReplaceCommands(text, client, channel, "!");
+        }
+        /// <summary>Replaces commands in the given text with the correct command prefix.</summary>
+        /// <param name="text">The text to edit.</param>
+        /// <param name="client">The IRC connection on which the channel to use a command prefix for is.</param>
+        /// <param name="channel">The channel to use a command prefix for.</param>
+        /// <param name="prefix">The command prefix to replace in the text.</param>
+        /// <returns>A copy of text with commands prefixed with the given prefix replaced with the correct command prefix.</returns>
+        /// <remarks>This method will also correctly replace commands prefixed with an IRC formatting code followed by the given prefix.</remarks>
+        public static string ReplaceCommands(this string text, IRCClient client, string channel, string prefix) {
+            string replace = Bot.GetCommandPrefixes(client, channel)[0].ToString();
+            if (replace == "$") replace = "$$";
+            return Regex.Replace(text, @"(?<=(?:^|[\s\x00-\x20])(?:\x03(\d{0,2}(,\d{1,2})?)?|[\x00-\x1F])?)" + Regex.Escape(prefix) + @"(?=(?:\x03(\d{0,2}(,\d{1,2})?)?|[\x00-\x1F])?\w)", replace);
+        }
+
+        private static bool EventCheck(IRCClient client, string channel, string procedureName, params object[] parameters) {
             foreach (KeyValuePair<string, PluginEntry> i in Bot.Plugins) {
                 if (channel == null || !client.IsChannel(channel) || i.Value.Obj.IsActiveChannel(client, channel)) {
                     MethodInfo method = i.Value.Obj.GetType().GetMethod(procedureName);
@@ -1741,15 +1952,6 @@ namespace CBot {
                 }
             }
             return false;
-        }
-
-        public static string ReplaceCommands(this string text, IRCClient client, string channel) {
-            return Bot.ReplaceCommands(text, client, channel, '!');
-        }
-        public static string ReplaceCommands(this string text, IRCClient client, string channel, char toReplace) {
-            string replace = Bot.getCommandPrefixes(client, channel)[0].ToString();
-            if (replace == "$") replace = "$$";
-            return Regex.Replace(text, @"(?<=(?:^|[\s\x00-\x20])(?:\x03(\d{0,2}(,\d{1,2})?)?|[\x00-\x1F])?)" + Regex.Escape(toReplace.ToString()) + @"(?=(?:\x03(\d{0,2}(,\d{1,2})?)?|[\x00-\x1F])?\w)", replace);
         }
 
         private static void OnAwayCancelled(object sender, AwayEventArgs e) {
@@ -1878,17 +2080,8 @@ namespace CBot {
         private static void OnChannelJoinSelf(object sender, ChannelJoinEventArgs e) {
             Bot.EventCheck((IRCClient) sender, e.Channel, "OnChannelJoinSelf", new object[] { sender, e });
         }
-        private static void OnChannelJoinDeniedBanned(object sender, ChannelDeniedEventArgs e) {
-            Bot.EventCheck((IRCClient) sender, e.Channel, "OnChannelJoinDeniedBanned", new object[] { sender, e });
-        }
-        private static void OnChannelJoinDeniedFull(object sender, ChannelDeniedEventArgs e) {
-            Bot.EventCheck((IRCClient) sender, e.Channel, "OnChannelJoinDeniedFull", new object[] { sender, e });
-        }
-        private static void OnChannelJoinDeniedInvite(object sender, ChannelDeniedEventArgs e) {
-            Bot.EventCheck((IRCClient) sender, e.Channel, "OnChannelJoinDeniedInvite", new object[] { sender, e });
-        }
-        private static void OnChannelJoinDeniedKey(object sender, ChannelDeniedEventArgs e) {
-            Bot.EventCheck((IRCClient) sender, e.Channel, "OnChannelJoinDeniedKey", new object[] { sender, e });
+        private static void OnChannelJoinDenied(object sender, ChannelDeniedEventArgs e) {
+            Bot.EventCheck((IRCClient) sender, e.Channel, "OnChannelJoinDenied", new object[] { sender, e });
         }
         private static void OnChannelKick(object sender, ChannelKickEventArgs e) {
             ChannelPartEventArgs e2 = new ChannelPartEventArgs(e.Sender, e.Channel, "Kicked out by " + e.Sender.Nickname + ": " + e.Reason);
@@ -2141,29 +2334,8 @@ namespace CBot {
                     Bot.OnChannelLeaveSelf(sender, new ChannelPartEventArgs(e.Sender, channel.Name, (e.Message.StartsWith("Quit:") ? "Quit: " : "Disconnected: ") + e.Message));
             }
         }
-        private static void OnRawLineReceived(object sender, RawEventArgs e) {
-            Bot.EventCheck((IRCClient) sender, null, "OnRawLineReceived", new object[] { sender, e });
-        }
-        private static void OnRawLineSent(object sender, RawEventArgs e) {
-            Bot.EventCheck((IRCClient) sender, null, "OnRawLineSent", new object[] { sender, e });
-        }
-        private static void OnUserModesGet(object sender, UserModesEventArgs e) {
-            Bot.EventCheck((IRCClient) sender, null, "OnUserModesGet", new object[] { sender, e });
-        }
-        private static void OnUserModesSet(object sender, UserModesEventArgs e) {
-            Bot.EventCheck((IRCClient) sender, null, "OnUserModesSet", new object[] { sender, e });
-        }
-        private static void OnWallops(object sender, PrivateMessageEventArgs e) {
-            Bot.EventCheck((IRCClient) sender, e.Sender.Nickname, "OnWallops", new object[] { sender, e });
-        }
-        private static void OnServerNotice(object sender, PrivateMessageEventArgs e) {
-            Bot.EventCheck((IRCClient) sender, null, "OnServerNotice", new object[] { sender, e });
-        }
-        private static void OnServerError(object sender, ServerErrorEventArgs e) {
-            Bot.EventCheck((IRCClient) sender, null, "OnServerError", new object[] { sender, e });
-        }
-        private static void OnServerMessage(object sender, ServerMessageEventArgs e) {
-            if (Bot.EventCheck((IRCClient) sender, null, "OnServerMessage", new object[] { sender, e }))
+        private static void OnRawLineReceived(object sender, RawParsedEventArgs e) {
+            if (Bot.EventCheck((IRCClient) sender, null, "OnRawLineReceived", new object[] { sender, e }))
                 return;
 
             IRCClient client = (IRCClient) sender;
@@ -2211,8 +2383,23 @@ namespace CBot {
                 }
             }
         }
-        private static void OnServerMessageUnhandled(object sender, ServerMessageEventArgs e) {
-            Bot.EventCheck((IRCClient) sender, null, "OnServerMessageUnhandled", new object[] { sender, e });
+        private static void OnRawLineSent(object sender, RawEventArgs e) {
+            Bot.EventCheck((IRCClient) sender, null, "OnRawLineSent", new object[] { sender, e });
+        }
+        private static void OnUserModesGet(object sender, UserModesEventArgs e) {
+            Bot.EventCheck((IRCClient) sender, null, "OnUserModesGet", new object[] { sender, e });
+        }
+        private static void OnUserModesSet(object sender, UserModesEventArgs e) {
+            Bot.EventCheck((IRCClient) sender, null, "OnUserModesSet", new object[] { sender, e });
+        }
+        private static void OnWallops(object sender, PrivateMessageEventArgs e) {
+            Bot.EventCheck((IRCClient) sender, e.Sender.Nickname, "OnWallops", new object[] { sender, e });
+        }
+        private static void OnServerNotice(object sender, PrivateMessageEventArgs e) {
+            Bot.EventCheck((IRCClient) sender, null, "OnServerNotice", new object[] { sender, e });
+        }
+        private static void OnServerError(object sender, ServerErrorEventArgs e) {
+            Bot.EventCheck((IRCClient) sender, null, "OnServerError", new object[] { sender, e });
         }
         private static void OnSSLHandshakeComplete(object sender, EventArgs e) {
             Bot.EventCheck((IRCClient) sender, null, "OnSSLHandshakeComplete", new object[] { sender, e });
@@ -2279,8 +2466,11 @@ namespace CBot {
             ClientEntry client = (ClientEntry) _client;
             Thread.Sleep(3000);
             if (client.Client.IsConnected) {
-                foreach (string channel in client.AutoJoin)
-                    client.Client.Send("JOIN :{0}", channel);
+                foreach (AutoJoinChannel channel in client.AutoJoin)
+                    if (channel.Key == null)
+                        client.Client.Send("JOIN {0}", channel.Channel);
+                    else
+                        client.Client.Send("JOIN {0} {1}", channel.Key);
             }
         }
     }

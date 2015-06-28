@@ -44,15 +44,20 @@
   </ItemGroup>
   <ItemGroup>
     <Compile Include="CBot\Attributes.cs" />
+    <Compile Include="CBot\AutoJoinChannel.cs" />
     <Compile Include="CBot\ClientEntry.cs" />
     <Compile Include="CBot\CommandScope.cs" />
     <Compile Include="CBot\ConsoleConnection.cs" />
     <Compile Include="CBot\EventArgs.cs" />
+    <Compile Include="CBot\InvalidPluginException.cs" />
     <Compile Include="CBot\NickServSettings.cs" />
+    <Compile Include="CBot\SayOptions.cs" />
     <Compile Include="IRC\Channel.cs" />
     <Compile Include="IRC\ChannelCollection.cs" />
+    <Compile Include="IRC\ChannelModes.cs" />
     <Compile Include="IRC\ChannelUser.cs" />
     <Compile Include="IRC\EventArgs.cs" />
+    <Compile Include="IRC\Replies.cs" />
     <Compile Include="IRC\StringComparer.cs" />
     <Compile Include="IRC\User.cs" />
     <Compile Include="IRC\ChannelUserCollection.cs" />

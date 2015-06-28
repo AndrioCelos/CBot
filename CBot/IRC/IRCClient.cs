@@ -14,45 +14,6 @@ using System.Threading;
 using System.Timers;
 
 namespace IRC {
-    /// <summary>
-    /// Stores the channel modes available on an IRC server, and the types they belong to.
-    /// See http://www.irc.org/tech_docs/draft-brocklesby-irc-isupport-03.txt for more information.
-    /// </summary>
-    public struct ChannelModes {
-        /// <summary>The type A modes available. These are also known as list modes.</summary>
-        public char[] TypeA { get; private set; }
-        /// <summary>The type B modes available. These always take a parameter, but do not include nickname status modes such as o.</summary>
-        public char[] TypeB { get; private set; }
-        /// <summary>The type C modes available. These always take a parameter except when unset.</summary>
-        public char[] TypeC { get; private set; }
-        /// <summary>The type D modes available. These never take a parameter.</summary>
-        public char[] TypeD { get; private set; }
-
-        public ChannelModes(char[] typeA, char[] typeB, char[] typeC, char[] typeD) : this() {
-            this.TypeA = typeA;
-            this.TypeB = typeB;
-            this.TypeC = typeC;
-            this.TypeD = typeD;
-        }
-
-        /// <summary>Contains a ChannelModes structure representing the standard modes defined by RFC 2812. These modes are beI,k,l,aimnqpsrt.</summary>
-        public readonly static ChannelModes RFC2812 = new ChannelModes(new char[] { 'b', 'e', 'I' },
-                                                                       new char[] { 'k' },
-                                                                       new char[] { 'l' },
-                                                                       new char[] { 'a', 'i', 'm', 'n', 'q', 'p', 's', 'r', 't' });
-
-        /// <summary>Returns the type of a given mode character, as 'A', 'B', 'C', 'D' or the null character if the given mode is not listed.</summary>
-        /// <param name="mode">The mode character to search for.</param>
-        /// <returns>'A', 'B', 'C', 'D' if the given mode belongs to the corresponding category, or the null character ('\0') if the given mode is not listed.</returns>
-        public char ModeType(char mode) {
-            if (this.TypeA.Contains(mode)) return 'A';
-            if (this.TypeD.Contains(mode)) return 'D';
-            if (this.TypeC.Contains(mode)) return 'C';
-            if (this.TypeB.Contains(mode)) return 'B';
-            return '\0';
-        }
-    }
-
     /// <summary>Represents the status a user can have on a channel. A user can have zero, one or more of these.</summary>
     /// <remarks>The flags are given values such that the higher bits represent higher status. Therefore, any user that can set modes on a channel will have access >= HalfOp, discounting oper powers.</remarks>
     [Flags]
@@ -77,6 +38,25 @@ namespace IRC {
         Owner = 32
     }
 
+    /// <summary>
+    /// Specifies the reason a join command failed.
+    /// </summary>
+    public enum ChannelJoinDeniedReason {
+        /// <summary>The join failed because the channel has reached its population limit.</summary>
+        Limit = 1,
+        /// <summary>The join failed because the channel is invite only.</summary>
+        InviteOnly,
+        /// <summary>The join failed because we are banned.</summary>
+        Banned,
+        /// <summary>The join failed because we did not give the correct key.</summary>
+        KeyFailure,
+        /// <summary>The join failed for some other reason.</summary>
+        Other = -1
+    }
+
+    /// <summary>
+    /// Manages a connectionto an IRC network.
+    /// </summary>
     public class IRCClient {
         #region Events
         public event EventHandler<AwayEventArgs> AwayCancelled;
@@ -84,7 +64,6 @@ namespace IRC {
         public event EventHandler<ChannelModeListEventArgs> BanList;
         public event EventHandler<ChannelModeListEndEventArgs> BanListEnd;
         public event EventHandler<ChannelMessageEventArgs> ChannelAction;
-        public event EventHandler<ChannelMessageEventArgs> ChannelActionHighlight;
         public event EventHandler<ChannelNicknameModeEventArgs> ChannelAdmin;
         public event EventHandler<ChannelNicknameModeEventArgs> ChannelAdminSelf;
         public event EventHandler<ChannelListModeEventArgs> ChannelBan;
@@ -113,15 +92,11 @@ namespace IRC {
         public event EventHandler<ChannelListModeEventArgs> ChannelInviteExemptSelf;
         public event EventHandler<ChannelJoinEventArgs> ChannelJoin;
         public event EventHandler<ChannelJoinEventArgs> ChannelJoinSelf;
-        public event EventHandler<ChannelDeniedEventArgs> ChannelJoinDeniedBanned;
-        public event EventHandler<ChannelDeniedEventArgs> ChannelJoinDeniedFull;
-        public event EventHandler<ChannelDeniedEventArgs> ChannelJoinDeniedInvite;
-        public event EventHandler<ChannelDeniedEventArgs> ChannelJoinDeniedKey;
+        public event EventHandler<ChannelDeniedEventArgs> ChannelJoinDenied;
         public event EventHandler<ChannelKickEventArgs> ChannelKick;
         public event EventHandler<ChannelKickEventArgs> ChannelKickSelf;
         public event EventHandler<ChannelMessageEventArgs> ChannelMessage;
         public event EventHandler<ChannelDeniedEventArgs> ChannelMessageDenied;
-        public event EventHandler<ChannelMessageEventArgs> ChannelMessageHighlight;
         public event EventHandler<ChannelModeEventArgs> ChannelModeSet;
         public event EventHandler<ChannelModeEventArgs> ChannelModeSetSelf;
         public event EventHandler<ChannelModeEventArgs> ChannelModeUnhandled;
@@ -183,14 +158,17 @@ namespace IRC {
         public event EventHandler<PrivateMessageEventArgs> PrivateNotice;
         public event EventHandler<QuitEventArgs> Quit;
         public event EventHandler<QuitEventArgs> QuitSelf;
-        public event EventHandler<RawEventArgs> RawLineReceived;
+        public event EventHandler<RawParsedEventArgs> RawLineReceived;
+        public event EventHandler<RawParsedEventArgs> RawLineUnhandled;
         public event EventHandler<RawEventArgs> RawLineSent;
         public event EventHandler<UserModesEventArgs> UserModesGet;
         public event EventHandler<UserModesEventArgs> UserModesSet;
         public event EventHandler<PrivateMessageEventArgs> Wallops;
         public event EventHandler<PrivateMessageEventArgs> ServerNotice;
         public event EventHandler<ServerErrorEventArgs> ServerError;
+        [Obsolete("This event is being discontinued in favour of OnRawLineReceived.")]
         public event EventHandler<ServerMessageEventArgs> ServerMessage;
+        [Obsolete("This event is being discontinued.")]
         public event EventHandler<ServerMessageEventArgs> ServerMessageUnhandled;
         public event EventHandler SSLHandshakeComplete;
         public event EventHandler TimeOut;
@@ -228,10 +206,6 @@ namespace IRC {
         }
         protected internal void OnChannelAction(ChannelMessageEventArgs e) {
             EventHandler<ChannelMessageEventArgs> _event = this.ChannelAction;
-            if (_event != null) _event(this, e);
-        }
-        protected internal void OnChannelActionHighlight(ChannelMessageEventArgs e) {
-            EventHandler<ChannelMessageEventArgs> _event = this.ChannelActionHighlight;
             if (_event != null) _event(this, e);
         }
         protected internal void OnChannelAdmin(ChannelNicknameModeEventArgs e) {
@@ -346,20 +320,8 @@ namespace IRC {
             EventHandler<ChannelJoinEventArgs> _event = this.ChannelJoinSelf;
             if (_event != null) _event(this, e);
         }
-        protected internal void OnChannelJoinDeniedBanned(ChannelDeniedEventArgs e) {
-            EventHandler<ChannelDeniedEventArgs> _event = this.ChannelJoinDeniedBanned;
-            if (_event != null) _event(this, e);
-        }
-        protected internal void OnChannelJoinDeniedFull(ChannelDeniedEventArgs e) {
-            EventHandler<ChannelDeniedEventArgs> _event = this.ChannelJoinDeniedFull;
-            if (_event != null) _event(this, e);
-        }
-        protected internal void OnChannelJoinDeniedInvite(ChannelDeniedEventArgs e) {
-            EventHandler<ChannelDeniedEventArgs> _event = this.ChannelJoinDeniedInvite;
-            if (_event != null) _event(this, e);
-        }
-        protected internal void OnChannelJoinDeniedKey(ChannelDeniedEventArgs e) {
-            EventHandler<ChannelDeniedEventArgs> _event = this.ChannelJoinDeniedKey;
+        protected internal void OnChannelJoinDenied(ChannelDeniedEventArgs e) {
+            EventHandler<ChannelDeniedEventArgs> _event = this.ChannelJoinDenied;
             if (_event != null) _event(this, e);
         }
         protected internal void OnChannelKick(ChannelKickEventArgs e) {
@@ -384,10 +346,6 @@ namespace IRC {
         }
         protected internal void OnChannelMessageDenied(ChannelDeniedEventArgs e) {
             EventHandler<ChannelDeniedEventArgs> _event = this.ChannelMessageDenied;
-            if (_event != null) _event(this, e);
-        }
-        protected internal void OnChannelMessageHighlight(ChannelMessageEventArgs e) {
-            EventHandler<ChannelMessageEventArgs> _event = this.ChannelMessageHighlight;
             if (_event != null) _event(this, e);
         }
         protected internal void OnChannelModeSet(ChannelModeEventArgs e) {
@@ -626,8 +584,12 @@ namespace IRC {
             EventHandler<QuitEventArgs> _event = this.QuitSelf;
             if (_event != null) _event(this, e);
         }
-        protected internal void OnRawLineReceived(RawEventArgs e) {
-            EventHandler<RawEventArgs> _event = this.RawLineReceived;
+        protected internal void OnRawLineReceived(RawParsedEventArgs e) {
+            EventHandler<RawParsedEventArgs> _event = this.RawLineReceived;
+            if (_event != null) _event(this, e);
+        }
+        protected internal void OnRawLineUnhandled(RawParsedEventArgs e) {
+            EventHandler<RawParsedEventArgs> _event = this.RawLineUnhandled;
             if (_event != null) _event(this, e);
         }
         protected internal void OnRawLineSent(RawEventArgs e) {
@@ -725,10 +687,15 @@ namespace IRC {
         #endregion
 
         // Server information
+        /// <summary>The IP address to connect to.</summary>
         public IPAddress IP;
+        /// <summary>The port number to connect on.</summary>
         public int Port;
+        /// <summary>The address to connect to.</summary>
         public string Address { get; set; }
+        /// <summary>The password to use when logging in, or null if no password is needed.</summary>
         public string Password { get; set; }
+        /// <summary>The server's self-proclaimed name or address.</summary>
         public string ServerName { get; protected set; }
 
         /// <summary>A list of all user modes the server supports.</summary>
@@ -741,7 +708,9 @@ namespace IRC {
         /// <summary>A User object representing the local user.</summary>
         public User Me { get; protected internal set; }
 
+        /// <summary>The username to use with SASL authentication.</summary>
         public string SASLUsername;
+        /// <summary>The password to use with SASL authentication.</summary>
         public string SASLPassword;
 
         // 005 information
@@ -798,17 +767,29 @@ namespace IRC {
         /// <summary>A StringComparer that emulates the comparison the server uses, as specified in the RPL_ISUPPORT message.</summary>
         public StringComparer CaseMappingComparer { get; protected set; }
 
+        /// <summary>True if we are marked as away, false otherwise.</summary>
         public bool Away { get; protected set; }
+        /// <summary>Our away message, if it is known; null otherwise..</summary>
         public string AwayReason { get; protected set; }
+        /// <summary>The time we were marked as away.</summary>
         public DateTime AwaySince { get; protected set; }
+        /// <summary>The time we last sent a PRIVMSG.</summary>
         public DateTime LastSpoke { get; protected set; }
+        /// <summary>The list of nicknames to use, in order of preference.</summary>
         public string[] Nicknames;
+        /// <summary>The identd username to use.</summary>
         public string Username;
+        /// <summary>The full name to use.</summary>
         public string FullName;
+        /// <summary>Our current user modes.</summary>
         public string UserModes;
-        public readonly IRC.ChannelCollection Channels;
+        /// <summary>The list of channels we are on.</summary>
+        public readonly ChannelCollection Channels;
+        /// <summary>True if we have successfully logged in; false otherwise.</summary>
         public bool IsRegistered;
+        /// <summary>True if we are connected; false otherwise.</summary>
         public bool IsConnected;
+        /// <summary>True if we quit the current session by sending a QUIT command; false otherwise.</summary>
         public bool VoluntarilyQuit;
 
         private TcpClient tcpClient;
@@ -824,7 +805,10 @@ namespace IRC {
         private System.Timers.Timer PingTimer;
         private object Lock;
 
+        /// <summary>Creates a new IRC client with the default ping timeout of 60 seconds.</summary>
         public IRCClient() : this(60) { }
+        /// <summary>Creates a new IRC client with the specified ping timeout.</summary>
+        /// <param name="PingTimeout">The time to wait before disconnecting if we hear nothing from the server after a ping, in seconds.</param>
         public IRCClient(int PingTimeout) {
             this.Extensions = new Dictionary<string, string>();
             this.CaseMapping = "rfc1459";
@@ -856,6 +840,8 @@ namespace IRC {
                 this.PingTimer = new System.Timers.Timer((double) PingTimeout * 1000.0);
         }
 
+        /// <summary>Returns our nickname, or sets the nickname to use in the next session.</summary>
+        /// <exception cref="System.InvalidOperationException">An attempt was made to set this property, and the client is connected.</exception>
         public string Nickname {
             get { return this._Nickname; }
             set {
@@ -864,7 +850,9 @@ namespace IRC {
                 this._Nickname = value;                    
             }
         }
-        
+
+        /// <summary>Returns or sets a value specifying whether the connection is or is to be made via SSL.</summary>
+        /// <exception cref="System.InvalidOperationException">An attempt was made to set this property, and the client is connected.</exception>
         public bool SSL {
             get { return this._SSL; }
             set {
@@ -874,6 +862,7 @@ namespace IRC {
             }
         }
 
+        /// <summary>Returns or sets the ping timeout, in seconds.</summary>
         public int PingTimeout {
             get { return this._PingTimeout; }
             set {
@@ -901,7 +890,8 @@ namespace IRC {
                 }
             }
         }
-
+        
+        /// <summary>Connects and logs in to an IRC network.</summary>
         public virtual void Connect() {
             this.Me = new User(this, this.Nickname, "*", "*");
 
@@ -939,6 +929,7 @@ namespace IRC {
             return this.AllowInvalidCertificate;
         }
 
+        /// <summary>Ungracefully closes the connection to the IRC network.</summary>
         public virtual void Disconnect() {
             if (this.SSL) this.SSLStream.Close();
             this.tcpClient.Close();
@@ -1017,6 +1008,13 @@ namespace IRC {
             }
         }
 
+        /// <summary>Parses an IRC message and retuns the results in the out parameters.</summary>
+        /// <param name="data">The message to parse.</param>
+        /// <param name="prefix">Returns the prefix, or null if there is none.</param>
+        /// <param name="command">Returns the command or reply.</param>
+        /// <param name="parameters">Returns the parameters, without a leading ':' for the final one.</param>
+        /// <param name="trail">Returns the paramter with a leading ':', or null if there is one.</param>
+        /// <param name="includeTrail">If set to false, the trail will not be included in the parameters list.</param>
         public static void ParseIRCLine(string data, out string prefix, out string command, out string[] parameters, out string trail, bool includeTrail = true) {
             int p = 0; int ps = 0;
 
@@ -1065,23 +1063,36 @@ namespace IRC {
             }
         }
 
+        /// <summary>The UNIX epoch, used for timestamps on IRC, which is midnight UTC of 1 January 1970.</summary>
+        public static readonly DateTime Epoch = new DateTime(1970, 1, 1, 0, 0, 0, DateTimeKind.Utc);
+        /// <summary>Decodes a UNIX timestamp into a DateTime value.</summary>
+        /// <param name="unixTime">The UNIX timestamp to decode.</param>
+        /// <returns>The DateTime represented by the specified UNIX timestamp.</returns>
         public static DateTime DecodeUnixTime(double unixTime) {
-            return new DateTime(1970, 1, 1, 0, 0, 0, DateTimeKind.Utc).AddSeconds(unixTime);
+            return Epoch.AddSeconds(unixTime);
+        }
+        /// <summary>Encodes a DateTime value into a UNIX timestamp.</summary>
+        /// <param name="time">The DateTime value to encode.</param>
+        /// <returns>The UNIX timestamp representation of the specified DateTime value.</returns>
+        public static double EncodeUnixTime(DateTime time) {
+            return (time.ToUniversalTime() - Epoch).TotalSeconds;
         }
 
+        /// <summary>Handles or simulates a message received from the IRC server.</summary>
+        /// <param name="data">The message received or to simulate.</param>
         public void ReceivedLine(string data) {
             lock (this.Lock) {
-                this.OnRawLineReceived(new RawEventArgs(data));
-
                 string prefix;
                 string command;
                 string[] parameters;
                 string trail = null;
                 IRCClient.ParseIRCLine(data, out prefix, out command, out parameters, out trail, true);
+                this.OnRawLineReceived(new RawParsedEventArgs(data, prefix, command, parameters));
 
                 DateTime time;
                 User user;
 
+                // TODO: use a hashtable of delegates instead of a switch block.
                 switch (command.ToUpper()) {
                     case "001":
                         this.ServerName = prefix;
@@ -1095,6 +1106,7 @@ namespace IRC {
                         break;
                     case "005":
                         if (!(parameters.Length != 0 && parameters[0].StartsWith("Try server"))) {
+                            // RPL_ISUPPORT
                             for (int i = 1; i < (trail == null ? parameters.Length : parameters.Length - 1); ++i) {
                                 string[] fields; string key; string value;
                                 fields = parameters[i].Split(new char[] { '=' }, 2);
@@ -1103,7 +1115,7 @@ namespace IRC {
                                     value = fields[1];
                                 } else {
                                     key = fields[0];
-                                    value = null;
+                                    value = "";
                                 }
 
                                 if (key.StartsWith("-")) {
@@ -1141,11 +1153,11 @@ namespace IRC {
                                         case "CHANTYPES": this.ChannelTypes = value.ToCharArray(); break;
                                         case "EXCEPTS":
                                             this.SupportsBanExceptions = true;
-                                            this.BanExceptionsMode = value == null ? 'e' : value[0];
+                                            this.BanExceptionsMode = value == "" ? 'e' : value[0];
                                             break;
                                         case "INVEX":
                                             this.SupportsInviteExceptions = true;
-                                            this.InviteExceptionsMode = value == null ? 'I' : value[0];
+                                            this.InviteExceptionsMode = value == "" ? 'I' : value[0];
                                             break;
                                         case "KICKLEN": this.KickMessageLength = int.Parse(value); break;
                                         case "MAXLIST":
@@ -1159,7 +1171,7 @@ namespace IRC {
                                         case "NICKLEN": this.NicknameLength = int.Parse(value); break;
                                         case "PREFIX":
                                             this.StatusPrefix = new Dictionary<char, char>();
-                                            if (value != null) {
+                                            if (value != "") {
                                                 Match m = Regex.Match(value, @"^\(([a-zA-Z]*)\)(.*)$");
                                                 for (int j = 0; j < m.Groups[1].Value.Length; ++j)
                                                     this.StatusPrefix.Add(m.Groups[1].Value[j], m.Groups[2].Value[j]);
@@ -1370,7 +1382,7 @@ namespace IRC {
                         this.OnWhoWasEnd(new WhoisEndEventArgs(parameters[1], parameters[2]));
                         break;
                     case "404":  // Cannot send to channel  (Any similarity with HTTP 404 is (probably) purely coincidential. (^_^))
-                        this.OnChannelMessageDenied(new ChannelDeniedEventArgs(parameters[1], parameters[2]));
+                        this.OnChannelMessageDenied(new ChannelDeniedEventArgs(parameters[1], 0, parameters[2]));
                         this.OnServerMessage(new ServerMessageEventArgs(prefix, command, parameters, string.Join(" ", parameters)));
                         break;
                     case "432":  // Erroneous nickname
@@ -1390,6 +1402,18 @@ namespace IRC {
                         break;
                     case "436":  // Nickname collision KILL
                         this.OnKilled(new PrivateMessageEventArgs(this.Users.Get(prefix, false), this.Nickname, parameters[2]));
+                        break;
+                    case "471":  // Cannot join a channel because it has reached its limit
+                        OnChannelJoinDenied(new ChannelDeniedEventArgs(parameters[0], ChannelJoinDeniedReason.Limit, parameters[1]));
+                        break;
+                    case "473":  // Cannot join a channel because it's invite-only
+                        OnChannelJoinDenied(new ChannelDeniedEventArgs(parameters[0], ChannelJoinDeniedReason.InviteOnly, parameters[1]));
+                        break;
+                    case "474":  // Cannot join a channel because we're banned
+                        OnChannelJoinDenied(new ChannelDeniedEventArgs(parameters[0], ChannelJoinDeniedReason.Banned, parameters[1]));
+                        break;
+                    case "475":  // Cannot join a channel because of a key failure
+                        OnChannelJoinDenied(new ChannelDeniedEventArgs(parameters[0], ChannelJoinDeniedReason.KeyFailure, parameters[1]));
                         break;
                     case "598":  // Watched user went away
                         if (this.SupportsWatch) {
@@ -1699,11 +1723,15 @@ namespace IRC {
                     default:
                         this.OnServerMessage(new ServerMessageEventArgs(prefix, command, parameters, string.Join(" ", parameters)));
                         this.OnServerMessageUnhandled(new ServerMessageEventArgs(prefix, command, parameters, string.Join(" ", parameters)));
+                        this.OnRawLineUnhandled(new RawParsedEventArgs(data, prefix, command, parameters));
                         break;
                 }
             }
         }
 
+        /// <summary>Sends a raw message to the IRC server.</summary>
+        /// <param name="data">The message to send.</param>
+        /// <exception cref="System.InvalidOperationException">This IRCClient is not connected to a server.</exception>
         public virtual void Send(string data) {
             if (!tcpClient.Connected) throw new InvalidOperationException("The client is not connected.");
 
@@ -1724,20 +1752,30 @@ namespace IRC {
                 this.LastSpoke = DateTime.Now;
         }
 
-        public virtual void Send(string Format, params object[] Parameters) {
-            this.Send(string.Format(Format, Parameters));
+        /// <summary>Sends a raw message to the IRC server.</summary>
+        /// <param name="format">The format of the message, as per string.Format.</param>
+        /// <param name="parameters">The parameters to include in the message.</param>
+        /// <exception cref="System.InvalidOperationException">This IRCClient is not connected to a server.</exception>
+        public virtual void Send(string format, params object[] parameters) {
+            this.Send(string.Format(format, parameters));
         }
 
-        public static string RemoveCodes(string Message) {
+        /// <summary>Removes mIRC formatting codes from a string.</summary>
+        /// <param name="message">The string to strip.</param>
+        /// <returns>A copy of the string with mIRC formatting codes removed.</returns>
+        public static string RemoveCodes(string message) {
             Regex regex = new Regex(@"\x02|\x0F|\x16|\x1C|\x1F|\x03(\d{0,2}(,\d{1,2})?)?");
-            Message = regex.Replace(Message.Trim(), "");
-            return Message;
+            message = regex.Replace(message.Trim(), "");
+            return message;
         }
-        public static string RemoveColon(string Data) {
-            if (Data.StartsWith(":"))
-                return Data.Substring(1);
+        /// <summary>Removes a leading colon from a string, if one is present.</summary>
+        /// <param name="data">The string to strip.</param>
+        /// <returns>If the string starts with a colon, a copy of the string without that colon; otherwise, the specified string.</returns>
+        public static string RemoveColon(string data) {
+            if (data.StartsWith(":"))
+                return data.Substring(1);
             else
-                return Data;
+                return data;
         }
 
         private void OnChannelMode(string sender, string target, bool direction, char mode, string parameter) {
@@ -1751,6 +1789,12 @@ namespace IRC {
                             this.OnChannelInviteExemptSelf(new ChannelListModeEventArgs(this.Users.Get(sender, false), target, parameter, matchedUsers));
                         } else {
                             this.OnChannelInviteExempt(new ChannelListModeEventArgs(this.Users.Get(sender, false), target, parameter, matchedUsers));
+                        }
+                    } else {
+                        if (matchedUsers.Any(user => this.CaseMappingComparer.Equals(user.Nickname, this.Nickname))) {
+                            this.OnChannelRemoveInviteExemptSelf(new ChannelListModeEventArgs(this.Users.Get(sender, false), target, parameter, matchedUsers));
+                        } else {
+                            this.OnChannelRemoveInviteExempt(new ChannelListModeEventArgs(this.Users.Get(sender, false), target, parameter, matchedUsers));
                         }
                     }
                     break;
@@ -1799,6 +1843,12 @@ namespace IRC {
                         } else {
                             this.OnChannelBan(new ChannelListModeEventArgs(this.Users.Get(sender, false), target, parameter, matchedUsers));
                         }
+                    } else {
+                        if (matchedUsers.Any(user => this.CaseMappingComparer.Equals(user.Nickname, this.Nickname))) {
+                            this.OnChannelUnBanSelf(new ChannelListModeEventArgs(this.Users.Get(sender, false), target, parameter, matchedUsers));
+                        } else {
+                            this.OnChannelUnBan(new ChannelListModeEventArgs(this.Users.Get(sender, false), target, parameter, matchedUsers));
+                        }
                     }
                     break;
                 case 'e':
@@ -1809,6 +1859,12 @@ namespace IRC {
                             this.OnChannelExemptSelf(new ChannelListModeEventArgs(this.Users.Get(sender, false), target, parameter, matchedUsers));
                         } else {
                             this.OnChannelExempt(new ChannelListModeEventArgs(this.Users.Get(sender, false), target, parameter, matchedUsers));
+                        }
+                    } else {
+                        if (matchedUsers.Any(user => this.CaseMappingComparer.Equals(user.Nickname, this.Nickname))) {
+                            this.OnChannelRemoveExemptSelf(new ChannelListModeEventArgs(this.Users.Get(sender, false), target, parameter, matchedUsers));
+                        } else {
+                            this.OnChannelRemoveExempt(new ChannelListModeEventArgs(this.Users.Get(sender, false), target, parameter, matchedUsers));
                         }
                     }
                     break;
@@ -1903,6 +1959,10 @@ namespace IRC {
             }
         }
 
+        /// <summary>Searches the users on a channel for those matching a specified hostmask.</summary>
+        /// <param name="Channel">The channel to search.</param>
+        /// <param name="Mask">The hostmask to search for.</param>
+        /// <returns>A list of ChannelUser objects representing the matching users.</returns>
         public ChannelUser[] FindMatchingUsers(string Channel, string Mask) {
             List<ChannelUser> MatchedUsers = new List<ChannelUser>();
             StringBuilder exBuilder = new StringBuilder();
@@ -1985,10 +2045,13 @@ namespace IRC {
             this.OnWhoList(new WhoListEventArgs(channelName, username, address, server, nickname, flags, hops, fullName));
         }
 
-        public bool IsChannel(string Target) {
-            if (Target == null || Target == "") return false;
+        /// <summary>Determines whether the speciied string is a valid channel name.</summary>
+        /// <param name="target">The string to check.</param>
+        /// <returns>True if the specified string is a valid channel name; false if it is not.</returns>
+        public bool IsChannel(string target) {
+            if (target == null || target == "") return false;
             foreach (char c in this.ChannelTypes)
-                if (Target[0] == c) return true;
+                if (target[0] == c) return true;
             return false;
         }
     }

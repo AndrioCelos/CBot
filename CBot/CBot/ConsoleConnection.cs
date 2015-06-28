@@ -1,12 +1,13 @@
 ﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
 using System.Text.RegularExpressions;
 
 using IRC;
 
 namespace CBot {
+    /// <summary>
+    /// Provides an interface by which the console can be treated the same as an IRC channel by CBot.
+    /// We do this by emulating an IRC network with an IRCClient subclass.
+    /// </summary>
     internal class ConsoleConnection : IRCClient {
         private static object consoleLock = new object();
 
