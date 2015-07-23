@@ -27,7 +27,7 @@ namespace CBot {
         /// <summary>Returns the version of the bot, as returned to a CTCP VERSION request.</summary>
         public static string ClientVersion { get; private set; }
         /// <summary>Returns the version of the bot.</summary>
-        public static Version Version { get { return Assembly.GetExecutingAssembly().GetName().Version; } }
+        public static Version Version => Assembly.GetExecutingAssembly().GetName().Version;
 
         /// <summary>The list of IRC connections the bot has.</summary>
         public static List<ClientEntry> Clients = new List<ClientEntry>();

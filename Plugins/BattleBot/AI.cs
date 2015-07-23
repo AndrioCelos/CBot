@@ -31,7 +31,7 @@ namespace BattleBot {
         private List<Combatant> allies;
         private List<Combatant> targets;
 
-        public Func<Combatant, bool> targetCondition { get; private set; }
+        public Func<Combatant, bool> targetCondition { get; }
 
         public AI2(BattleBotPlugin plugin) {
             this.plugin = plugin;
@@ -132,7 +132,7 @@ namespace BattleBot {
                     topIndex = j;
             }
             // Switch weapons if necessary.
-            switch ((Action) this.Ratings[topIndex].Item1) {
+            switch (this.Ratings[topIndex].Item1) {
                 case Action.Attack:
                     if (character.EquippedWeapon != this.Ratings[topIndex].Item2) {
                         this.Act(Action.EquipWeapon, null, this.Ratings[topIndex].Item2);

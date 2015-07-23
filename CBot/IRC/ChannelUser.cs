@@ -7,7 +7,7 @@ namespace IRC {
     /// </summary>
     public class ChannelUser {
         /// <summary>The user's nickname.</summary>
-        public string Nickname { get; private set; }
+        public string Nickname { get; }
         /// <summary>The user's access level on the channel.</summary>
         public IRC.ChannelAccess Access { get; internal set; }
         /// <summary>The time the user last spoke in the channel, or default(DateTime) if they haven't yet spoken.</summary>

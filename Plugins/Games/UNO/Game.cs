@@ -8,8 +8,8 @@ using IRC;
 
 namespace UNO {
     public class Game {
-        public IRCClient Connection { get; internal set; }
-        public string Channel { get; internal set; }
+        public IRCClient Connection { get; }
+        public string Channel { get; }
 
         public bool IsOpen;
         public bool Ended;

@@ -17,7 +17,7 @@ namespace Gender
         public Dictionary<string, IRC.Gender> Gender;
         public int CheckingConnection;
         public int CheckingChannel;
-        public Timer WhoTimer { get; private set; }
+        public Timer WhoTimer { get; }
 
         public override string Name {
             get {

@@ -7,7 +7,7 @@ namespace CBot {
     /// </summary>
     [AttributeUsage(AttributeTargets.Class, AllowMultiple = false)]
     public class APIVersionAttribute : Attribute {
-        public Version Version { get; private set; }
+        public Version Version { get; }
 
         public APIVersionAttribute(Version version) {
             this.Version = version;

@@ -189,500 +189,376 @@ namespace IRC {
 
         #region Event methods
         protected internal void OnAwayCancelled(AwayEventArgs e) {
-            EventHandler<AwayEventArgs> _event = this.AwayCancelled;
-            if (_event != null) _event(this, e);
+            this.AwayCancelled?.Invoke(this, e);
         }
         protected internal void OnAwaySet(AwayEventArgs e) {
-            EventHandler<AwayEventArgs> _event = this.AwaySet;
-            if (_event != null) _event(this, e);
+            this.AwaySet?.Invoke(this, e);
         }
         protected internal void OnBanList(ChannelModeListEventArgs e) {
-            EventHandler<ChannelModeListEventArgs> _event = this.BanList;
-            if (_event != null) _event(this, e);
+            this.BanList?.Invoke(this, e);
         }
         protected internal void OnBanListEnd(ChannelModeListEndEventArgs e) {
-            EventHandler<ChannelModeListEndEventArgs> _event = this.BanListEnd;
-            if (_event != null) _event(this, e);
+            this.BanListEnd?.Invoke(this, e);
         }
         protected internal void OnChannelAction(ChannelMessageEventArgs e) {
-            EventHandler<ChannelMessageEventArgs> _event = this.ChannelAction;
-            if (_event != null) _event(this, e);
+            this.ChannelAction?.Invoke(this, e);
         }
         protected internal void OnChannelAdmin(ChannelNicknameModeEventArgs e) {
-            EventHandler<ChannelNicknameModeEventArgs> _event = this.ChannelAdmin;
-            if (_event != null) _event(this, e);
+            this.ChannelAdmin?.Invoke(this, e);
         }
         protected internal void OnChannelAdminSelf(ChannelNicknameModeEventArgs e) {
-            EventHandler<ChannelNicknameModeEventArgs> _event = this.ChannelAdminSelf;
-            if (_event != null) _event(this, e);
+            this.ChannelAdminSelf?.Invoke(this, e);
         }
         protected internal void OnChannelBan(ChannelListModeEventArgs e) {
-            EventHandler<ChannelListModeEventArgs> _event = this.ChannelBan;
-            if (_event != null) _event(this, e);
+            this.ChannelBan?.Invoke(this, e);
         }
         protected internal void OnChannelBanSelf(ChannelListModeEventArgs e) {
-            EventHandler<ChannelListModeEventArgs> _event = this.ChannelBanSelf;
-            if (_event != null) _event(this, e);
+            this.ChannelBanSelf?.Invoke(this, e);
         }
         protected internal void OnChannelTimestamp(ChannelTimestampEventArgs e) {
-            EventHandler<ChannelTimestampEventArgs> _event = this.ChannelTimestamp;
-            if (_event != null) _event(this, e);
+            this.ChannelTimestamp?.Invoke(this, e);
         }
         protected internal void OnChannelCTCP(ChannelMessageEventArgs e) {
-            EventHandler<ChannelMessageEventArgs> _event = this.ChannelCTCP;
-            if (_event != null) _event(this, e);
+            this.ChannelCTCP?.Invoke(this, e);
         }
         protected internal void OnChannelDeAdmin(ChannelNicknameModeEventArgs e) {
-            EventHandler<ChannelNicknameModeEventArgs> _event = this.ChannelDeAdmin;
-            if (_event != null) _event(this, e);
+            this.ChannelDeAdmin?.Invoke(this, e);
         }
         protected internal void OnChannelDeAdminSelf(ChannelNicknameModeEventArgs e) {
-            EventHandler<ChannelNicknameModeEventArgs> _event = this.ChannelDeAdminSelf;
-            if (_event != null) _event(this, e);
+            this.ChannelDeAdminSelf?.Invoke(this, e);
         }
         protected internal void OnChannelDeHalfOp(ChannelNicknameModeEventArgs e) {
-            EventHandler<ChannelNicknameModeEventArgs> _event = this.ChannelDeHalfOp;
-            if (_event != null) _event(this, e);
+            this.ChannelDeHalfOp?.Invoke(this, e);
         }
         protected internal void OnChannelDeHalfOpSelf(ChannelNicknameModeEventArgs e) {
-            EventHandler<ChannelNicknameModeEventArgs> _event = this.ChannelDeHalfOpSelf;
-            if (_event != null) _event(this, e);
+            this.ChannelDeHalfOpSelf?.Invoke(this, e);
         }
         protected internal void OnChannelDeHalfVoice(ChannelNicknameModeEventArgs e) {
-            EventHandler<ChannelNicknameModeEventArgs> _event = this.ChannelDeHalfVoice;
-            if (_event != null) _event(this, e);
+            this.ChannelDeHalfVoice?.Invoke(this, e);
         }
         protected internal void OnChannelDeHalfVoiceSelf(ChannelNicknameModeEventArgs e) {
-            EventHandler<ChannelNicknameModeEventArgs> _event = this.ChannelDeHalfVoiceSelf;
-            if (_event != null) _event(this, e);
+            this.ChannelDeHalfVoiceSelf?.Invoke(this, e);
         }
         protected internal void OnChannelDeOp(ChannelNicknameModeEventArgs e) {
-            EventHandler<ChannelNicknameModeEventArgs> _event = this.ChannelDeOp;
-            if (_event != null) _event(this, e);
+            this.ChannelDeOp?.Invoke(this, e);
         }
         protected internal void OnChannelDeOpSelf(ChannelNicknameModeEventArgs e) {
-            EventHandler<ChannelNicknameModeEventArgs> _event = this.ChannelDeOpSelf;
-            if (_event != null) _event(this, e);
+            this.ChannelDeOpSelf?.Invoke(this, e);
         }
         protected internal void OnChannelDeOwner(ChannelNicknameModeEventArgs e) {
-            EventHandler<ChannelNicknameModeEventArgs> _event = this.ChannelDeOwner;
-            if (_event != null) _event(this, e);
+            this.ChannelDeOwner?.Invoke(this, e);
         }
         protected internal void OnChannelDeOwnerSelf(ChannelNicknameModeEventArgs e) {
-            EventHandler<ChannelNicknameModeEventArgs> _event = this.ChannelDeOwnerSelf;
-            if (_event != null) _event(this, e);
+            this.ChannelDeOwnerSelf?.Invoke(this, e);
         }
         protected internal void OnChannelDeVoice(ChannelNicknameModeEventArgs e) {
-            EventHandler<ChannelNicknameModeEventArgs> _event = this.ChannelDeVoice;
-            if (_event != null) _event(this, e);
+            this.ChannelDeVoice?.Invoke(this, e);
         }
         protected internal void OnChannelDeVoiceSelf(ChannelNicknameModeEventArgs e) {
-            EventHandler<ChannelNicknameModeEventArgs> _event = this.ChannelDeVoiceSelf;
-            if (_event != null) _event(this, e);
+            this.ChannelDeVoiceSelf?.Invoke(this, e);
         }
         protected internal void OnChannelExempt(ChannelListModeEventArgs e) {
-            EventHandler<ChannelListModeEventArgs> _event = this.ChannelExempt;
-            if (_event != null) _event(this, e);
+            this.ChannelExempt?.Invoke(this, e);
         }
         protected internal void OnChannelExemptSelf(ChannelListModeEventArgs e) {
-            EventHandler<ChannelListModeEventArgs> _event = this.ChannelExemptSelf;
-            if (_event != null) _event(this, e);
+            this.ChannelExemptSelf?.Invoke(this, e);
         }
         protected internal void OnChannelHalfOp(ChannelNicknameModeEventArgs e) {
-            EventHandler<ChannelNicknameModeEventArgs> _event = this.ChannelHalfOp;
-            if (_event != null) _event(this, e);
+            this.ChannelHalfOp?.Invoke(this, e);
         }
         protected internal void OnChannelHalfOpSelf(ChannelNicknameModeEventArgs e) {
-            EventHandler<ChannelNicknameModeEventArgs> _event = this.ChannelHalfOpSelf;
-            if (_event != null) _event(this, e);
+            this.ChannelHalfOpSelf?.Invoke(this, e);
         }
         protected internal void OnChannelHalfVoice(ChannelNicknameModeEventArgs e) {
-            EventHandler<ChannelNicknameModeEventArgs> _event = this.ChannelHalfVoice;
-            if (_event != null) _event(this, e);
+            this.ChannelHalfVoice?.Invoke(this, e);
         }
         protected internal void OnChannelHalfVoiceSelf(ChannelNicknameModeEventArgs e) {
-            EventHandler<ChannelNicknameModeEventArgs> _event = this.ChannelHalfVoiceSelf;
-            if (_event != null) _event(this, e);
+            this.ChannelHalfVoiceSelf?.Invoke(this, e);
         }
         protected internal void OnChannelInviteExempt(ChannelListModeEventArgs e) {
-            EventHandler<ChannelListModeEventArgs> _event = this.ChannelInviteExempt;
-            if (_event != null) _event(this, e);
+            this.ChannelInviteExempt?.Invoke(this, e);
         }
         protected internal void OnChannelInviteExemptSelf(ChannelListModeEventArgs e) {
-            EventHandler<ChannelListModeEventArgs> _event = this.ChannelInviteExemptSelf;
-            if (_event != null) _event(this, e);
+            this.ChannelInviteExemptSelf?.Invoke(this, e);
         }
         protected internal void OnChannelJoin(ChannelJoinEventArgs e) {
-            EventHandler<ChannelJoinEventArgs> _event = this.ChannelJoin;
-            if (_event != null) _event(this, e);
+            this.ChannelJoin?.Invoke(this, e);
         }
         protected internal void OnChannelJoinSelf(ChannelJoinEventArgs e) {
-            EventHandler<ChannelJoinEventArgs> _event = this.ChannelJoinSelf;
-            if (_event != null) _event(this, e);
+            this.ChannelJoinSelf?.Invoke(this, e);
         }
         protected internal void OnChannelJoinDenied(ChannelDeniedEventArgs e) {
-            EventHandler<ChannelDeniedEventArgs> _event = this.ChannelJoinDenied;
-            if (_event != null) _event(this, e);
+            this.ChannelJoinDenied?.Invoke(this, e);
         }
         protected internal void OnChannelKick(ChannelKickEventArgs e) {
-            EventHandler<ChannelKickEventArgs> _event = this.ChannelKick;
-            if (_event != null) _event(this, e);
+            this.ChannelKick?.Invoke(this, e);
         }
         protected internal void OnChannelKickSelf(ChannelKickEventArgs e) {
-            EventHandler<ChannelKickEventArgs> _event = this.ChannelKickSelf;
-            if (_event != null) _event(this, e);
+            this.ChannelKickSelf?.Invoke(this, e);
         }
         protected internal void OnChannelList(ChannelListEventArgs e) {
-            EventHandler<ChannelListEventArgs> _event = this.ChannelList;
-            if (_event != null) _event(this, e);
+            this.ChannelList?.Invoke(this, e);
         }
         protected internal void OnChannelListEnd(ChannelListEndEventArgs e) {
-            EventHandler<ChannelListEndEventArgs> _event = this.ChannelListEnd;
-            if (_event != null) _event(this, e);
+            this.ChannelListEnd?.Invoke(this, e);
         }
         protected internal void OnChannelMessage(ChannelMessageEventArgs e) {
-            EventHandler<ChannelMessageEventArgs> _event = this.ChannelMessage;
-            if (_event != null) _event(this, e);
+            this.ChannelMessage?.Invoke(this, e);
         }
         protected internal void OnChannelMessageDenied(ChannelDeniedEventArgs e) {
-            EventHandler<ChannelDeniedEventArgs> _event = this.ChannelMessageDenied;
-            if (_event != null) _event(this, e);
+            this.ChannelMessageDenied?.Invoke(this, e);
         }
         protected internal void OnChannelModeSet(ChannelModeEventArgs e) {
-            EventHandler<ChannelModeEventArgs> _event = this.ChannelModeSet;
-            if (_event != null) _event(this, e);
+            this.ChannelModeSet?.Invoke(this, e);
         }
         protected internal void OnChannelModeSetSelf(ChannelModeEventArgs e) {
-            EventHandler<ChannelModeEventArgs> _event = this.ChannelModeSetSelf;
-            if (_event != null) _event(this, e);
+            this.ChannelModeSetSelf?.Invoke(this, e);
         }
         protected internal void OnChannelModeUnhandled(ChannelModeEventArgs e) {
-            EventHandler<ChannelModeEventArgs> _event = this.ChannelModeUnhandled;
-            if (_event != null) _event(this, e);
+            this.ChannelModeUnhandled?.Invoke(this, e);
         }
         protected internal void OnChannelModesSet(ChannelModesSetEventArgs e) {
-            EventHandler<ChannelModesSetEventArgs> _event = this.ChannelModesSet;
-            if (_event != null) _event(this, e);
+            this.ChannelModesSet?.Invoke(this, e);
         }
         protected internal void OnChannelModesGet(ChannelModesGetEventArgs e) {
-            EventHandler<ChannelModesGetEventArgs> _event = this.ChannelModesGet;
-            if (_event != null) _event(this, e);
+            this.ChannelModesGet?.Invoke(this, e);
         }
         protected internal void OnChannelNotice(ChannelMessageEventArgs e) {
-            EventHandler<ChannelMessageEventArgs> _event = this.ChannelNotice;
-            if (_event != null) _event(this, e);
+            this.ChannelNotice?.Invoke(this, e);
         }
         protected internal void OnChannelOp(ChannelNicknameModeEventArgs e) {
-            EventHandler<ChannelNicknameModeEventArgs> _event = this.ChannelOp;
-            if (_event != null) _event(this, e);
+            this.ChannelOp?.Invoke(this, e);
         }
         protected internal void OnChannelOpSelf(ChannelNicknameModeEventArgs e) {
-            EventHandler<ChannelNicknameModeEventArgs> _event = this.ChannelOpSelf;
-            if (_event != null) _event(this, e);
+            this.ChannelOpSelf?.Invoke(this, e);
         }
         protected internal void OnChannelOwner(ChannelNicknameModeEventArgs e) {
-            EventHandler<ChannelNicknameModeEventArgs> _event = this.ChannelOwner;
-            if (_event != null) _event(this, e);
+            this.ChannelOwner?.Invoke(this, e);
         }
         protected internal void OnChannelOwnerSelf(ChannelNicknameModeEventArgs e) {
-            EventHandler<ChannelNicknameModeEventArgs> _event = this.ChannelOwnerSelf;
-            if (_event != null) _event(this, e);
+            this.ChannelOwnerSelf?.Invoke(this, e);
         }
         protected internal void OnChannelPart(ChannelPartEventArgs e) {
-            EventHandler<ChannelPartEventArgs> _event = this.ChannelPart;
-            if (_event != null) _event(this, e);
+            this.ChannelPart?.Invoke(this, e);
         }
         protected internal void OnChannelPartSelf(ChannelPartEventArgs e) {
-            EventHandler<ChannelPartEventArgs> _event = this.ChannelPartSelf;
-            if (_event != null) _event(this, e);
+            this.ChannelPartSelf?.Invoke(this, e);
         }
         protected internal void OnChannelQuiet(ChannelListModeEventArgs e) {
-            EventHandler<ChannelListModeEventArgs> _event = this.ChannelQuiet;
-            if (_event != null) _event(this, e);
+            this.ChannelQuiet?.Invoke(this, e);
         }
         protected internal void OnChannelQuietSelf(ChannelListModeEventArgs e) {
-            EventHandler<ChannelListModeEventArgs> _event = this.ChannelQuietSelf;
-            if (_event != null) _event(this, e);
+            this.ChannelQuietSelf?.Invoke(this, e);
         }
         protected internal void OnChannelRemoveExempt(ChannelListModeEventArgs e) {
-            EventHandler<ChannelListModeEventArgs> _event = this.ChannelRemoveExempt;
-            if (_event != null) _event(this, e);
+            this.ChannelRemoveExempt?.Invoke(this, e);
         }
         protected internal void OnChannelRemoveExemptSelf(ChannelListModeEventArgs e) {
-            EventHandler<ChannelListModeEventArgs> _event = this.ChannelRemoveExemptSelf;
-            if (_event != null) _event(this, e);
+            this.ChannelRemoveExemptSelf?.Invoke(this, e);
         }
         protected internal void OnChannelRemoveInviteExempt(ChannelListModeEventArgs e) {
-            EventHandler<ChannelListModeEventArgs> _event = this.ChannelRemoveInviteExempt;
-            if (_event != null) _event(this, e);
+            this.ChannelRemoveInviteExempt?.Invoke(this, e);
         }
         protected internal void OnChannelRemoveInviteExemptSelf(ChannelListModeEventArgs e) {
-            EventHandler<ChannelListModeEventArgs> _event = this.ChannelRemoveInviteExemptSelf;
-            if (_event != null) _event(this, e);
+            this.ChannelRemoveInviteExemptSelf?.Invoke(this, e);
         }
         protected internal void OnChannelRemoveKey(ChannelEventArgs e) {
-            EventHandler<ChannelEventArgs> _event = this.ChannelRemoveKey;
-            if (_event != null) _event(this, e);
+            this.ChannelRemoveKey?.Invoke(this, e);
         }
         protected internal void OnChannelRemoveLimit(ChannelEventArgs e) {
-            EventHandler<ChannelEventArgs> _event = this.ChannelRemoveLimit;
-            if (_event != null) _event(this, e);
+            this.ChannelRemoveLimit?.Invoke(this, e);
         }
         protected internal void OnChannelSetKey(ChannelKeyEventArgs e) {
-            EventHandler<ChannelKeyEventArgs> _event = this.ChannelSetKey;
-            if (_event != null) _event(this, e);
+            this.ChannelSetKey?.Invoke(this, e);
         }
         protected internal void OnChannelSetLimit(ChannelLimitEventArgs e) {
-            EventHandler<ChannelLimitEventArgs> _event = this.ChannelSetLimit;
-            if (_event != null) _event(this, e);
+            this.ChannelSetLimit?.Invoke(this, e);
         }
         protected internal void OnChannelTopic(ChannelTopicEventArgs e) {
-            EventHandler<ChannelTopicEventArgs> _event = this.ChannelTopic;
-            if (_event != null) _event(this, e);
+            this.ChannelTopic?.Invoke(this, e);
         }
         protected internal void OnChannelTopicChange(ChannelTopicChangeEventArgs e) {
-            EventHandler<ChannelTopicChangeEventArgs> _event = this.ChannelTopicChange;
-            if (_event != null) _event(this, e);
+            this.ChannelTopicChange?.Invoke(this, e);
         }
         protected internal void OnChannelTopicStamp(ChannelTopicStampEventArgs e) {
-            EventHandler<ChannelTopicStampEventArgs> _event = this.ChannelTopicStamp;
-            if (_event != null) _event(this, e);
+            this.ChannelTopicStamp?.Invoke(this, e);
         }
         protected internal void OnChannelUsers(ChannelNamesEventArgs e) {
-            EventHandler<ChannelNamesEventArgs> _event = this.ChannelUsers;
-            if (_event != null) _event(this, e);
+            this.ChannelUsers?.Invoke(this, e);
         }
         protected internal void OnChannelUnBan(ChannelListModeEventArgs e) {
-            EventHandler<ChannelListModeEventArgs> _event = this.ChannelUnBan;
-            if (_event != null) _event(this, e);
+            this.ChannelUnBan?.Invoke(this, e);
         }
         protected internal void OnChannelUnBanSelf(ChannelListModeEventArgs e) {
-            EventHandler<ChannelListModeEventArgs> _event = this.ChannelUnBanSelf;
-            if (_event != null) _event(this, e);
+            this.ChannelUnBanSelf?.Invoke(this, e);
         }
         protected internal void OnChannelUnQuiet(ChannelListModeEventArgs e) {
-            EventHandler<ChannelListModeEventArgs> _event = this.ChannelUnQuiet;
-            if (_event != null) _event(this, e);
+            this.ChannelUnQuiet?.Invoke(this, e);
         }
         protected internal void OnChannelUnQuietSelf(ChannelListModeEventArgs e) {
-            EventHandler<ChannelListModeEventArgs> _event = this.ChannelUnQuietSelf;
-            if (_event != null) _event(this, e);
+            this.ChannelUnQuietSelf?.Invoke(this, e);
         }
         protected internal void OnChannelVoice(ChannelNicknameModeEventArgs e) {
-            EventHandler<ChannelNicknameModeEventArgs> _event = this.ChannelVoice;
-            if (_event != null) _event(this, e);
+            this.ChannelVoice?.Invoke(this, e);
         }
         protected internal void OnChannelVoiceSelf(ChannelNicknameModeEventArgs e) {
-            EventHandler<ChannelNicknameModeEventArgs> _event = this.ChannelVoiceSelf;
-            if (_event != null) _event(this, e);
+            this.ChannelVoiceSelf?.Invoke(this, e);
         }
         protected internal void OnDisconnected(ExceptionEventArgs e) {
-            EventHandler<ExceptionEventArgs> _event = this.Disconnected;
-            if (_event != null) _event(this, e);
+            this.Disconnected?.Invoke(this, e);
         }
         protected internal void OnException(ExceptionEventArgs e) {
-            EventHandler<ExceptionEventArgs> _event = this.Exception;
-            if (_event != null) _event(this, e);
+            this.Exception?.Invoke(this, e);
         }
         protected internal void OnExemptList(ChannelModeListEventArgs e) {
-            EventHandler<ChannelModeListEventArgs> _event = this.ExemptList;
-            if (_event != null) _event(this, e);
+            this.ExemptList?.Invoke(this, e);
         }
         protected internal void OnExemptListEnd(ChannelModeListEndEventArgs e) {
-            EventHandler<ChannelModeListEndEventArgs> _event = this.ExemptListEnd;
-            if (_event != null) _event(this, e);
+            this.ExemptListEnd?.Invoke(this, e);
         }
         protected internal void OnInvite(ChannelInviteEventArgs e) {
-            EventHandler<ChannelInviteEventArgs> _event = this.Invite;
-            if (_event != null) _event(this, e);
+            this.Invite?.Invoke(this, e);
         }
         protected internal void OnInviteSent(ChannelInviteSentEventArgs e) {
-            EventHandler<ChannelInviteSentEventArgs> _event = this.InviteSent;
-            if (_event != null) _event(this, e);
+            this.InviteSent?.Invoke(this, e);
         }
         protected internal void OnInviteList(ChannelModeListEventArgs e) {
-            EventHandler<ChannelModeListEventArgs> _event = this.InviteList;
-            if (_event != null) _event(this, e);
+            this.InviteList?.Invoke(this, e);
         }
         protected internal void OnInviteListEnd(ChannelModeListEndEventArgs e) {
-            EventHandler<ChannelModeListEndEventArgs> _event = this.InviteListEnd;
-            if (_event != null) _event(this, e);
+            this.InviteListEnd?.Invoke(this, e);
         }
         protected internal void OnInviteExemptList(ChannelModeListEventArgs e) {
-            EventHandler<ChannelModeListEventArgs> _event = this.InviteExemptList;
-            if (_event != null) _event(this, e);
+            this.InviteExemptList?.Invoke(this, e);
         }
         protected internal void OnInviteExemptListEnd(ChannelModeListEndEventArgs e) {
-            EventHandler<ChannelModeListEndEventArgs> _event = this.InviteExemptListEnd;
-            if (_event != null) _event(this, e);
+            this.InviteExemptListEnd?.Invoke(this, e);
         }
         protected internal void OnKilled(PrivateMessageEventArgs e) {
-            EventHandler<PrivateMessageEventArgs> _event = this.Killed;
-            if (_event != null) _event(this, e);
+            this.Killed?.Invoke(this, e);
         }
         protected internal void OnMOTD(MOTDEventArgs e) {
-            EventHandler<MOTDEventArgs> _event = this.MOTD;
-            if (_event != null) _event(this, e);
+            this.MOTD?.Invoke(this, e);
         }
         protected internal void OnNames(ChannelNamesEventArgs e) {
-            EventHandler<ChannelNamesEventArgs> _event = this.Names;
-            if (_event != null) _event(this, e);
+            this.Names?.Invoke(this, e);
         }
         protected internal void OnNamesEnd(ChannelModeListEndEventArgs e) {
-            EventHandler<ChannelModeListEndEventArgs> _event = this.NamesEnd;
-            if (_event != null) _event(this, e);
+            this.NamesEnd?.Invoke(this, e);
         }
         protected internal void OnNicknameChange(NicknameChangeEventArgs e) {
-            EventHandler<NicknameChangeEventArgs> _event = this.NicknameChange;
-            if (_event != null) _event(this, e);
+            this.NicknameChange?.Invoke(this, e);
         }
         protected internal void OnNicknameChangeSelf(NicknameChangeEventArgs e) {
-            EventHandler<NicknameChangeEventArgs> _event = this.NicknameChangeSelf;
-            if (_event != null) _event(this, e);
+            this.NicknameChangeSelf?.Invoke(this, e);
         }
         protected internal void OnNicknameChangeFailed(NicknameEventArgs e) {
-            EventHandler<NicknameEventArgs> _event = this.NicknameChangeFailed;
-            if (_event != null) _event(this, e);
+            this.NicknameChangeFailed?.Invoke(this, e);
         }
         protected internal void OnNicknameInvalid(NicknameEventArgs e) {
-            EventHandler<NicknameEventArgs> _event = this.NicknameInvalid;
-            if (_event != null) _event(this, e);
+            this.NicknameInvalid?.Invoke(this, e);
         }
         protected internal void OnNicknameTaken(NicknameEventArgs e) {
-            EventHandler<NicknameEventArgs> _event = this.NicknameTaken;
-            if (_event != null) _event(this, e);
+            this.NicknameTaken?.Invoke(this, e);
         }
         protected internal void OnPing(PingEventArgs e) {
-            EventHandler<PingEventArgs> _event = this.Ping;
-            if (_event != null) _event(this, e);
+            this.Ping?.Invoke(this, e);
         }
         protected internal void OnPingReply(PingEventArgs e) {
-            EventHandler<PingEventArgs> _event = this.PingReply;
-            if (_event != null) _event(this, e);
+            this.PingReply?.Invoke(this, e);
         }
         protected internal void OnPrivateAction(PrivateMessageEventArgs e) {
-            EventHandler<PrivateMessageEventArgs> _event = this.PrivateAction;
-            if (_event != null) _event(this, e);
+            this.PrivateAction?.Invoke(this, e);
         }
         protected internal void OnPrivateCTCP(PrivateMessageEventArgs e) {
-            EventHandler<PrivateMessageEventArgs> _event = this.PrivateCTCP;
-            if (_event != null) _event(this, e);
+            this.PrivateCTCP?.Invoke(this, e);
         }
         protected internal void OnPrivateMessage(PrivateMessageEventArgs e) {
-            EventHandler<PrivateMessageEventArgs> _event = this.PrivateMessage;
-            if (_event != null) _event(this, e);
+            this.PrivateMessage?.Invoke(this, e);
         }
         protected internal void OnPrivateNotice(PrivateMessageEventArgs e) {
-            EventHandler<PrivateMessageEventArgs> _event = this.PrivateNotice;
-            if (_event != null) _event(this, e);
+            this.PrivateNotice?.Invoke(this, e);
         }
         protected internal void OnQuit(QuitEventArgs e) {
-            EventHandler<QuitEventArgs> _event = this.Quit;
-            if (_event != null) _event(this, e);
+            this.Quit?.Invoke(this, e);
         }
         protected internal void OnQuitSelf(QuitEventArgs e) {
-            EventHandler<QuitEventArgs> _event = this.QuitSelf;
-            if (_event != null) _event(this, e);
+            this.QuitSelf?.Invoke(this, e);
         }
         protected internal void OnRawLineReceived(RawParsedEventArgs e) {
-            EventHandler<RawParsedEventArgs> _event = this.RawLineReceived;
-            if (_event != null) _event(this, e);
+            this.RawLineReceived?.Invoke(this, e);
         }
         protected internal void OnRawLineUnhandled(RawParsedEventArgs e) {
-            EventHandler<RawParsedEventArgs> _event = this.RawLineUnhandled;
-            if (_event != null) _event(this, e);
+            this.RawLineUnhandled?.Invoke(this, e);
         }
         protected internal void OnRawLineSent(RawEventArgs e) {
-            EventHandler<RawEventArgs> _event = this.RawLineSent;
-            if (_event != null) _event(this, e);
+            this.RawLineSent?.Invoke(this, e);
         }
         protected internal void OnUserModesGet(UserModesEventArgs e) {
-            EventHandler<UserModesEventArgs> _event = this.UserModesGet;
-            if (_event != null) _event(this, e);
+            this.UserModesGet?.Invoke(this, e);
         }
         protected internal void OnUserModesSet(UserModesEventArgs e) {
-            EventHandler<UserModesEventArgs> _event = this.UserModesSet;
-            if (_event != null) _event(this, e);
+            this.UserModesSet?.Invoke(this, e);
         }
         protected internal void OnWallops(PrivateMessageEventArgs e) {
-            EventHandler<PrivateMessageEventArgs> _event = this.Wallops;
-            if (_event != null) _event(this, e);
+            this.Wallops?.Invoke(this, e);
         }
         protected internal void OnServerNotice(PrivateMessageEventArgs e) {
-            EventHandler<PrivateMessageEventArgs> _event = this.ServerNotice;
-            if (_event != null) _event(this, e);
+            this.ServerNotice?.Invoke(this, e);
         }
         protected internal void OnServerError(ServerErrorEventArgs e) {
-            EventHandler<ServerErrorEventArgs> _event = this.ServerError;
-            if (_event != null) _event(this, e);
+            this.ServerError?.Invoke(this, e);
         }
         protected internal void OnServerMessage(ServerMessageEventArgs e) {
-            EventHandler<ServerMessageEventArgs> _event = this.ServerMessage;
-            if (_event != null) _event(this, e);
+            this.ServerMessage?.Invoke(this, e);
         }
         protected internal void OnServerMessageUnhandled(ServerMessageEventArgs e) {
-            EventHandler<ServerMessageEventArgs> _event = this.ServerMessageUnhandled;
-            if (_event != null) _event(this, e);
+            this.ServerMessageUnhandled?.Invoke(this, e);
         }
         protected internal void OnSSLHandshakeComplete(EventArgs e) {
-            EventHandler _event = this.SSLHandshakeComplete;
-            if (_event != null) _event(this, e);
+            this.SSLHandshakeComplete?.Invoke(this, e);
         }
         protected internal void OnTimeOut(EventArgs e) {
-            EventHandler _event = this.TimeOut;
-            if (_event != null) _event(this, e);
+            this.TimeOut?.Invoke(this, e);
         }
         protected internal void OnWhoList(WhoListEventArgs e) {
-            EventHandler<WhoListEventArgs> _event = this.WhoList;
-            if (_event != null) _event(this, e);
+            this.WhoList?.Invoke(this, e);
         }
         protected internal void OnWhoIsAuthenticationLine(WhoisAuthenticationEventArgs e) {
-            EventHandler<WhoisAuthenticationEventArgs> _event = this.WhoIsAuthenticationLine;
-            if (_event != null) _event(this, e);
+            this.WhoIsAuthenticationLine?.Invoke(this, e);
         }
         protected internal void OnWhoIsAwayLine(WhoisAwayEventArgs e) {
-            EventHandler<WhoisAwayEventArgs> _event = this.WhoIsAwayLine;
-            if (_event != null) _event(this, e);
+            this.WhoIsAwayLine?.Invoke(this, e);
         }
         protected internal void OnWhoIsChannelLine(WhoisChannelsEventArgs e) {
-            EventHandler<WhoisChannelsEventArgs> _event = this.WhoIsChannelLine;
-            if (_event != null) _event(this, e);
+            this.WhoIsChannelLine?.Invoke(this, e);
         }
         protected internal void OnWhoIsEnd(WhoisEndEventArgs e) {
-            EventHandler<WhoisEndEventArgs> _event = this.WhoIsEnd;
-            if (_event != null) _event(this, e);
+            this.WhoIsEnd?.Invoke(this, e);
         }
         protected internal void OnWhoIsIdleLine(WhoisIdleEventArgs e) {
-            EventHandler<WhoisIdleEventArgs> _event = this.WhoIsIdleLine;
-            if (_event != null) _event(this, e);
+            this.WhoIsIdleLine?.Invoke(this, e);
         }
         protected internal void OnWhoIsNameLine(WhoisNameEventArgs e) {
-            EventHandler<WhoisNameEventArgs> _event = this.WhoIsNameLine;
-            if (_event != null) _event(this, e);
+            this.WhoIsNameLine?.Invoke(this, e);
         }
         protected internal void OnWhoIsOperLine(WhoisOperEventArgs e) {
-            EventHandler<WhoisOperEventArgs> _event = this.WhoIsOperLine;
-            if (_event != null) _event(this, e);
+            this.WhoIsOperLine?.Invoke(this, e);
         }
         protected internal void OnWhoIsHelperLine(WhoisOperEventArgs e) {
-            EventHandler<WhoisOperEventArgs> _event = this.WhoIsHelperLine;
-            if (_event != null) _event(this, e);
+            this.WhoIsHelperLine?.Invoke(this, e);
         }
         protected internal void OnWhoIsRealHostLine(WhoisRealHostEventArgs e) {
-            EventHandler<WhoisRealHostEventArgs> _event = this.WhoIsRealHostLine;
-            if (_event != null) _event(this, e);
+            this.WhoIsRealHostLine?.Invoke(this, e);
         }
         protected internal void OnWhoIsServerLine(WhoisServerEventArgs e) {
-            EventHandler<WhoisServerEventArgs> _event = this.WhoIsServerLine;
-            if (_event != null) _event(this, e);
+            this.WhoIsServerLine?.Invoke(this, e);
         }
         protected internal void OnWhoWasNameLine(WhoisNameEventArgs e) {
-            EventHandler<WhoisNameEventArgs> _event = this.WhoWasNameLine;
-            if (_event != null) _event(this, e);
+            this.WhoWasNameLine?.Invoke(this, e);
         }
         protected internal void OnWhoWasEnd(WhoisEndEventArgs e) {
-            EventHandler<WhoisEndEventArgs> _event = this.WhoWasEnd;
-            if (_event != null) _event(this, e);
+            this.WhoWasEnd?.Invoke(this, e);
         }
         #endregion
 

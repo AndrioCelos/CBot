@@ -7,14 +7,14 @@ namespace IRC {
     /// </summary>
     public class Channel {
         /// <summary>The IRC connection that this channel belongs to.</summary>
-        public IRCClient Client { get; private set; }
+        public IRCClient Client { get; }
 
         internal short WaitingForNamesList;
         // TODO: actually use this.
         //internal short WaitingForWhoList;
 
         /// <summary>The name of the channel.</summary>
-        public string Name { get; private set; }
+        public string Name { get; }
         /// <summary>The modes on the channel.</summary>
         public virtual string Modes { get; internal set; }
         /// <summary>The local user's access level on the channel.</summary>

@@ -6,8 +6,8 @@ using IRC;
 
 namespace GreedyDice {
     public class Game {
-        public IRCClient Connection { get; internal set; }
-        public string Channel { get; internal set; }
+        public IRCClient Connection { get; }
+        public string Channel { get; }
 
         public bool IsOpen { get; set; }
         public DateTime StartTime { get; set; }

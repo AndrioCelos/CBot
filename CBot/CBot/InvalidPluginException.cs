@@ -7,7 +7,7 @@ namespace CBot {
     [Serializable]
     public class InvalidPluginException : Exception {
         /// <summary>The file that an attempt was made to load.</summary>
-        public string FilePath { get; private set; }
+        public string FilePath { get; }
 
         /// <summary>Creates an InvalidPluginException object with the specified file path.</summary>
         /// <param name="filePath">The file that an attempt was made to load.</param>

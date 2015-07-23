@@ -8,13 +8,13 @@ namespace IRC {
     /// </summary>
     public struct ChannelModes {
         /// <summary>The type A modes available. These are also known as list modes.</summary>
-        public char[] TypeA { get; private set; }
+        public char[] TypeA { get; }
         /// <summary>The type B modes available. These always take a parameter, but do not include nickname status modes such as o.</summary>
-        public char[] TypeB { get; private set; }
+        public char[] TypeB { get; }
         /// <summary>The type C modes available. These always take a parameter except when unset.</summary>
-        public char[] TypeC { get; private set; }
+        public char[] TypeC { get; }
         /// <summary>The type D modes available. These never take a parameter.</summary>
-        public char[] TypeD { get; private set; }
+        public char[] TypeD { get; }
 
         public ChannelModes(char[] typeA, char[] typeB, char[] typeC, char[] typeD)
             : this() {
