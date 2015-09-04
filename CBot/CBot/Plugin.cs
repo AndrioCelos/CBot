@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 using System.Reflection;
 using System.Text;
@@ -10,6 +11,8 @@ using IRC;
 namespace CBot {
     /// <summary>Provides a base class for CBot plugin main classes.</summary>
     public abstract class Plugin {
+        private static Regex languageEscapeRegex = new Regex(@"\\(?:(n)|(r)|(t)|(\\)|(u)([0-9a-f]{4})?|($))", RegexOptions.Compiled | RegexOptions.IgnoreCase);
+
         private string[] _Channels = new string[0];
         /// <summary>
         /// Sets or returns the list of channels that this plugin will receive events for.
@@ -459,6 +462,64 @@ namespace CBot {
             }
 
             return builder.ToString();
+        }
+
+        internal void LoadLanguage() {
+            string path = Path.Combine(Bot.LanguagesPath, Bot.Language, this.Key + ".properties");
+            if (File.Exists(path)) {
+                this.LoadLanguage(path);
+            } else {
+                path = Path.Combine(Bot.LanguagesPath, "Default", this.Key + ".properties");
+                if (File.Exists(path)) {
+                    this.LoadLanguage(path);
+                }
+            }
+        }
+        internal void LoadLanguage(string filePath) {
+            using (StreamReader reader = new StreamReader(File.Open(filePath, FileMode.Open, FileAccess.Read))) {
+                this.language.Clear();
+                while (!reader.EndOfStream) {
+                    string s = reader.ReadLine().TrimStart();
+                    if (s.Length == 0 || s[0] == '#' || s[0] == '!') continue;  // Ignore blank lines and comments.
+
+                    string[] fields = s.Split(new char[] { '=' }, 2);
+                    if (fields.Length == 2) {
+                        StringBuilder formatBuilder = new StringBuilder(fields[1].Length);
+                        int pos = 0; Match m; bool nextLine;
+                        do {
+                            nextLine = false;
+                            while ((m = languageEscapeRegex.Match(fields[1], pos)).Success) {
+                                formatBuilder.Append(fields[1].Substring(pos, m.Index - pos));
+                                if (m.Groups[1].Success) {
+                                    formatBuilder.Append("\n");
+                                } else if (m.Groups[2].Success) {
+                                    formatBuilder.Append("\r");
+                                } else if (m.Groups[3].Success) {
+                                    formatBuilder.Append("\t");
+                                } else if (m.Groups[4].Success) {
+                                    formatBuilder.Append("\\");
+                                } else if (m.Groups[5].Success) {
+                                    // Unicode escape.
+                                    if (m.Groups[6].Success) {
+                                        formatBuilder.Append((char) Convert.ToInt32(m.Groups[6].Value, 16));
+                                    } else {
+                                        throw new FormatException("Invalid unicode (\\u) escape sequence at '" + fields[0] + "' in " + filePath + ".");
+                                    }
+                                } else if (m.Groups[7].Success) {
+                                    // Escaped newline; read another line and append that.
+                                    if (reader.EndOfStream) throw new FormatException("Backslash with nothing after it at '" + fields[0] + "' in " + filePath + ".");
+                                    fields[1] = reader.ReadLine().TrimStart();
+                                    nextLine = true;
+                                }
+                                pos += m.Length;
+                            }
+                        } while (nextLine);
+                        formatBuilder.Append(fields[1].Substring(pos));
+
+                        this.language.Add(fields[0], formatBuilder.ToString());
+                    }
+                }
+            }
         }
 
         /// <summary>

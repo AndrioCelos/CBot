@@ -49,6 +49,10 @@ namespace CBot {
         internal static string dUserInfo = "CBot by Andrio Celos";
         internal static string dAvatar = null;
 
+        internal static string ConfigPath = "Config";
+        internal static string LanguagesPath = "Languages";
+        internal static string Language = "Default";
+
         private static bool ConfigFileFound;
         private static bool UsersFileFound;
         private static bool PluginsFileFound;
@@ -509,6 +513,7 @@ namespace CBot {
                 plugin.Key = Key;
                 plugin.Channels = Channels ?? new string[0];
                 Bot.Plugins.Add(Key, new PluginEntry() { Filename = Filename, Obj = plugin });
+                plugin.LoadLanguage();
                 plugin.Initialize();
 
                 x2 = Console.CursorLeft; y2 = Console.CursorTop;
@@ -1866,7 +1871,7 @@ namespace CBot {
 
             bool notice = false;
             if (connection.IsChannel(channel)) {
-                if ((options & SayOptions.OpsOnly) != 0) {
+                if ((options & (SayOptions) 1) != 0) {
                     channel = "@" + channel;
                     notice = true;
                 }
@@ -1877,7 +1882,10 @@ namespace CBot {
             if ((options & SayOptions.NoticeNever) != 0)
                 notice = false;
 
-            connection.Send("{0} {1} :{2}", notice ? "NOTICE" : "PRIVMSG", channel, message);
+            foreach (string line in message.Split(new char[] { '\n', '\r' }, StringSplitOptions.RemoveEmptyEntries)) {
+                connection.Send("{0} {1} :{2}", notice ? "NOTICE" : "PRIVMSG", channel, line);
+                Thread.Sleep(600);
+            }
         }
         /// <summary>Sends a message to a channel or user on IRC using an appropriate command.</summary>
         /// <param name="connection">The IRC connection to send to.</param>
