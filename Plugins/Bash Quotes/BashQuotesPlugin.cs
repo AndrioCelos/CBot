@@ -115,6 +115,7 @@ namespace BashQuotes
             if (Quotes1 == null && Quotes2 != null) {
                 Quotes1 = Quotes2;
                 Quotes2 = null;
+                this.QuoteTimer.Interval = 60e+3;
             }
             if (this.Channels.Length == 0) return;
             if (Quotes1 != null && Index < Quotes1.Count) {
