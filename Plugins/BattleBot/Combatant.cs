@@ -11,6 +11,7 @@ namespace BattleBot {
         public Character Character;
         public Category Category;
         public Presence Presence;
+        public bool EnteredSelf;
 
         public int HP;
         public string Health;

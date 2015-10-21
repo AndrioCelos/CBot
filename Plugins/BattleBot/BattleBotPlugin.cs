@@ -50,6 +50,7 @@ namespace BattleBot
         public Dictionary<string, Character> Characters;
         public Dictionary<string, Technique> Techniques;
         public Dictionary<string, Weapon> Weapons;
+        public Dictionary<string, ActivityReport> ActivityReports;
 
         public bool Entering;
 
@@ -62,6 +63,7 @@ namespace BattleBot
         public System.Timers.Timer IsAdminCheckTimer;
 
         public Dictionary<string, Combatant> BattleList;
+        private List<string> PlayersEntering = new List<string>();
         public List<UnmatchedName> UnmatchedFullNames;
         public List<UnmatchedName> UnmatchedShortNames;
 
@@ -108,6 +110,10 @@ namespace BattleBot
         protected internal Random RNG;
         public short debugLevel = 3;
 
+        public event EventHandler<BattleOpenEventArgs> eBattleOpen;
+        public event EventHandler eBattleStart;
+        public event EventHandler eBattleEnd;
+
         public override string Name {
             get {
                 return "Battlebot";
@@ -147,13 +153,14 @@ namespace BattleBot
             }
         }
 
-        public BattleBotPlugin(string Key) {
+        public override void Initialize() {
             this.ArenaNickname = "BattleArena";
             this.OwnCharacters = new Dictionary<string, OwnCharacter>(StringComparer.OrdinalIgnoreCase);
             this.Characters = new Dictionary<string, Character>(StringComparer.OrdinalIgnoreCase);
             this.Techniques = new Dictionary<string, Technique>(StringComparer.OrdinalIgnoreCase);
             this.Weapons = new Dictionary<string, Weapon>(StringComparer.OrdinalIgnoreCase);
             this.BattleList = new Dictionary<string, Combatant>(StringComparer.OrdinalIgnoreCase);
+            this.ActivityReports = new Dictionary<string, ActivityReport>(StringComparer.OrdinalIgnoreCase);
             this.UnmatchedFullNames = new List<UnmatchedName>();
             this.UnmatchedShortNames = new List<UnmatchedName>();
             this.IsAdminCheckTimer = new System.Timers.Timer();
@@ -211,6 +218,8 @@ namespace BattleBot
                 if (sender is DCCClient || (sender == this.ArenaConnection && ((IRCClient) sender).CaseMappingComparer.Equals(e.Channel, this.ArenaChannel) &&
                                             ((IRCClient) sender).CaseMappingComparer.Equals(e.Sender.Nickname, this.ArenaNickname)))
                     this.RunArenaRegex((IRCClient) sender, e.Channel, e.Sender, e.Message);
+                else if (e.Message.StartsWith("!enter", StringComparison.InvariantCultureIgnoreCase) && !this.PlayersEntering.Contains(e.Sender.Nickname))
+                    this.PlayersEntering.Add(e.Sender.Nickname);
             }
             return base.OnChannelMessage(sender, e);
         }
@@ -391,7 +400,7 @@ namespace BattleBot
         }
 
         private void LoadData() {
-            this.LoadData("BattleArena-" + MyKey + ".ini");
+            this.LoadData("BattleArena-" + this.Key + ".ini");
         }
         private void LoadData(string filename) {
             if (!File.Exists(filename)) return;
@@ -745,162 +754,211 @@ namespace BattleBot
                     }
                 }
             }
+
+            // Read activity reports.
+            if (Directory.Exists(this.Key + "-Activity")) {
+                foreach (var file in Directory.GetFiles(this.Key + "-Activity")) {
+                    var data = new int[168];
+                    int[] lastData;
+                    using (var reader2 = new BinaryReader(File.Open(file, FileMode.Open, FileAccess.Read))) {
+                        if (reader2.ReadInt16() != 1) continue;
+
+                        for (int i = 0; i < 168; ++i)
+                            data[i] = reader2.ReadInt32();
+
+                        if (reader2.ReadBoolean()) {
+                            lastData = new int[168];
+                            for (int i = 0; i < 168; ++i)
+                                lastData[i] = reader2.ReadInt32();
+                        } else
+                            lastData = null;
+
+                        this.ActivityReports[Path.GetFileNameWithoutExtension(file)] = new ActivityReport(data, lastData, DateTime.FromBinary(reader2.ReadInt64()));
+
+                        reader2.Close();
+                    }
+                }
+            }
         }
 
         public void SaveData() {
-            this.SaveData("BattleArena-" + MyKey + ".ini");
+            this.SaveData("BattleArena-" + this.Key + ".ini");
         }
 
         public void SaveData(string filename) {
-            StreamWriter writer = new StreamWriter(filename);
-
-            foreach (KeyValuePair<string, OwnCharacter> character in this.OwnCharacters) {
-                writer.WriteLine("[Me:{0}]", character.Key);
-                if (character.Value.FullName != null)
-                    writer.WriteLine("Name={0}", character.Value.FullName);
-                writer.WriteLine("Password={0}", character.Value.Password);
-                writer.WriteLine();
-            }
-
-            foreach (Character character in this.Characters.Values) {
-                writer.WriteLine("[Character:{0}]", character.ShortName);
-                writer.WriteLine("Name={0}", character.Name);
-                switch (character.Category) {
-                    case Category.Player:
-                        writer.WriteLine("Category=Player"); break;
-                    case Category.Ally:
-                        writer.WriteLine("Category=Ally"); break;
-                    case Category.Monster:
-                        writer.WriteLine("Category=Monster"); break;
-                    default:
-                        writer.WriteLine("Category={0}", ((short) character.Category).ToString()); break;
+            using (var writer = new StreamWriter(filename)) {
+                foreach (KeyValuePair<string, OwnCharacter> character in this.OwnCharacters) {
+                    writer.WriteLine("[Me:{0}]", character.Key);
+                    if (character.Value.FullName != null)
+                        writer.WriteLine("Name={0}", character.Value.FullName);
+                    writer.WriteLine("Password={0}", character.Value.Password);
+                    writer.WriteLine();
                 }
-                switch (character.Gender) {
-                    case Gender.Male:
-                        writer.WriteLine("Gender=Male"); break;
-                    case Gender.Female:
-                        writer.WriteLine("Gender=Female"); break;
-                    case Gender.None:
-                        writer.WriteLine("Gender=None"); break;
+
+                foreach (Character character in this.Characters.Values) {
+                    writer.WriteLine("[Character:{0}]", character.ShortName);
+                    writer.WriteLine("Name={0}", character.Name);
+                    switch (character.Category) {
+                        case Category.Player:
+                            writer.WriteLine("Category=Player"); break;
+                        case Category.Ally:
+                            writer.WriteLine("Category=Ally"); break;
+                        case Category.Monster:
+                            writer.WriteLine("Category=Monster"); break;
+                        default:
+                            writer.WriteLine("Category={0}", ((short) character.Category).ToString()); break;
+                    }
+                    switch (character.Gender) {
+                        case Gender.Male:
+                            writer.WriteLine("Gender=Male"); break;
+                        case Gender.Female:
+                            writer.WriteLine("Gender=Female"); break;
+                        case Gender.None:
+                            writer.WriteLine("Gender=None"); break;
+                    }
+                    if (character.Description != null)
+                        writer.WriteLine("Description={0}", character.Description);
+                    if (character.BaseSTR != 0)
+                        writer.WriteLine("STR={0}", character.BaseSTR);
+                    if (character.BaseDEF != 0)
+                        writer.WriteLine("DEF={0}", character.BaseDEF);
+                    if (character.BaseINT != 0)
+                        writer.WriteLine("INT={0}", character.BaseINT);
+                    if (character.BaseSPD != 0)
+                        writer.WriteLine("SPD={0}", character.BaseSPD);
+                    if (character.IgnitionCapacity != 0)
+                        writer.WriteLine("IG={0}", character.IgnitionCapacity);
+                    if (character.EquippedWeapon != null)
+                        writer.WriteLine("Weapon={0}", character.EquippedWeapon);
+                    if (character.EquippedWeapon2 != null)
+                        writer.WriteLine("Weapon2={0}", character.EquippedWeapon2);
+                    if (character.EquippedAccessory != null)
+                        writer.WriteLine("Accessory={0}", character.EquippedAccessory);
+                    if (character.ElementalWeaknesses != null)
+                        writer.WriteLine("ElementalWeaknesses={0}", string.Join(".", character.ElementalWeaknesses));
+                    if (character.WeaponWeaknesses != null)
+                        writer.WriteLine("WeaponWeaknesses={0}", string.Join(".", character.WeaponWeaknesses));
+                    if (character.ElementalResistances != null)
+                        writer.WriteLine("ElementalResistances={0}", string.Join(".", character.ElementalResistances));
+                    if (character.WeaponResistances != null)
+                        writer.WriteLine("WeaponResistances={0}", string.Join(".", character.WeaponResistances));
+                    if (character.ElementalAbsorbs != null)
+                        writer.WriteLine("Absorbs={0}", string.Join(".", character.ElementalAbsorbs));
+                    if (character.ElementalImmunities != null)
+                        writer.WriteLine("Immunities={0}", string.Join(".", character.ElementalImmunities));
+                    if (character.HurtByTaunt)
+                        writer.WriteLine("HurtByTaunt=Yes");
+                    if (character.IsUndead)
+                        writer.WriteLine("Undead=Yes");
+                    if (character.IsElemental)
+                        writer.WriteLine("Elemental=Yes");
+                    if (character.IsEthereal)
+                        writer.WriteLine("Ethereal=Yes");
+                    if (character.Weapons != null)
+                        writer.WriteLine("Weapons={0}", string.Join(".", character.Weapons.Select(e => e.Key + "|" + e.Value.ToString())));
+                    if (character.Techniques != null)
+                        writer.WriteLine("Techniques={0}", string.Join(".", character.Techniques.Select(e => e.Key + "|" + e.Value.ToString())));
+                    if (character.Skills != null)
+                        writer.WriteLine("Skills={0}", string.Join(".", character.Skills.Select(e => e.Key + "|" + e.Value.ToString())));
+                    if (character.Styles != null)
+                        writer.WriteLine("Styles={0}", string.Join(".", character.Styles.Select(e => e.Key + "|" + e.Value.ToString())));
+                    if (character.StyleExperience != null)
+                        writer.WriteLine("StyleExp={0}", string.Join(".", character.StyleExperience.Select(e => e.Key + "|" + e.Value.ToString())));
+                    if (character.Ignitions != null)
+                        writer.WriteLine("Ignitions={0}", string.Join(".", character.Ignitions));
+                    if (character.Items != null)
+                        writer.WriteLine("Items={0}", string.Join(".", character.Items.Select(e => e.Key + "|" + e.Value.ToString())));
+                    if (character.RedOrbs != 0)
+                        writer.WriteLine("RedOrbs={0}", character.RedOrbs);
+                    if (character.BlackOrbs != 0)
+                        writer.WriteLine("BlackOrbs={0}", character.BlackOrbs);
+                    if (character.AlliedNotes != 0)
+                        writer.WriteLine("AlliedNotes={0}", character.AlliedNotes);
+                    if (character.DoubleDollars != 0)
+                        writer.WriteLine("DoubleDollars={0}", character.DoubleDollars);
+                    if (character.Rating != 0)
+                        writer.WriteLine("Rating={0}", character.Rating);
+                    if (character.NPCBattles != 0)
+                        writer.WriteLine("NPCBattles={0}", character.NPCBattles);
+                    if (character.IsWellKnown)
+                        writer.WriteLine("IsWellKnown=Yes");
+                    writer.WriteLine();
                 }
-                if (character.Description != null)
-                    writer.WriteLine("Description={0}", character.Description);
-                if (character.BaseSTR != 0)
-                    writer.WriteLine("STR={0}", character.BaseSTR);
-                if (character.BaseDEF != 0)
-                    writer.WriteLine("DEF={0}", character.BaseDEF);
-                if (character.BaseINT != 0)
-                    writer.WriteLine("INT={0}", character.BaseINT);
-                if (character.BaseSPD != 0)
-                    writer.WriteLine("SPD={0}", character.BaseSPD);
-                if (character.IgnitionCapacity != 0)
-                    writer.WriteLine("IG={0}", character.IgnitionCapacity);
-                if (character.EquippedWeapon != null)
-                    writer.WriteLine("Weapon={0}", character.EquippedWeapon);
-                if (character.EquippedWeapon2 != null)
-                    writer.WriteLine("Weapon2={0}", character.EquippedWeapon2);
-                if (character.EquippedAccessory != null)
-                    writer.WriteLine("Accessory={0}", character.EquippedAccessory);
-                if (character.ElementalWeaknesses != null)
-                    writer.WriteLine("ElementalWeaknesses={0}", string.Join(".", character.ElementalWeaknesses));
-                if (character.WeaponWeaknesses != null)
-                    writer.WriteLine("WeaponWeaknesses={0}", string.Join(".", character.WeaponWeaknesses));
-                if (character.ElementalResistances != null)
-                    writer.WriteLine("ElementalResistances={0}", string.Join(".", character.ElementalResistances));
-                if (character.WeaponResistances != null)
-                    writer.WriteLine("WeaponResistances={0}", string.Join(".", character.WeaponResistances));
-                if (character.ElementalAbsorbs != null)
-                    writer.WriteLine("Absorbs={0}", string.Join(".", character.ElementalAbsorbs));
-                if (character.ElementalImmunities != null)
-                    writer.WriteLine("Immunities={0}", string.Join(".", character.ElementalImmunities));
-                if (character.HurtByTaunt)
-                    writer.WriteLine("HurtByTaunt=Yes");
-                if (character.IsUndead)
-                    writer.WriteLine("Undead=Yes");
-                if (character.IsElemental)
-                    writer.WriteLine("Elemental=Yes");
-                if (character.IsEthereal)
-                    writer.WriteLine("Ethereal=Yes");
-                if (character.Weapons != null)
-                    writer.WriteLine("Weapons={0}", string.Join(".", character.Weapons.Select(e => e.Key + "|" + e.Value.ToString())));
-                if (character.Techniques != null)
-                    writer.WriteLine("Techniques={0}", string.Join(".", character.Techniques.Select(e => e.Key + "|" + e.Value.ToString())));
-                if (character.Skills != null)
-                    writer.WriteLine("Skills={0}", string.Join(".", character.Skills.Select(e => e.Key + "|" + e.Value.ToString())));
-                if (character.Styles != null)
-                    writer.WriteLine("Styles={0}", string.Join(".", character.Styles.Select(e => e.Key + "|" + e.Value.ToString())));
-                if (character.StyleExperience != null)
-                    writer.WriteLine("StyleExp={0}", string.Join(".", character.StyleExperience.Select(e => e.Key + "|" + e.Value.ToString())));
-                if (character.Ignitions != null)
-                    writer.WriteLine("Ignitions={0}", string.Join(".", character.Ignitions));
-                if (character.Items != null)
-                    writer.WriteLine("Items={0}", string.Join(".", character.Items.Select(e => e.Key + "|" + e.Value.ToString())));
-                if (character.RedOrbs != 0)
-                    writer.WriteLine("RedOrbs={0}", character.RedOrbs);
-                if (character.BlackOrbs != 0)
-                    writer.WriteLine("BlackOrbs={0}", character.BlackOrbs);
-                if (character.AlliedNotes != 0)
-                    writer.WriteLine("AlliedNotes={0}", character.AlliedNotes);
-                if (character.DoubleDollars != 0)
-                    writer.WriteLine("DoubleDollars={0}", character.DoubleDollars);
-                if (character.Rating != 0)
-                    writer.WriteLine("Rating={0}", character.Rating);
-                if (character.NPCBattles != 0)
-                    writer.WriteLine("NPCBattles={0}", character.NPCBattles);
-                if (character.IsWellKnown)
-                    writer.WriteLine("IsWellKnown=Yes");
-                writer.WriteLine();
+
+                foreach (Weapon weapon in this.Weapons.Values) {
+                    writer.WriteLine("[Weapon:{0}]", weapon.Name);
+                    if (weapon.Type != null)
+                        writer.WriteLine("Type={0}", weapon.Type);
+                    if (weapon.Cost != 0)
+                        writer.WriteLine("Cost={0}", weapon.Cost);
+                    if (weapon.UpgradeCost != 0)
+                        writer.WriteLine("UpgradeCost={0}", weapon.UpgradeCost);
+                    if (weapon.Power != 0)
+                        writer.WriteLine("Power={0}", weapon.Power);
+                    if (weapon.HitsMin != 0)
+                        writer.WriteLine("HitsMin={0}", weapon.HitsMin);
+                    if (weapon.HitsMax != 0)
+                        writer.WriteLine("HitsMax={0}", weapon.HitsMax);
+                    if (weapon.Element != null)
+                        writer.WriteLine("Element={0}", weapon.Element);
+                    if (weapon.Techniques != null)
+                        writer.WriteLine("Techniques={0}", string.Join(".", weapon.Techniques));
+                    if (weapon.IsWellKnown)
+                        writer.WriteLine("IsWellKnown=Yes");
+                    writer.WriteLine();
+                }
+
+                foreach (Technique technique in this.Techniques.Values) {
+                    writer.WriteLine("[Technique:{0}]", technique.Name);
+                    if (technique.Type != TechniqueType.Unknown)
+                        writer.WriteLine("Type={0}", technique.Type);
+                    if (technique.Description != null)
+                        writer.WriteLine("Description={0}", technique.Description);
+                    if (technique.Power != 0)
+                        writer.WriteLine("Power={0}", technique.Power);
+                    if (technique.Status != null)
+                        writer.WriteLine("Status={0}", technique.Status);
+                    if (technique.TP != 0)
+                        writer.WriteLine("TP={0}", technique.TP);
+                    if (technique.Cost != 0)
+                        writer.WriteLine("Cost={0}", technique.Cost);
+                    if (technique.IsAoE)
+                        writer.WriteLine("AoE=Yes");
+                    if (technique.IsMagic)
+                        writer.WriteLine("Magic=Yes");
+                    if (technique.Element != null)
+                        writer.WriteLine("Element={0}", technique.Element);
+                    if (technique.IsWellKnown)
+                        writer.WriteLine("IsWellKnown=Yes");
+                    writer.WriteLine();
+                }
+
+                writer.Close();
             }
 
-            foreach (Weapon weapon in this.Weapons.Values) {
-                writer.WriteLine("[Weapon:{0}]", weapon.Name);
-                if (weapon.Type != null)
-                    writer.WriteLine("Type={0}", weapon.Type);
-                if (weapon.Cost != 0)
-                    writer.WriteLine("Cost={0}", weapon.Cost);
-                if (weapon.UpgradeCost != 0)
-                    writer.WriteLine("UpgradeCost={0}", weapon.UpgradeCost);
-                if (weapon.Power != 0)
-                    writer.WriteLine("Power={0}", weapon.Power);
-                if (weapon.HitsMin != 0)
-                    writer.WriteLine("HitsMin={0}", weapon.HitsMin);
-                if (weapon.HitsMax != 0)
-                    writer.WriteLine("HitsMax={0}", weapon.HitsMax);
-                if (weapon.Element != null)
-                    writer.WriteLine("Element={0}", weapon.Element);
-                if (weapon.Techniques != null)
-                    writer.WriteLine("Techniques={0}", string.Join(".", weapon.Techniques));
-                if (weapon.IsWellKnown)
-                    writer.WriteLine("IsWellKnown=Yes");
-                writer.WriteLine();
-            }
+            // Save activity reports.
+            if (this.ActivityReports.Count != 0) {
+                Directory.CreateDirectory(this.Key + "-Activity");
+                foreach (var report in this.ActivityReports) {
+                    using (var writer = new BinaryWriter(File.Open(Path.Combine(this.Key + "-Activity", report.Key + ".dat"), FileMode.Create, FileAccess.Write))) {
+                        writer.Write((short) 1);  // Version field
 
-            foreach (Technique technique in this.Techniques.Values) {
-                writer.WriteLine("[Technique:{0}]", technique.Name);
-                if (technique.Type != TechniqueType.Unknown)
-                    writer.WriteLine("Type={0}", technique.Type);
-                if (technique.Description != null)
-                    writer.WriteLine("Description={0}", technique.Description);
-                if (technique.Power != 0)
-                    writer.WriteLine("Power={0}", technique.Power);
-                if (technique.Status != null)
-                    writer.WriteLine("Status={0}", technique.Status);
-                if (technique.TP != 0)
-                    writer.WriteLine("TP={0}", technique.TP);
-                if (technique.Cost != 0)
-                    writer.WriteLine("Cost={0}", technique.Cost);
-                if (technique.IsAoE)
-                    writer.WriteLine("AoE=Yes");
-                if (technique.IsMagic)
-                    writer.WriteLine("Magic=Yes");
-                if (technique.Element != null)
-                    writer.WriteLine("Element={0}", technique.Element);
-                if (technique.IsWellKnown)
-                    writer.WriteLine("IsWellKnown=Yes");
-                writer.WriteLine();
-            }
+                        for (int i = 0; i < report.Value.Data.Count; ++i)
+                            writer.Write(report.Value.Data[i]);
 
-            writer.Close();
+                        if (report.Value.LastData != null) {
+                            writer.Write(true);
+                            for (int i = 0; i < report.Value.LastData.Count; ++i)
+                                writer.Write(report.Value.LastData[i]);
+                        } else
+                            writer.Write(false);
+
+                        writer.Write(report.Value.LastCheck.ToBinary());
+
+                        writer.Close();
+                    }
+                }
+            }
         }
 #endregion
 
@@ -2064,7 +2122,7 @@ namespace BattleBot
             this.viewInfoStatsCheck();
         }
 
-        [ArenaRegex(@"^\[\x034Current Weapons? Equipped ?\x0312 ?([^ \x03]*)(?: \x034and\x0312 ([^ \x03]*))?(?:\x03\d{0,2}|\x0F)\](?: \[\x034Current Accessory (?:Equipped )?\x0312([^ ]*)(?:\x03\d{0,2}|\x0F)\](?: \[\x034Current Head Armor \x0312([^ \x03]*)(?:\x03\d{0,2}|\x0F)\] \[\x034Current Body Armor \x0312([^ \x03]*)(?:\x03\d{0,2}|\x0F)\] \[\x034Current Leg Armor \x0312([^ \x03]*)(?:\x03\d{0,2}|\x0F)\] \[\x034Current Feet Armor \x0312([^ \x03]*)(?:\x03\d{0,2}|\x0F)\] \[\x034Current Hand Armor \x0312([^ \x03]*)(?:\x03\d{0,2}|\x0F)\])?)?")]
+        [ArenaRegex(@"^\[\x034Current Weapons? Equipped ?\x0312 ?([^ \x03]*)( )?(?:\x034and\x0312 ([^ \x03]*))?(?:\x03\d{0,2}|\x0F)\](?: \[\x034Current Accessory (?:Equipped )?\x0312([^ ]*)(?:\x03\d{0,2}|\x0F)\](?: \[\x034Current Head Armor \x0312([^ \x03]*)(?:\x03\d{0,2}|\x0F)\] \[\x034Current Body Armor \x0312([^ \x03]*)(?:\x03\d{0,2}|\x0F)\] \[\x034Current Leg Armor \x0312([^ \x03]*)(?:\x03\d{0,2}|\x0F)\] \[\x034Current Feet Armor \x0312([^ \x03]*)(?:\x03\d{0,2}|\x0F)\] \[\x034Current Hand Armor \x0312([^ \x03]*)(?:\x03\d{0,2}|\x0F)\])?)?")]
         internal void OnStats3(object sender, RegexEventArgs e) {
             if (this.ViewingStatsCharacter == null) {
                 this.ViewingStatsCharacter = new Character();
@@ -2074,10 +2132,10 @@ namespace BattleBot
                 this.ViewingStatsCombatant = new Combatant();
             }
 
-            this.ViewingStatsCharacter.EquippedAccessory = (!e.Match.Groups[3].Success || e.Match.Groups[3].Value == "nothing" || e.Match.Groups[3].Value == "none") ? null : e.Match.Groups[3].Value;
+            this.ViewingStatsCharacter.EquippedAccessory = (!e.Match.Groups[4].Success || e.Match.Groups[4].Value == "nothing" || e.Match.Groups[4].Value == "none") ? null : e.Match.Groups[4].Value;
             this.ViewingStatsCharacter.EquippedWeapon = e.Match.Groups[1].Value;
-            if (e.Match.Groups[2].Success)
-                this.ViewingStatsCharacter.EquippedWeapon2 = e.Match.Groups[2].Value;
+            if (e.Match.Groups[3].Success)
+                this.ViewingStatsCharacter.EquippedWeapon2 = e.Match.Groups[3].Value;
             else
                 this.ViewingStatsCharacter.EquippedWeapon2 = null;
 
@@ -2950,8 +3008,6 @@ namespace BattleBot
         }
 
         internal void OnBattleOpen(BattleType type, float time) {
-            // TODO: Call the event.
-
             this.WriteLine(1, 8, "A battle is starting. Type is {0}.", type);
 
             this.BattleOpen = true;
@@ -2963,7 +3019,10 @@ namespace BattleBot
             this.TurnNumber = 0;
             this.Turn = null;
 
-            if (type != BattleType.NPC && this.LoggedIn != null) {
+            var e = new BattleOpenEventArgs(type, TimeSpan.FromSeconds(time), (EnableParticipation && type != BattleType.NPC && this.LoggedIn != null));
+            this.eBattleOpen?.Invoke(this, e);
+
+            if (e.Enter) {
                 // Enter the battle.
                 if (this.EnableParticipation && this.MinPlayers <= 0) {
                     Character character;
@@ -3253,7 +3312,7 @@ namespace BattleBot
             // Check for the no-monster fix.
             // If there are no monsters, and the Arena bot is early enough, it cannot continue.
             if (this.BattleStarted && this.NoMonsterFix && this.BattleType != BattleType.PvP &&
-                !e.Match.Groups[1].Value.Contains("\u00035")) {
+                !e.Match.Groups[1].Value.Contains("\u00035") && !e.Match.Groups[1].Value.Contains("\u00036")) {
                     this.BattleAction(false, "There are no monsters on the battlefield.");
                     this.BattleAction(true, "!end battle victory");
                     return;
@@ -3268,7 +3327,7 @@ namespace BattleBot
                     string shortName = IRCClient.RemoveCodes(realEntry);
                     if (realEntry.StartsWith("\u00033"))
                         this.BattleList.Add(shortName, new Combatant() { Category = Category.Player, HP = -1, ShortName = shortName });
-                    else if (realEntry.StartsWith("\u00035"))
+                    else if (realEntry.StartsWith("\u00035") || realEntry.StartsWith("\u00036"))
                         this.BattleList.Add(shortName, new Combatant() { Category = Category.Monster, HP = -1, ShortName = shortName });
                     else if (realEntry.StartsWith("\u000312"))
                         this.BattleList.Add(shortName, new Combatant() { Category = Category.Ally, HP = -1, ShortName = shortName });
@@ -3325,7 +3384,7 @@ namespace BattleBot
                             IsEthereal = upperName.Contains("GHOST"),
                             HurtByTaunt = (upperName == "CRYSTAL SHADOW WARRIOR")
                         };
-                        if (realEntry.StartsWith("\u00035"))
+                        if (realEntry.StartsWith("\u00035") || realEntry.StartsWith("\u00036"))
                             character.Category = Category.Monster;
                         else if (realEntry.StartsWith("\u00033"))
                             character.Category = Category.Player;
@@ -3344,7 +3403,7 @@ namespace BattleBot
                     string shortName = IRCClient.RemoveCodes(realEntry);
                     if (this.BattleList.ContainsKey(shortName)) continue;
 
-                    if (realEntry.StartsWith("\u00035"))
+                    if (realEntry.StartsWith("\u00035") || realEntry.StartsWith("\u00036"))
                         this.UnmatchedShortNames.Add(new UnmatchedName() { Name = shortName, Category = Category.Monster });
                     else if (realEntry.StartsWith("\u00033"))
                         this.UnmatchedShortNames.Add(new UnmatchedName() { Name = shortName, Category = Category.Player });
@@ -3660,6 +3719,8 @@ namespace BattleBot
                 }
                 if (noMonsters) this.BattleType = BattleType.PvP;
             }
+
+            this.eBattleStart?.Invoke(this, EventArgs.Empty);
 
             if (!this.EnableAnalysis) return;
 
@@ -4107,7 +4168,7 @@ namespace BattleBot
             this.BattleList.Add(this.Turn + "_summon", new Combatant() { ShortName = shortName, Name = e.Match.Groups[2].Value, Character = character, Category = Category.Ally });
         }
 
-        [ArenaRegex(@"^\x033It is\x02 ([^\x02]*)\x02's turn \[[^:]*Health[^:]*: (\x02?\x03[01]?\d\x02?.*)\x02\x033\] \[[^:]*Status[^:]*:\x02?\x034\x02? ?(?:\x034)*((?:\[[^\]]*\]|[^\]])*)\x02\x033\]")]
+        [ArenaRegex(@"^\x033It is\x02 ([^\x02]*)\x02's turn \[[^:]*Health[^:]*:\x02? (\x02?\x03[01]?\d\x02?.*)\x02?\x0F?\x033\] \[[^:]*Status[^:]*:\x02?\x034\x02? ?(?:\x034)*((?:\[[^\]]*\]|[^\]])*)\x02?\x0F?\x033\]")]
         internal void OnTurn(object sender, RegexEventArgs e) {
             this.BattleOpen = false;
             this.BattleStarted = true;
@@ -4442,7 +4503,46 @@ namespace BattleBot
         internal void OnBattleEnd(object sender, RegexEventArgs e) {
             this.WriteLine(1, 8, "The battle has ended.");
             this.AI.BattleEnd();
+
+            this.eBattleEnd?.Invoke(this, EventArgs.Empty);
+
+            // Update activity reports.
+            var startTime = BattleStartTime.ToUniversalTime();
+            foreach (var combatant in this.BattleList) {
+                if (combatant.Value.Category == Category.Player && this.PlayersEntering.Contains(combatant.Key)) {
+                    ActivityReport report;
+                    if (!this.ActivityReports.TryGetValue(combatant.Key, out report)) {
+                        report = new ActivityReport();
+                        this.ActivityReports.Add(combatant.Key, report);
+                    }
+
+                    int index = (int) startTime.DayOfWeek * 24 + startTime.Hour;
+                    DateTime endTime = DateTime.UtcNow.AddMinutes(3);  // Add three minutes for the time between battles.
+
+                    if (endTime.Hour == startTime.Hour) {
+                        report.AddSeconds(index, (int) (endTime - startTime).TotalSeconds);
+                    } else {
+                        int lastIndex = (int) endTime.DayOfWeek * 24 + endTime.Hour;
+                        report.AddSeconds(index, (59 - startTime.Minute) * 60 + 60 - startTime.Second);
+                        ++index;
+                        while (index != lastIndex) {
+                            report.AddSeconds(index, 3600);
+                            ++index;
+                            if (index == 168) index = 0;
+                        }
+                        report.AddSeconds(index, endTime.Minute * 60 + endTime.Second);
+                    }
+                }
+            }
+
             this.ClearBattle();
+
+            // Roll over activity reports.
+            foreach (var report in this.ActivityReports.Values) {
+                if (DateTime.UtcNow.Month != report.LastCheck.Month)
+                    report.RollOver();
+                report.LastCheck = DateTime.UtcNow;
+            }
         }
 
         [ArenaRegex(@"^\x034The Battle is Over! \x0312Winner: \[(?:(NPC)|Monster)\]\x02 (.*)")]
@@ -4523,6 +4623,7 @@ namespace BattleBot
                     this.Characters.Remove(combatant.ShortName);
             }
             this.BattleList.Clear();
+            this.PlayersEntering.Clear();
         }
 
         [ArenaRegex(@"^\x034\x02Another\x02 wave of monsters has arrived to the battlefield!( \[\x02Gauntlet Round: (\d+)\x02\])?")]
