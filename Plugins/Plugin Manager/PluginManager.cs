@@ -50,12 +50,12 @@ namespace PluginManager
             }
 
             try {
-                if (Bot.LoadPlugin(key, realFilename))
-                    Bot.Say(e.Connection, e.Channel, string.Format("Loaded \u0002{0}\u0002.", Bot.Plugins[key].Obj.Name));
-                else
-                    Bot.Say(e.Connection, e.Channel, "Failed to load the plugin. See the console for details.");
+                Bot.LoadPlugin(key, realFilename);
+                Bot.Say(e.Connection, e.Channel, string.Format("Loaded \u0002{0}\u0002.", Bot.Plugins[key].Obj.Name));
+            } catch (InvalidPluginException ex) {
+                Bot.Say(e.Connection, e.Channel, "That file could not be loaded: {0}", ex.Message);
             } catch (Exception ex) {
-                    Bot.Say(e.Connection, e.Channel, string.Format("Failed to load the plugin: {0}", ex.Message));
+                Bot.Say(e.Connection, e.Channel, string.Format("Failed to load the plugin: {0}", ex.Message));
             }
         }
 
