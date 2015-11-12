@@ -47,7 +47,7 @@ namespace GreedyDice {
 
         public bool IsAIUp {
             get {
-                return this.Players[this.Turn].Name == this.Connection.Nickname;
+                return this.Players[this.Turn].Name == this.Connection.Me.Nickname;
             }
         }
 

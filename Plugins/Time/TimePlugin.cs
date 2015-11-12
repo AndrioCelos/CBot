@@ -13,7 +13,7 @@ using IRC;
 using static System.StringComparison;
 
 namespace Time {
-    [APIVersion(3, 1)]
+    [APIVersion(3, 2)]
     public class TimePlugin : Plugin {
         public override string Name => "Time zone calculator";
 
@@ -142,10 +142,10 @@ namespace Time {
 
         [Command(new string[] { "time", "timezone" }, 1, 1, "time [\u001Fzone\u001F] \u0002or\u0002 time \u001Ftime\u001F [in \u001Fzone\u001F] [to \u001Fzone\u001F]", "Shows the time, or converts a time between zones.")]
         public void CommandTime(object sender, CommandEventArgs e) {
-            string key = e.Connection.NetworkName + "/" + e.Sender.Nickname;
+            string key = e.Client.NetworkName + "/" + e.Sender.Nickname;
             Request request;
             if (requests.TryGetValue(key, out request)) {
-                Bot.Say(e.Connection, e.Sender.Nickname, "I already have a pending request from you.");
+                Bot.Say(e.Client, e.Sender.Nickname, "I already have a pending request from you.");
                 return;
             }
 
@@ -176,15 +176,15 @@ namespace Time {
                 zone = null;
                 targetZone = GetOffset(timeString, out targetZoneString);
                 if (targetZone == null) {
-                    Bot.Say(e.Connection, e.Sender.Nickname, $"I do not recognize the time zone '{targetZoneString}'.");
+                    Bot.Say(e.Client, e.Sender.Nickname, $"I do not recognize the time zone '{targetZoneString}'.");
                     return;
                 }
 
-                DoConversion(e.Connection, e.Sender.Nickname, e.Channel, null, null, TimeSpan.Zero, targetZoneString, targetZone.Value);
+                DoConversion(e.Client, e.Sender.Nickname, e.Channel, null, null, TimeSpan.Zero, targetZoneString, targetZone.Value);
             } else {
                 DateTime time2;
                 if (!TryParseUserTime(timeString, out time2)) {
-                    Bot.Say(e.Connection, e.Sender.Nickname, "I could not parse that time.");
+                    Bot.Say(e.Client, e.Sender.Nickname, "I could not parse that time.");
                     return;
                 }
                 time = time2;
@@ -192,7 +192,7 @@ namespace Time {
                 else {
                     zone = GetOffset(zoneString, out zoneString);
                     if (zone == null) {
-                        Bot.Say(e.Connection, e.Sender.Nickname, $"I do not recognize the time zone '{zoneString}'.");
+                        Bot.Say(e.Client, e.Sender.Nickname, $"I do not recognize the time zone '{zoneString}'.");
                         return;
                     }
                 }
@@ -200,20 +200,20 @@ namespace Time {
                 else {
                     targetZone = GetOffset(targetZoneString, out targetZoneString);
                     if (targetZone == null) {
-                        Bot.Say(e.Connection, e.Sender.Nickname, $"I do not recognize the time zone '{targetZoneString}'.");
+                        Bot.Say(e.Client, e.Sender.Nickname, $"I do not recognize the time zone '{targetZoneString}'.");
                         return;
                     }
                 }
 
                 // Unless both zones are specified, we need to do a CTCP TIME.
                 if (zone == null || targetZone == null) {
-                    request = new Request(e.Connection, e.Channel, e.Sender, time, zone, targetZone, zoneString ?? targetZoneString);
+                    request = new Request(e.Client, e.Channel, e.Sender, time, zone, targetZone, zoneString ?? targetZoneString);
                     request.Timeout += Request_Timeout;
-                    Bot.Say(e.Connection, e.Sender.Nickname, "\u0001TIME\u0001", SayOptions.NoticeNever);
+                    Bot.Say(e.Client, e.Sender.Nickname, "\u0001TIME\u0001", SayOptions.NoticeNever);
                     requests.Add(key, request);
                     request.Start();
                 } else {
-                    DoConversion(e.Connection, e.Sender.Nickname, e.Channel, time, zoneString, zone.Value, targetZoneString, targetZone.Value);
+                    DoConversion(e.Client, e.Sender.Nickname, e.Channel, time, zoneString, zone.Value, targetZoneString, targetZone.Value);
                 }
             }
 

@@ -11,7 +11,7 @@ using IRC;
 
 namespace ChannelNotifier
 {
-    [APIVersion(3, 1)]
+    [APIVersion(3, 2)]
     public class ChannelNotifierPlugin : Plugin
     {
         public List<string> Targets;
@@ -69,7 +69,7 @@ namespace ChannelNotifier
         public void SaveConfig() {
             if (!Directory.Exists("Config"))
                 Directory.CreateDirectory("Config");
-            StreamWriter writer = new StreamWriter(Path.Combine("Config", MyKey + ".ini"), false);
+            StreamWriter writer = new StreamWriter(Path.Combine("Config", this.Key + ".ini"), false);
             writer.WriteLine("[Config]");
             writer.WriteLine("Targets={0}", string.Join(",", this.Targets));
             writer.Close();
@@ -84,7 +84,7 @@ namespace ChannelNotifier
                 IEnumerable<ClientEntry> clients;
                 if (fields[0] == "*") clients = Bot.Clients;
                 else {
-                    ClientEntry client = Bot.Clients.FirstOrDefault(c => fields[0].Equals(c.Client.NetworkName, StringComparison.OrdinalIgnoreCase) || fields[0].Equals(c.Client.Address, StringComparison.OrdinalIgnoreCase));
+                    ClientEntry client = Bot.Clients.FirstOrDefault(c => fields[0].Equals(c.Client.Extensions.NetworkName, StringComparison.OrdinalIgnoreCase) || fields[0].Equals(c.Client.Address, StringComparison.OrdinalIgnoreCase));
                     if (client == default(ClientEntry)) return;
                     clients = new ClientEntry[] { client };
                 }
@@ -93,16 +93,16 @@ namespace ChannelNotifier
                     IRCClient client = clientEntry.Client;
                     if (fields[1] == "*") {
                         if (client == originConnection) {
-                            foreach (Channel channel in client.Channels.Where(_channel => _channel.Name != originChannel))
+                            foreach (IRCChannel channel in client.Channels.Where(_channel => _channel.Name != originChannel))
                                 channel.Say(message);
                         } else {
-                            foreach (Channel channel in client.Channels)
+                            foreach (IRCChannel channel in client.Channels)
                                 channel.Say(message);
                         }
                     } else if (client.IsChannel(fields[1]) && (client != originConnection || !client.CaseMappingComparer.Equals(fields[1], originChannel))) {
                         client.Send("PRIVMSG " + fields[1] + " :" + message);
                     } else {
-                        if ((client != originConnection || !client.CaseMappingComparer.Equals(fields[1], originChannel)) && Bot.UserHasPermission(client, null, fields[1], MyKey + ".receive"))
+                        if ((client != originConnection || !client.CaseMappingComparer.Equals(fields[1], originChannel)) && Bot.UserHasPermission(client, null, client.Users[fields[1]], this.Key + ".receive"))
                             client.Send("PRIVMSG " + fields[1] + " :" + message);
                     }
                 }
@@ -112,11 +112,6 @@ namespace ChannelNotifier
         public override bool OnChannelJoin(object sender, ChannelJoinEventArgs e) {
             this.SendCheck(string.Format("\u000315[\u000F{0}\u000315] {1}{2}\u000F joined.", e.Channel, IRC.Colours.NicknameColour(e.Sender.Nickname), e.Sender.Nickname), (IRCClient) sender, e.Channel);
             return base.OnChannelJoin(sender, e);
-        }
-
-        public override bool OnChannelJoinSelf(object sender, ChannelJoinEventArgs e) {
-            this.SendCheck(string.Format("\u000315[\u000F{0}\u000315] {1}{2}\u000F joined.", e.Channel, IRC.Colours.NicknameColour(e.Sender.Nickname), e.Sender.Nickname), (IRCClient) sender, e.Channel);
-            return base.OnChannelJoinSelf(sender, e);
         }
 
         public override bool OnChannelLeave(object sender, ChannelPartEventArgs e) {
@@ -152,12 +147,12 @@ namespace ChannelNotifier
             if (Regex.IsMatch(e.Message, @"^Your message to \S+ got lost")) return false;
 
             // Don't relay the message if it's a command.
-            Match match = Regex.Match(e.Message, @"^" + Regex.Escape(((IRCClient) sender).Nickname) + @"\.*[:,-]? (.*)", RegexOptions.IgnoreCase);
+            Match match = Regex.Match(e.Message, @"^" + Regex.Escape(((IRCClient) sender).Me.Nickname) + @"\.*[:,-]? (.*)", RegexOptions.IgnoreCase);
             if (match.Success)
                 message = match.Groups[1].Value;
             else
                 message = e.Message;
-            if (!Bot.getCommandPrefixes((IRCClient) sender, e.Sender.Nickname).Contains(message[0].ToString()))
+            if (!Bot.GetCommandPrefixes((IRCClient) sender, e.Sender.Nickname).Contains(message[0].ToString()))
                 this.SendCheck(string.Format("\u000315[\u000312PM\u000315] {0}{1}\u000F: {2}", IRC.Colours.NicknameColour(e.Sender.Nickname), e.Sender.Nickname, e.Message), (IRCClient) sender, e.Sender.Nickname);
             
             return false;

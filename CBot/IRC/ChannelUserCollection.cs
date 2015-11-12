@@ -4,13 +4,13 @@ using System.Collections.Generic;
 using System.Text;
 
 namespace IRC {
-    public class ChannelUserCollection : IEnumerable<ChannelUser>, IEnumerable {
-        public class Enumerator : IEnumerator<ChannelUser>, IEnumerator  {
-            private ChannelUserCollection collection;
+    public class IRCChannelUserCollection : IEnumerable<IRCChannelUser>, IEnumerable {
+        public class Enumerator : IEnumerator<IRCChannelUser>, IEnumerator  {
+            private IRCChannelUserCollection collection;
             private int index;
-            private ChannelUser current;
+            private IRCChannelUser current;
 
-            internal Enumerator(ChannelUserCollection collection) {
+            internal Enumerator(IRCChannelUserCollection collection) {
                 this.collection = collection;
                 collection.enumerator = this;
                 this.index = collection.Count;
@@ -19,7 +19,7 @@ namespace IRC {
 
             public void Dispose() { }
 
-            public ChannelUser Current {
+            public IRCChannelUser Current {
                 get { return current; }
             }
 
@@ -44,25 +44,25 @@ namespace IRC {
             }
         }
 
-        private ChannelUser[] array;
+        private IRCChannelUser[] array;
         private int count;
-        private ChannelUserCollection.Enumerator enumerator;
+        private IRCChannelUserCollection.Enumerator enumerator;
         private IRCClient client;
 
-        public ChannelUserCollection() {
-            this.array = new ChannelUser[4];
+        public IRCChannelUserCollection() {
+            this.array = new IRCChannelUser[4];
             this.count = 0;
         }
-        public ChannelUserCollection(IRCClient client) : this() {
+        public IRCChannelUserCollection(IRCClient client) : this() {
             this.client = client;
         }
 
-        public ChannelUserCollection.Enumerator GetEnumerator() {
-            this.enumerator = new ChannelUserCollection.Enumerator(this);
+        public IRCChannelUserCollection.Enumerator GetEnumerator() {
+            this.enumerator = new IRCChannelUserCollection.Enumerator(this);
             return this.enumerator;
         }
 
-        IEnumerator<ChannelUser> IEnumerable<ChannelUser>.GetEnumerator() {
+        IEnumerator<IRCChannelUser> IEnumerable<IRCChannelUser>.GetEnumerator() {
             return this.GetEnumerator();
         }
 
@@ -88,14 +88,14 @@ namespace IRC {
                 array.SetValue(this.array[i], index++);
         }
 
-        public ChannelUser this[int index] {
+        public IRCChannelUser this[int index] {
             get {
                 if (index >= this.count) throw new ArgumentOutOfRangeException("index");
                 return this.array[this.count - 1 - index];
             }
         }
 
-        public ChannelUser this[string nickname] {
+        public IRCChannelUser this[string nickname] {
             get {
                 for (int i = 0; i < this.count; ++i)
                     if (this.array[i].Nickname.Equals(nickname, StringComparison.OrdinalIgnoreCase)) return this.array[i];
@@ -103,10 +103,10 @@ namespace IRC {
             }
         }
 
-        internal void Add(ChannelUser user) {
+        internal void Add(IRCChannelUser user) {
             this.enumerator = null;
             if (this.array.Length == this.count) {
-                ChannelUser[] array2 = new ChannelUser[this.count * 2];
+                IRCChannelUser[] array2 = new IRCChannelUser[this.count * 2];
                 this.array.CopyTo(array2, 0);
                 this.array = array2;
             }
@@ -129,7 +129,7 @@ namespace IRC {
             return false;
         }
 
-        internal bool Remove(ChannelUser user) {
+        internal bool Remove(IRCChannelUser user) {
             int i;
             for (i = 0; i < this.count; ++i)
                 if (this.array[i] == user) {
@@ -151,7 +151,7 @@ namespace IRC {
             return false;
         }
 
-        public bool TryGetValue(string nickname, out ChannelUser value) {
+        public bool TryGetValue(string nickname, out IRCChannelUser value) {
             StringComparer comparer;
             if (this.client == null)
                 comparer = IRCStringComparer.RFC1459;
@@ -164,7 +164,7 @@ namespace IRC {
                     return true;
                 }
             }
-            value = default(ChannelUser);
+            value = default(IRCChannelUser);
             return false;
         }
 

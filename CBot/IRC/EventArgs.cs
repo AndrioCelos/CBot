@@ -1,5 +1,7 @@
 ﻿using System;
 using System.Net;
+using System.Net.Security;
+using System.Security.Cryptography.X509Certificates;
 
 namespace IRC {
     public class AwayEventArgs : EventArgs {
@@ -43,11 +45,11 @@ namespace IRC {
     }
 
     public class ChannelMessageEventArgs : EventArgs {
-        public User Sender { get; set; }
+        public IRCUser Sender { get; set; }
         public string Channel { get; set; }
         public string Message { get; set; }
 
-        public ChannelMessageEventArgs(User sender, string channel, string message) {
+        public ChannelMessageEventArgs(IRCUser sender, string channel, string message) {
             this.Sender = sender;
             this.Channel = channel;
             this.Message = message;
@@ -55,11 +57,11 @@ namespace IRC {
     }
 
     public class ChannelNicknameModeEventArgs : EventArgs {
-        public User Sender { get; set; }
+        public IRCUser Sender { get; set; }
         public string Channel { get; set; }
-        public ChannelUser Target { get; set; }
+        public IRCChannelUser Target { get; set; }
 
-        public ChannelNicknameModeEventArgs(User sender, string channel, ChannelUser target) {
+        public ChannelNicknameModeEventArgs(IRCUser sender, string channel, IRCChannelUser target) {
             this.Sender = sender;
             this.Channel = channel;
             this.Target = target;
@@ -67,12 +69,12 @@ namespace IRC {
     }
 
     public class ChannelListModeEventArgs : EventArgs {
-        public User Sender { get; set; }
+        public IRCUser Sender { get; set; }
         public string Channel { get; set; }
         public string Mask { get; set; }
-        public ChannelUser[] MatchedUsers { get; set; }
+        public IRCChannelUser[] MatchedUsers { get; set; }
 
-        public ChannelListModeEventArgs(User sender, string channel, string mask, ChannelUser[] matchedUsers) {
+        public ChannelListModeEventArgs(IRCUser sender, string channel, string mask, IRCChannelUser[] matchedUsers) {
             this.Sender = sender;
             this.Channel = channel;
             this.Mask = mask;
@@ -91,11 +93,11 @@ namespace IRC {
     }
 
     public class ChannelInviteEventArgs : EventArgs {
-        public User Sender { get; set; }
+        public IRCUser Sender { get; set; }
         public string Target { get; set; }
         public string Channel { get; set; }
 
-        public ChannelInviteEventArgs(User sender, string target, string channel) {
+        public ChannelInviteEventArgs(IRCUser sender, string target, string channel) {
             this.Sender = sender;
             this.Target = target;
             this.Channel = channel;
@@ -113,22 +115,22 @@ namespace IRC {
     }
 
     public class ChannelJoinEventArgs : EventArgs {
-        public User Sender { get; set; }
+        public IRCUser Sender { get; set; }
         public string Channel { get; set; }
 
-        public ChannelJoinEventArgs(User sender, string channel) {
+        public ChannelJoinEventArgs(IRCUser sender, string channel) {
             this.Sender = sender;
             this.Channel = channel;
         }
     }
 
     public class ChannelKickEventArgs : EventArgs {
-        public User Sender { get; set; }
+        public IRCUser Sender { get; set; }
         public string Channel { get; set; }
-        public ChannelUser Target { get; set; }
+        public IRCChannelUser Target { get; set; }
         public string Reason { get; set; }
 
-        public ChannelKickEventArgs(User sender, string channel, ChannelUser target, string reason) {
+        public ChannelKickEventArgs(IRCUser sender, string channel, IRCChannelUser target, string reason) {
             this.Sender = sender;
             this.Channel = channel;
             this.Target = target;
@@ -149,12 +151,12 @@ namespace IRC {
     }
 
     public class ChannelModeEventArgs : EventArgs {
-        public User Sender { get; set; }
+        public IRCUser Sender { get; set; }
         public string Channel { get; set; }
         public bool Direction { get; set; }
         public char Mode { get; set; }
 
-        public ChannelModeEventArgs(User sender, string channel, bool direction, char mode) {
+        public ChannelModeEventArgs(IRCUser sender, string channel, bool direction, char mode) {
             this.Sender = sender;
             this.Channel = channel;
             this.Direction = direction;
@@ -163,11 +165,11 @@ namespace IRC {
     }
 
     public class ChannelModesSetEventArgs : EventArgs {
-        public User Sender { get; set; }
+        public IRCUser Sender { get; set; }
         public string Channel { get; set; }
         public string Modes { get; set; }
 
-        public ChannelModesSetEventArgs(User sender, string channel, string modes) {
+        public ChannelModesSetEventArgs(IRCUser sender, string channel, string modes) {
             this.Sender = sender;
             this.Channel = channel;
             this.Modes = modes;
@@ -185,11 +187,11 @@ namespace IRC {
     }
 
     public class ChannelKeyEventArgs : EventArgs {
-        public User Sender { get; set; }
+        public IRCUser Sender { get; set; }
         public string Channel { get; set; }
         public string Key { get; set; }
 
-        public ChannelKeyEventArgs(User sender, string channel, string key) {
+        public ChannelKeyEventArgs(IRCUser sender, string channel, string key) {
             this.Sender = sender;
             this.Channel = channel;
             this.Key = key;
@@ -197,11 +199,11 @@ namespace IRC {
     }
     
     public class ChannelLimitEventArgs : EventArgs {
-        public User Sender { get; set; }
+        public IRCUser Sender { get; set; }
         public string Channel { get; set; }
         public int Limit { get; set; }
 
-        public ChannelLimitEventArgs(User sender, string channel, int limit) {
+        public ChannelLimitEventArgs(IRCUser sender, string channel, int limit) {
             this.Sender = sender;
             this.Channel = channel;
             this.Limit = limit;
@@ -209,11 +211,11 @@ namespace IRC {
     }
 
     public class ChannelPartEventArgs : EventArgs {
-        public User Sender { get; set; }
+        public IRCUser Sender { get; set; }
         public string Channel { get; set; }
         public string Message { get; set; }
 
-        public ChannelPartEventArgs(User sender, string channel, string message) {
+        public ChannelPartEventArgs(IRCUser sender, string channel, string message) {
             this.Sender = sender;
             this.Channel = channel;
             this.Message = message;
@@ -231,11 +233,11 @@ namespace IRC {
     }
 
     public class ChannelTopicChangeEventArgs : EventArgs {
-        public ChannelUser Sender { get; set; }
+        public IRCChannelUser Sender { get; set; }
         public string Channel { get; set; }
         public string Topic { get; set; }
 
-        public ChannelTopicChangeEventArgs(ChannelUser sender, string channel, string topic) {
+        public ChannelTopicChangeEventArgs(IRCChannelUser sender, string channel, string topic) {
             this.Sender = sender;
             this.Channel = channel;
             this.Topic = topic;
@@ -265,9 +267,21 @@ namespace IRC {
     }
 
     public class ExceptionEventArgs : EventArgs {
-        public Exception Exception { get; set; }
+        public Exception Exception { get; }
+        public bool Fatal { get; }
 
-        public ExceptionEventArgs(Exception exception) {
+        public ExceptionEventArgs(Exception exception, bool fatal) {
+            this.Exception = exception;
+            this.Fatal = fatal;
+        }
+    }
+
+    public class DisconnectEventArgs : EventArgs {
+        public DisconnectReason Reason { get; }
+        public Exception Exception { get; }
+
+        public DisconnectEventArgs(DisconnectReason reason, Exception exception) {
+            this.Reason = reason;
             this.Exception = exception;
         }
     }
@@ -293,11 +307,11 @@ namespace IRC {
     }
 
     public class PrivateMessageEventArgs : EventArgs {
-        public User Sender { get; set; }
+        public IRCUser Sender { get; set; }
         public string Target { get; set; }
         public string Message { get; set; }
 
-        public PrivateMessageEventArgs(User sender, string target, string message) {
+        public PrivateMessageEventArgs(IRCUser sender, string target, string message) {
             this.Sender = sender;
             this.Target = target;
             this.Message = message;
@@ -323,10 +337,10 @@ namespace IRC {
     }
 
     public class NicknameChangeEventArgs : EventArgs {
-        public User Sender { get; set; }
+        public IRCUser Sender { get; set; }
         public string NewNickname { get; set; }
 
-        public NicknameChangeEventArgs(User sender, string newNickname) {
+        public NicknameChangeEventArgs(IRCUser sender, string newNickname) {
             this.Sender = sender;
             this.NewNickname = newNickname;
         }
@@ -341,24 +355,20 @@ namespace IRC {
     }
 
     public class QuitEventArgs : EventArgs {
-        public User Sender { get; set; }
+        public IRCUser Sender { get; set; }
         public string Message { get; set; }
 
-        public QuitEventArgs(User sender,  string message) {
+        public QuitEventArgs(IRCUser sender,  string message) {
             this.Sender = sender;
             this.Message = message;
         }
     }
 
-    public class RawParsedEventArgs : RawEventArgs {
-        public string Prefix { get; set; }
-        public string Numeric { get; set; }
-        public string[] Parameters { get; set; }
+    public class IRCLineEventArgs : RawEventArgs {
+        public IRCLine Line { get; }
 
-        public RawParsedEventArgs(string data, string prefix, string numeric, string[] parameters) : base(data) {
-            this.Prefix = prefix;
-            this.Numeric = numeric;
-            this.Parameters = parameters;
+        public IRCLineEventArgs(string data, IRCLine line) : base(data) {
+            this.Line = line;
         }
     }
 
@@ -367,6 +377,16 @@ namespace IRC {
 
         public RawEventArgs(string data) {
             this.Data = data;
+        }
+    }
+
+    public class StateEventArgs : EventArgs {
+        public IRCClientState OldState { get; }
+        public IRCClientState NewState { get; }
+
+        public StateEventArgs(IRCClientState oldState, IRCClientState newState) {
+            this.OldState = oldState;
+            this.NewState = newState;
         }
     }
 
@@ -407,6 +427,22 @@ namespace IRC {
             this.Numeric = numeric;
             this.Parameters = parameters;
             this.Message = message;
+        }
+    }
+
+    public class ValidateCertificateEventArgs : EventArgs {
+        public X509Certificate Certificate { get; }
+        public X509Chain Chain { get; }
+        public SslPolicyErrors SslPolicyErrors { get; }
+        public bool Valid { get; set; }
+
+        public ValidateCertificateEventArgs(X509Certificate certificate, X509Chain chain, SslPolicyErrors errors)
+            : this(certificate, chain, errors, false) { }
+        public ValidateCertificateEventArgs(X509Certificate certificate, X509Chain chain, SslPolicyErrors errors, bool valid) {
+            this.Certificate = certificate;
+            this.Chain = chain;
+            this.SslPolicyErrors = errors;
+            this.Valid = valid;
         }
     }
 
@@ -537,5 +573,4 @@ namespace IRC {
             this.Info = info;
         }
     }
-
 }

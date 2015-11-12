@@ -13,7 +13,7 @@ using IRC;
 
 namespace BattleBot
 {
-    [APIVersion(3, 1)]
+    [APIVersion(3, 2)]
     public class BattleBotPlugin : Plugin
     {
         public string LoggedIn;
@@ -142,7 +142,7 @@ namespace BattleBot
                     if (client is DCCClient) continue;
                     if (fields[0] == null || fields[0] == "*" ||
                         client.Address.Equals(fields[0], StringComparison.OrdinalIgnoreCase) ||
-                        (client.NetworkName != null && client.NetworkName.Equals(fields[0], StringComparison.OrdinalIgnoreCase))) {
+                        (client.Extensions.NetworkName != null && client.Extensions.NetworkName.Equals(fields[0], StringComparison.OrdinalIgnoreCase))) {
                             if (client.Channels.Contains(fields[1])) {
                                 this.ArenaConnection = client;
                                 this.ArenaChannel = fields[1];
@@ -185,26 +185,28 @@ namespace BattleBot
             this.SaveData();
         }
 
-        public override bool OnChannelJoinSelf(object sender, ChannelJoinEventArgs e) {
-            if (this.ArenaConnection == null) this.CheckChannels();
+        public override bool OnChannelJoin(object sender, ChannelJoinEventArgs e) {
+            if (e.Sender.Nickname == ((IRCClient) sender).Me.Nickname) {
+                if (this.ArenaConnection == null) this.CheckChannels();
 
-            if (this.ArenaConnection == sender && ((IRCClient) sender).CaseMappingComparer.Equals(this.ArenaChannel, e.Channel)) {
-                if (this.OwnCharacters.ContainsKey(((IRCClient) sender).Nickname)) {
-                    // Identify to the Arena bot.
-                    Bot.Say(ArenaConnection, ArenaNickname, "!id " + this.OwnCharacters[ArenaConnection.Nickname].Password, SayOptions.NoticeNever);
+                if (this.ArenaConnection == sender && ((IRCClient) sender).CaseMappingComparer.Equals(this.ArenaChannel, e.Channel)) {
+                    if (this.OwnCharacters.ContainsKey(((IRCClient) sender).Me.Nickname)) {
+                        // Identify to the Arena bot.
+                        Bot.Say(ArenaConnection, ArenaNickname, "!id " + this.OwnCharacters[ArenaConnection.Me.Nickname].Password, SayOptions.NoticeNever);
+                    }
+                    // Get the Arena bot version.
+                    if (this.Version == default(ArenaVersion) && !this.VersionPreCTCP)
+                        Bot.Say((IRCClient) sender, ArenaNickname, "\u0001BOTVERSION\u0001", SayOptions.NoticeNever);
                 }
-                // Get the Arena bot version.
-                if (this.Version == default(ArenaVersion) && !this.VersionPreCTCP)
-                    Bot.Say((IRCClient) sender, ArenaNickname, "\u0001BOTVERSION\u0001", SayOptions.NoticeNever);
             }
-            return base.OnChannelJoinSelf(sender, e);
+            return base.OnChannelJoin(sender, e);
         }
 
         public override bool OnNicknameChangeSelf(object sender, NicknameChangeEventArgs e) {
             if (this.ArenaConnection == sender && ((IRCClient) sender).Channels.Contains(this.ArenaChannel)) {
                 if (this.OwnCharacters.ContainsKey(e.NewNickname)) {
                     // Identify to the Arena bot.
-                    Bot.Say(ArenaConnection, ArenaNickname, "!id " + this.OwnCharacters[ArenaConnection.Nickname].Password, SayOptions.NoticeNever);
+                    Bot.Say(ArenaConnection, ArenaNickname, "!id " + this.OwnCharacters[ArenaConnection.Me.Nickname].Password, SayOptions.NoticeNever);
                 }
             }
             return base.OnNicknameChangeSelf(sender, e);
@@ -263,12 +265,12 @@ namespace BattleBot
                 this.WriteLine(1, 4, "Received a DCC CHAT request from {0}.  IP: {1}  Port: {2}", e.Sender.Nickname, IP, port);
                 // Create the DCC connection.
                 this.DCCClient = new DCCClient(this, IP, port);
-                ClientEntry newEntry = new ClientEntry("!" + MyKey, this.DCCClient);
+                ClientEntry newEntry = new ClientEntry("!" + this.Key, IP.ToString(), port, this.DCCClient);
                 Bot.Clients.Add(newEntry);
                 Bot.SetUpClientEvents(this.DCCClient);
                 try {
                     ((DCCClient) this.DCCClient).Target = e.Sender;
-                    ((DCCClient) this.DCCClient).Connect();
+                    ((DCCClient) this.DCCClient).Connect(((DCCClient) this.DCCClient).Address, ((DCCClient) this.DCCClient).Port);
                     this.WriteLine(1, 4, "Connected to the DCC session successfully.");
                     if (!this.DCCBattleChat) ((DCCClient) this.DCCClient).SendSub("!toggle battle chat");
                 } catch (Exception ex) {
@@ -280,14 +282,14 @@ namespace BattleBot
             return base.OnPrivateCTCP(sender, e);
         }
 
-        public bool RunArenaRegex(IRCClient connection, string channel, User sender, string message) {
+        public bool RunArenaRegex(IRCClient connection, string channel, IRCUser sender, string message) {
             foreach (System.Reflection.MethodInfo method in this.GetType().GetMethods(System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.NonPublic)) {
                 foreach (Attribute attribute in method.GetCustomAttributes(typeof(ArenaRegexAttribute), false)) {
                     foreach (string expression in ((ArenaRegexAttribute) attribute).Expressions) {
                         Match match = Regex.Match(message, expression);
                         if (match.Success) {
                             try {
-                                method.Invoke(this, new object[] { this, new RegexEventArgs(connection, channel, new User(sender), match) });
+                                method.Invoke(this, new object[] { this, new RegexEventArgs(connection, channel, sender, match) });
                             } catch (Exception ex) {
                                 this.LogError(method.Name, ex);
                             }
@@ -300,7 +302,7 @@ namespace BattleBot
         }
 
         public void BattleAction(bool PM, string message) {
-            if (this.DCCClient != null && this.DCCClient.IsConnected)
+            if (this.DCCClient != null && this.DCCClient.State == IRCClientState.Online)
                 ((DCCClient) this.DCCClient).SendSub(message);
             else if (PM)
                 Bot.Say(this.ArenaConnection, this.ArenaNickname, message, SayOptions.NoticeNever);
@@ -381,7 +383,7 @@ namespace BattleBot
         public void SaveConfig() {
             if (!Directory.Exists("Config"))
                 Directory.CreateDirectory("Config");
-            StreamWriter writer = new StreamWriter(Path.Combine("Config", MyKey + ".ini"), false);
+            StreamWriter writer = new StreamWriter(Path.Combine("Config", this.Key + ".ini"), false);
             writer.WriteLine("[Enable]");
             writer.WriteLine("Analysis={0}", this.EnableAnalysis ? "True" : "False");
             writer.WriteLine("Participation={0}", this.EnableParticipation ? "True" : "False");
@@ -977,17 +979,17 @@ namespace BattleBot
                 case "ENABLEANALYSIS":
                     if (value == null) {
                         if (this.EnableAnalysis)
-                            Bot.Say(e.Connection, e.Channel, Bot.Choose("\u0002Analysis\u0002 is currently \u00039enabled\u000F.", "I \u00039will\u000F analyse the Arena combatants."));
+                            Bot.Say(e.Client, e.Channel, Bot.Choose("\u0002Analysis\u0002 is currently \u00039enabled\u000F.", "I \u00039will\u000F analyse the Arena combatants."));
                         else
-                            Bot.Say(e.Connection, e.Channel, Bot.Choose("\u0002Analysis\u0002 is currently \u00034disabled\u000F.", "I \u00034will not\u000F analyse the Arena combatants."));
+                            Bot.Say(e.Client, e.Channel, Bot.Choose("\u0002Analysis\u0002 is currently \u00034disabled\u000F.", "I \u00034will not\u000F analyse the Arena combatants."));
                     } else {
                         try {
                             if (this.EnableAnalysis = Bot.ParseBoolean(value))
-                                Bot.Say(e.Connection, e.Channel, Bot.Choose("\u0002Analysis\u0002 is now \u00039enabled\u000F.", "I \u00039will\u000F now analyse the Arena combatants."));
+                                Bot.Say(e.Client, e.Channel, Bot.Choose("\u0002Analysis\u0002 is now \u00039enabled\u000F.", "I \u00039will\u000F now analyse the Arena combatants."));
                             else
-                                Bot.Say(e.Connection, e.Channel, Bot.Choose("\u0002Analysis\u0002 is now \u00034disabled\u000F.", "I will \u00034no longer\u000F analyse the Arena combatants."));
+                                Bot.Say(e.Client, e.Channel, Bot.Choose("\u0002Analysis\u0002 is now \u00034disabled\u000F.", "I will \u00034no longer\u000F analyse the Arena combatants."));
                         } catch (ArgumentException) {
-                            Bot.Say(e.Connection, e.Sender.Nickname, string.Format("I don't recognise '\u0002{0}\u000F' as a Boolean value. Please enter \u0002on\u0002 or \u0002off\u0002.", value));
+                            Bot.Say(e.Client, e.Sender.Nickname, string.Format("I don't recognise '\u0002{0}\u000F' as a Boolean value. Please enter \u0002on\u0002 or \u0002off\u0002.", value));
                         }
                     }
                     break;
@@ -995,21 +997,21 @@ namespace BattleBot
                 case "ENABLEPARTICIPATION":
                     if (value == null) {
                         if (this.EnableParticipation)
-                            Bot.Say(e.Connection, e.Channel, Bot.Choose("\u0002Participation\u0002 is currently \u00039enabled\u000F.", "I \u00039will\u000F participate in battles."));
+                            Bot.Say(e.Client, e.Channel, Bot.Choose("\u0002Participation\u0002 is currently \u00039enabled\u000F.", "I \u00039will\u000F participate in battles."));
                         else
-                            Bot.Say(e.Connection, e.Channel, Bot.Choose("\u0002Participation\u0002 is currently \u00034disabled\u000F.", "I \u00034will not\u000F participate in battles."));
+                            Bot.Say(e.Client, e.Channel, Bot.Choose("\u0002Participation\u0002 is currently \u00034disabled\u000F.", "I \u00034will not\u000F participate in battles."));
                     } else {
                         try {
                             if (this.EnableParticipation = Bot.ParseBoolean(value)) {
-                                Bot.Say(e.Connection, e.Channel, Bot.Choose("\u0002Participation\u0002 is now \u00039enabled\u000F.", "I \u00039will\u000F now participate in battles."));
+                                Bot.Say(e.Client, e.Channel, Bot.Choose("\u0002Participation\u0002 is now \u00039enabled\u000F.", "I \u00039will\u000F now participate in battles."));
                                 if (this.EnableParticipation && (this.GetAbilitiesThread == null || !this.GetAbilitiesThread.IsAlive)) {
                                     this.GetAbilitiesThread = new Thread(GetAbilities);
                                     this.GetAbilitiesThread.Start();
                                 }
                             }  else
-                                Bot.Say(e.Connection, e.Channel, Bot.Choose("\u0002Participation\u0002 is now \u00034disabled\u000F.", "I will \u00034no longer\u000F participate in battles."));
+                                Bot.Say(e.Client, e.Channel, Bot.Choose("\u0002Participation\u0002 is now \u00034disabled\u000F.", "I will \u00034no longer\u000F participate in battles."));
                         } catch (ArgumentException) {
-                            Bot.Say(e.Connection, e.Sender.Nickname, string.Format("I don't recognise '\u0002{0}\u000F' as a Boolean value. Please enter \u0002on\u0002 or \u0002off\u0002.", value));
+                            Bot.Say(e.Client, e.Sender.Nickname, string.Format("I don't recognise '\u0002{0}\u000F' as a Boolean value. Please enter \u0002on\u0002 or \u0002off\u0002.", value));
                         }
                     }
                     break;
@@ -1017,42 +1019,42 @@ namespace BattleBot
                 case "ENABLEGAMBLING":
                     if (value == null) {
                         if (this.EnableGambling)
-                            Bot.Say(e.Connection, e.Channel, Bot.Choose("\u0002Gambling\u0002 is currently \u00039enabled\u000F.", "I \u00039will\u000F bet on NPC battles."));
+                            Bot.Say(e.Client, e.Channel, Bot.Choose("\u0002Gambling\u0002 is currently \u00039enabled\u000F.", "I \u00039will\u000F bet on NPC battles."));
                         else
-                            Bot.Say(e.Connection, e.Channel, Bot.Choose("\u0002Gambling\u0002 is currently \u00034disabled\u000F.", "I \u00034will not\u000F bet on NPC battles."));
+                            Bot.Say(e.Client, e.Channel, Bot.Choose("\u0002Gambling\u0002 is currently \u00034disabled\u000F.", "I \u00034will not\u000F bet on NPC battles."));
                     } else {
                         try {
                             if (this.EnableGambling = Bot.ParseBoolean(value))
-                                Bot.Say(e.Connection, e.Channel, Bot.Choose("\u0002Gambling\u0002 is now \u00039enabled\u000F.", "I \u00039will\u000F now bet on NPC battles."));
+                                Bot.Say(e.Client, e.Channel, Bot.Choose("\u0002Gambling\u0002 is now \u00039enabled\u000F.", "I \u00039will\u000F now bet on NPC battles."));
                             else
-                                Bot.Say(e.Connection, e.Channel, Bot.Choose("\u0002Gambling\u0002 is now \u00034disabled\u000F.", "I will \u00034no longer\u000F bet on NPC battles."));
+                                Bot.Say(e.Client, e.Channel, Bot.Choose("\u0002Gambling\u0002 is now \u00034disabled\u000F.", "I will \u00034no longer\u000F bet on NPC battles."));
                         } catch (ArgumentException) {
-                            Bot.Say(e.Connection, e.Sender.Nickname, string.Format("I don't recognise '\u0002{0}\u000F' as a Boolean value. Please enter \u0002on\u0002 or \u0002off\u0002.", value));
+                            Bot.Say(e.Client, e.Sender.Nickname, string.Format("I don't recognise '\u0002{0}\u000F' as a Boolean value. Please enter \u0002on\u0002 or \u0002off\u0002.", value));
                         }
                     }
                     break;
                 case "ARENANICKNAME":
                 case "BOTNICKNAME":
                     if (value == null) {
-                        Bot.Say(e.Connection, e.Channel, string.Format("The Arena bot's nickname is assumed to be \u0002{0}\u000F.", this.ArenaNickname));
+                        Bot.Say(e.Client, e.Channel, string.Format("The Arena bot's nickname is assumed to be \u0002{0}\u000F.", this.ArenaNickname));
                     } else {
-                        Bot.Say(e.Connection, e.Channel, string.Format("The Arena bot's nickname is now assumed to be \u0002{0}\u000F.", this.ArenaNickname = value));
+                        Bot.Say(e.Client, e.Channel, string.Format("The Arena bot's nickname is now assumed to be \u0002{0}\u000F.", this.ArenaNickname = value));
                     }
                     break;
                 case "NOMONSTERFIX":
                     if (value == null) {
                         if (this.NoMonsterFix)
-                            Bot.Say(e.Connection, e.Channel, Bot.Choose("The \u0002no-monster fix\u0002 is currently \u00039enabled\u000F.", "I \u00039will\u000F stop empty battles."));
+                            Bot.Say(e.Client, e.Channel, Bot.Choose("The \u0002no-monster fix\u0002 is currently \u00039enabled\u000F.", "I \u00039will\u000F stop empty battles."));
                         else
-                            Bot.Say(e.Connection, e.Channel, Bot.Choose("The \u0002no-monster fix\u0002 is currently \u00034disabled\u000F.", "I \u00034will not\u000F stop empty battles."));
+                            Bot.Say(e.Client, e.Channel, Bot.Choose("The \u0002no-monster fix\u0002 is currently \u00034disabled\u000F.", "I \u00034will not\u000F stop empty battles."));
                     } else {
                         try {
                             if (this.NoMonsterFix = Bot.ParseBoolean(value))
-                                Bot.Say(e.Connection, e.Channel, Bot.Choose("The \u0002no-monster fix\u0002 is now \u00039enabled\u000F.", "I \u00039will\u000F now stop empty battles."));
+                                Bot.Say(e.Client, e.Channel, Bot.Choose("The \u0002no-monster fix\u0002 is now \u00039enabled\u000F.", "I \u00039will\u000F now stop empty battles."));
                             else
-                                Bot.Say(e.Connection, e.Channel, Bot.Choose("The \u0002no-monster fix\u0002 is now \u00034disabled\u000F.", "I will \u00034no longer\u000F stop empty battles."));
+                                Bot.Say(e.Client, e.Channel, Bot.Choose("The \u0002no-monster fix\u0002 is now \u00034disabled\u000F.", "I will \u00034no longer\u000F stop empty battles."));
                         } catch (ArgumentException) {
-                            Bot.Say(e.Connection, e.Sender.Nickname, string.Format("I don't recognise '\u0002{0}\u000F' as a Boolean value. Please enter \u0002on\u0002 or \u0002off\u0002.", value));
+                            Bot.Say(e.Client, e.Sender.Nickname, string.Format("I don't recognise '\u0002{0}\u000F' as a Boolean value. Please enter \u0002on\u0002 or \u0002off\u0002.", value));
                         }
                     }
                     break;
@@ -1066,47 +1068,47 @@ namespace BattleBot
                 case "PATH":
                     if (value == null) {
                         if (this.ArenaDirectory == null)
-                            Bot.Say(e.Connection, e.Channel, "I don't have access to the Arena data folder.");
+                            Bot.Say(e.Client, e.Channel, "I don't have access to the Arena data folder.");
                         else
-                            Bot.Say(e.Connection, e.Channel, string.Format("The Arena data folder is found at \u0002{0}\u000F.", this.ArenaDirectory));
+                            Bot.Say(e.Client, e.Channel, string.Format("The Arena data folder is found at \u0002{0}\u000F.", this.ArenaDirectory));
                     } else {
                         if (value == "" ||
                             value.Equals("none", StringComparison.OrdinalIgnoreCase) ||
                             value.Equals("null", StringComparison.OrdinalIgnoreCase) ||
                             value.Equals("off", StringComparison.OrdinalIgnoreCase) ||
                             value.Equals("cancel", StringComparison.OrdinalIgnoreCase))
-                            Bot.Say(e.Connection, e.Channel, "The Arena data folder was disassociated.");
+                            Bot.Say(e.Client, e.Channel, "The Arena data folder was disassociated.");
                         else if (!Directory.Exists(value))
-                            Bot.Say(e.Connection, e.Sender.Nickname, "That folder doesn't seem to exist.");
+                            Bot.Say(e.Client, e.Sender.Nickname, "That folder doesn't seem to exist.");
                         else if (!File.Exists(Path.Combine(value, "system.dat")))
-                            Bot.Say(e.Connection, e.Sender.Nickname, "That folder doesn't seem to be an Arena data folder (no \u0002system.dat\u0002 was found).");
+                            Bot.Say(e.Client, e.Sender.Nickname, "That folder doesn't seem to be an Arena data folder (no \u0002system.dat\u0002 was found).");
                         else
-                            Bot.Say(e.Connection, e.Channel, string.Format("The Arena data folder is now set to \u0002{0}\u000F.", this.ArenaDirectory = value));
+                            Bot.Say(e.Client, e.Channel, string.Format("The Arena data folder is now set to \u0002{0}\u000F.", this.ArenaDirectory = value));
                     }
                     break;
                 case "MINPLAYERS":
                 case "MINIMUMPLAYERS":
                     if (value == null) {
                         if (this.MinPlayers == 1)
-                            Bot.Say(e.Connection, e.Channel, string.Format("I will enter with at least \u0002{0}\u0002 other player.", this.MinPlayers));
+                            Bot.Say(e.Client, e.Channel, string.Format("I will enter with at least \u0002{0}\u0002 other player.", this.MinPlayers));
                         else
-                            Bot.Say(e.Connection, e.Channel, string.Format("I will enter with at least \u0002{0}\u0002 other players.", this.MinPlayers));
+                            Bot.Say(e.Client, e.Channel, string.Format("I will enter with at least \u0002{0}\u0002 other players.", this.MinPlayers));
                     } else {
                         int value2;
                         if (int.TryParse(value, out value2)) {
                             if (value2 >= 0) {
                                 if (value2 == 1)
-                                    Bot.Say(e.Connection, e.Channel, string.Format("I will now enter with at least \u0002{0}\u0002 other player.", this.MinPlayers = value2));
+                                    Bot.Say(e.Client, e.Channel, string.Format("I will now enter with at least \u0002{0}\u0002 other player.", this.MinPlayers = value2));
                                 else
-                                    Bot.Say(e.Connection, e.Channel, string.Format("I will now enter with at least \u0002{0}\u0002 other players.", this.MinPlayers = value2));
+                                    Bot.Say(e.Client, e.Channel, string.Format("I will now enter with at least \u0002{0}\u0002 other players.", this.MinPlayers = value2));
                             } else
-                                Bot.Say(e.Connection, e.Sender.Nickname, string.Format("The number can't be negative.", value2));
+                                Bot.Say(e.Client, e.Sender.Nickname, string.Format("The number can't be negative.", value2));
                         } else
-                            Bot.Say(e.Connection, e.Sender.Nickname, string.Format("'\u0002{0}\u000F' is not a valid integer.", value));
+                            Bot.Say(e.Client, e.Sender.Nickname, string.Format("'\u0002{0}\u000F' is not a valid integer.", value));
                     }
                     break;
                 default:
-                    Bot.Say(e.Connection, e.Sender.Nickname, string.Format("I don't have a setting named \u0002{0}\u000F here.", property));
+                    Bot.Say(e.Client, e.Sender.Nickname, string.Format("I don't have a setting named \u0002{0}\u000F here.", property));
                     break;
             }
         }
@@ -1115,9 +1117,9 @@ namespace BattleBot
             ".time", CommandScope.Channel | CommandScope.PM | CommandScope.Global)]
         public void CommandTime(object sender, CommandEventArgs e) {
             if (!BattleStarted)
-                Bot.Say(e.Connection, e.Channel, "There's no battle going on at the moment.");
+                Bot.Say(e.Client, e.Channel, "There's no battle going on at the moment.");
             else if (Darkness)
-                Bot.Say(e.Connection, e.Channel, "Darkness has already risen.");
+                Bot.Say(e.Client, e.Channel, "Darkness has already risen.");
             else {
                 string timeMessage = null; string timeColour = null; string demonWallMessage = null;
                 string holyAuraTimeMessage = null; bool holyAuraOut = false;
@@ -1254,22 +1256,22 @@ namespace BattleBot
 
                 // Show the time.
                 if (timeColour == IRC.Colours.DarkRed)
-                    Bot.Say(e.Connection, e.Channel, "Darkness should rise any second now.");
+                    Bot.Say(e.Client, e.Channel, "Darkness should rise any second now.");
                 else
-                    Bot.Say(e.Connection, e.Channel, string.Format(Bot.Choose(
+                    Bot.Say(e.Client, e.Channel, string.Format(Bot.Choose(
                         "Darkness arises in {0}.",
                         "You have {0} until darkness arises."
                         ), timeColour + timeMessage + IRC.Colours.Reset));
 
                 // Show the holy aura time.
                 if (holyAuraOut)
-                    Bot.Say(e.Connection, e.Channel, string.Format("{0}'s holy aura is about to expire.", this.HolyAuraUser));
+                    Bot.Say(e.Client, e.Channel, string.Format("{0}'s holy aura is about to expire.", this.HolyAuraUser));
                 else if (HolyAuraTurns != -1 || HolyAuraEnd != default(DateTime))
-                    Bot.Say(e.Connection, e.Channel, string.Format("{0}'s holy aura will last for \u000312{0}\u000F.", holyAuraTimeMessage));
+                    Bot.Say(e.Client, e.Channel, string.Format("{0}'s holy aura will last for \u000312{0}\u000F.", holyAuraTimeMessage));
 
                 // Show the demon wall power.
                 if (demonWallMessage != null)
-                    Bot.Say(e.Connection, e.Channel, string.Format("The \u0002Demon Wall\u0002's power is at \u000304{0}\u000F.", demonWallMessage));
+                    Bot.Say(e.Client, e.Channel, string.Format("The \u0002Demon Wall\u0002's power is at \u000304{0}\u000F.", demonWallMessage));
             }
         }
 
@@ -1279,23 +1281,23 @@ namespace BattleBot
             Character character;
             if (!this.Characters.TryGetValue(e.Parameters[0], out character))
                 // We can't recognise the turn of someone we don't know about.
-                Bot.Say(e.Connection, e.Channel, "I'm not familiar enough with this character to control them. Have them enter a battle first.");
+                Bot.Say(e.Client, e.Channel, "I'm not familiar enough with this character to control them. Have them enter a battle first.");
             // Check if we're already controlling that person.
             else if (this.Controlling.Contains(character.ShortName))
-                Bot.Say(e.Connection, e.Channel, string.Format("I'm already controlling {0}.", character.ShortName));
+                Bot.Say(e.Client, e.Channel, string.Format("I'm already controlling {0}.", character.ShortName));
             // Check for a non-player.
             // TODO: Allow it for clones.
-            else if (character.Category != Category.Player && !Bot.UserHasPermission(e.Connection, e.Channel, e.Sender.Nickname, MyKey + ".control.nonplayer"))
-                Bot.Say(e.Connection, e.Channel, string.Format("You don't have permission to use this command on a non-player.", character.ShortName));
+            else if (character.Category != Category.Player && !Bot.UserHasPermission(e.Client, e.Channel, e.Sender, this.Key + ".control.nonplayer"))
+                Bot.Say(e.Client, e.Channel, string.Format("You don't have permission to use this command on a non-player.", character.ShortName));
             // We'll need admin status to control non-players.
             else if (character.Category != Category.Player && !this.IsAdmin)
-                Bot.Say(e.Connection, e.Channel, string.Format("I can't control non-players here.", character.ShortName));
+                Bot.Say(e.Client, e.Channel, string.Format("I can't control non-players here.", character.ShortName));
             else if (character.IsReadyToControl) {
                 this.Controlling.Add(character.ShortName);
-                Bot.Say(e.Connection, e.Channel, string.Format("OK. I will now control \u0002{0}\u0002.", character.Name));
+                Bot.Say(e.Client, e.Channel, string.Format("OK. I will now control \u0002{0}\u0002.", character.Name));
             } else {
                 // We'll need to know what this character has.
-                Bot.Say(e.Connection, e.Channel, string.Format("\u0001ACTION looks carefully at {0}...\u0001", character.Name));
+                Bot.Say(e.Client, e.Channel, string.Format("\u0001ACTION looks carefully at {0}...\u0001", character.Name));
                 Thread getAbilitiesThread = new Thread(delegate(object name) { this.GetAbilities((string) name); });
                 getAbilitiesThread.Start(character.ShortName);
             }
@@ -1307,16 +1309,16 @@ namespace BattleBot
             Character character;
             if (!this.Characters.TryGetValue(e.Sender.Nickname, out character))
                 // We can't recognise the turn of someone we don't know about.
-                Bot.Say(e.Connection, e.Channel, "I'm not familiar enough with your character to control you. Enter a battle first.");
+                Bot.Say(e.Client, e.Channel, "I'm not familiar enough with your character to control you. Enter a battle first.");
             // Check if we're already controlling that person.
             else if (this.Controlling.Contains(character.ShortName))
-                Bot.Say(e.Connection, e.Channel, string.Format("I'm already controlling you, {0}.", character.ShortName));
+                Bot.Say(e.Client, e.Channel, string.Format("I'm already controlling you, {0}.", character.ShortName));
             else if (character.IsReadyToControl) {
                 this.Controlling.Add(character.ShortName);
-                Bot.Say(e.Connection, e.Channel, string.Format("OK. I will now control \u0002{0}\u0002.", character.Name));
+                Bot.Say(e.Client, e.Channel, string.Format("OK. I will now control \u0002{0}\u0002.", character.Name));
             } else {
                 // We'll need to know what this character has.
-                Bot.Say(e.Connection, e.Channel, string.Format("\u0001ACTION looks carefully at {0}...\u0001", character.Name));
+                Bot.Say(e.Client, e.Channel, string.Format("\u0001ACTION looks carefully at {0}...\u0001", character.Name));
                 Thread getAbilitiesThread = new Thread(delegate(object name) { this.GetAbilities((string) name); });
                 getAbilitiesThread.Start(character.ShortName);
             }
@@ -1327,9 +1329,9 @@ namespace BattleBot
         public void CommandControlStop(object sender, CommandEventArgs e) {
             string target;
             if (e.Parameters.Length == 1) {
-                if (!e.Connection.CaseMappingComparer.Equals(e.Parameters[0], e.Sender.Nickname) &&
-                    !Bot.UserHasPermission(e.Connection, e.Channel, e.Sender, MyKey + ".control")) {
-                    Bot.Say(e.Connection, e.Sender.Nickname, "You don't have permission to use that command on others.");
+                if (!e.Client.CaseMappingComparer.Equals(e.Parameters[0], e.Sender.Nickname) &&
+                    !Bot.UserHasPermission(e.Client, e.Channel, e.Sender, this.Key + ".control")) {
+                    Bot.Say(e.Client, e.Sender.Nickname, "You don't have permission to use that command on others.");
                     return;
                 }
                 target = e.Parameters[0];
@@ -1337,16 +1339,16 @@ namespace BattleBot
                 target = e.Sender.Nickname;
 
             if (Controlling.Remove(target))
-                Bot.Say(e.Connection, e.Channel, string.Format("OK, I will stop controlling \u0002{0}\u0002.", target));
+                Bot.Say(e.Client, e.Channel, string.Format("OK, I will stop controlling \u0002{0}\u0002.", target));
             else
-                Bot.Say(e.Connection, e.Channel, string.Format("I'm not controlling {0}.", target));
+                Bot.Say(e.Client, e.Channel, string.Format("I'm not controlling {0}.", target));
         }
 
         [Command("arena-id", 0, 1, "arena-id [new]", "Instructs me to identify myself to the Arena. Specify 'new' if I should set up a new character.",
             ".identify", CommandScope.Channel | CommandScope.PM | CommandScope.Global)]
         public void CommandIdentify(object sender, CommandEventArgs e) {
-            if (this.OwnCharacters.ContainsKey(this.ArenaConnection.Nickname))
-                this.BattleAction(true, "!id " + this.OwnCharacters[this.ArenaConnection.Nickname].Password);
+            if (this.OwnCharacters.ContainsKey(this.ArenaConnection.Me.Nickname))
+                this.BattleAction(true, "!id " + this.OwnCharacters[this.ArenaConnection.Me.Nickname].Password);
         }
 
         public bool CharacterNameCheck(string name, out string message) {
@@ -1412,18 +1414,18 @@ namespace BattleBot
             ".admin", CommandScope.Channel)]
         public void CommandRename(object sender, CommandEventArgs e) {
             if (this.ArenaDirectory == null) {
-                Bot.Say(e.Connection, e.Sender.Nickname, "I don't have access to the Arena data folder.");
+                Bot.Say(e.Client, e.Sender.Nickname, "I don't have access to the Arena data folder.");
                 return;
             }
             // Make sure the player exists.
             if (!File.Exists(Path.Combine(this.ArenaDirectory, "characters", e.Parameters[0] + ".char"))) {
-                Bot.Say(e.Connection, e.Sender.Nickname, string.Format("No player named \u0002{0}\u0002 is present.", e.Parameters[0]));
+                Bot.Say(e.Client, e.Sender.Nickname, string.Format("No player named \u0002{0}\u0002 is present.", e.Parameters[0]));
                 return;
             }
             // Check for conflicts.
             string message;
             if (!this.CharacterNameCheck(e.Parameters[1], out message)) {
-                Bot.Say(e.Connection, e.Sender.Nickname, message);
+                Bot.Say(e.Client, e.Sender.Nickname, message);
                 return;
             }
 
@@ -1452,7 +1454,7 @@ namespace BattleBot
                 File.Delete(Path.Combine(this.ArenaDirectory, "characters", e.Parameters[0] + ".char"));
                 // Devoice them if we're on the channel.
                 if (this.ArenaConnection.Channels.Contains(this.ArenaChannel)) {
-                    if (this.ArenaConnection.Channels[this.ArenaChannel].Users[this.ArenaConnection.Nickname].Access >= ChannelAccess.HalfOp) {
+                    if (this.ArenaConnection.Channels[this.ArenaChannel].Me.Status >= ChannelStatus.Halfop) {
                         this.ArenaConnection.Send("MODE {0} -v {1}", this.ArenaChannel, e.Parameters[0]);
                     }
                 }
@@ -1511,7 +1513,7 @@ namespace BattleBot
                     File.WriteAllText(filePath, newBattleTxt.ToString());
                 }
             }
-            Bot.Say(e.Connection, e.Channel, string.Format("\u0002{0}\u0002 is now known as \u0002{1}\u0002.", e.Parameters[0], e.Parameters[1]));
+            Bot.Say(e.Client, e.Channel, string.Format("\u0002{0}\u0002 is now known as \u0002{1}\u0002.", e.Parameters[0], e.Parameters[1]));
             if (this.BattleStarted && this.IsAdmin && this.Turn.Equals(e.Parameters[0], StringComparison.OrdinalIgnoreCase))
                 this.BattleAction(false, "!next");
         }
@@ -1520,7 +1522,7 @@ namespace BattleBot
             ".admin", CommandScope.Channel)]
         public void CommandRestore(object sender, CommandEventArgs e) {
             if (this.ArenaDirectory == null) {
-                Bot.Say(e.Connection, e.Sender.Nickname, "I don't have access to the Arena data folder.");
+                Bot.Say(e.Client, e.Sender.Nickname, "I don't have access to the Arena data folder.");
                 return;
             }
             string name; string message;
@@ -1530,7 +1532,7 @@ namespace BattleBot
                 name = e.Parameters[1];
             // Check for conflicts.
             if (!this.CharacterNameCheck(name, out message)) {
-                Bot.Say(e.Connection, e.Sender.Nickname, message);
+                Bot.Say(e.Client, e.Sender.Nickname, message);
                 return;
             }
 
@@ -1544,7 +1546,7 @@ namespace BattleBot
                 }
             }
             if (latestFile == null) {
-                Bot.Say(e.Connection, e.Sender.Nickname, string.Format("No record of \u0002{0}\u0002 was found.", e.Parameters[0]));
+                Bot.Say(e.Client, e.Sender.Nickname, string.Format("No record of \u0002{0}\u0002 was found.", e.Parameters[0]));
                 return;
             }
 
@@ -1581,16 +1583,16 @@ namespace BattleBot
             File.Delete(latestFile);
 
             if (name == e.Parameters[0])
-                Bot.Say(e.Connection, e.Channel, string.Format("\u0002{0}\u0002 has been restored.", e.Parameters[0], name));
+                Bot.Say(e.Client, e.Channel, string.Format("\u0002{0}\u0002 has been restored.", e.Parameters[0], name));
             else
-                Bot.Say(e.Connection, e.Channel, string.Format("\u0002{0}\u0002 has been restored as \u0002{1}\u0002.", e.Parameters[0], name));
+                Bot.Say(e.Client, e.Channel, string.Format("\u0002{0}\u0002 has been restored as \u0002{1}\u0002.", e.Parameters[0], name));
         }
 
         [Command("lateentry", 1, 1, "lateentry <player>", "Enters a player into the battle after it has started.",
             ".lateentry")]
         public void CommandLateEntry(object sender, CommandEventArgs e) {
             if (this.ArenaDirectory == null) {
-                Bot.Say(e.Connection, e.Sender.Nickname, "I don't have access to the Arena data folder.");
+                Bot.Say(e.Client, e.Sender.Nickname, "I don't have access to the Arena data folder.");
                 return;
             }
             string battleFile; string battleFile2;
@@ -1603,17 +1605,17 @@ namespace BattleBot
                 battleFile2 = Path.Combine(this.ArenaDirectory, "battle2.txt");
             }
             if (!File.Exists(battleFile)) {
-                Bot.Say(e.Connection, e.Sender.Nickname, string.Format("\u0002{0}\u0002 is missing. Perhaps there's currently no battle.", "battle.txt"));
+                Bot.Say(e.Client, e.Sender.Nickname, string.Format("\u0002{0}\u0002 is missing. Perhaps there's currently no battle.", "battle.txt"));
                 return;
             }
             if (!File.Exists(battleFile2)) {
-                Bot.Say(e.Connection, e.Sender.Nickname, string.Format("\u0002{0}\u0002 is missing. Perhaps there's currently no battle.", "battle2.txt"));
+                Bot.Say(e.Client, e.Sender.Nickname, string.Format("\u0002{0}\u0002 is missing. Perhaps there's currently no battle.", "battle2.txt"));
                 return;
             }
 
             // Make sure the character exists.
             if (!File.Exists(Path.Combine(this.ArenaDirectory, "characters", e.Parameters[0] + ".char"))) {
-                Bot.Say(e.Connection, e.Sender.Nickname, string.Format("No character named \u0002{0}\u0002 is present.", e.Parameters[0]));
+                Bot.Say(e.Client, e.Sender.Nickname, string.Format("No character named \u0002{0}\u0002 is present.", e.Parameters[0]));
                 return;
             }
 
@@ -1623,7 +1625,7 @@ namespace BattleBot
             while (!reader.EndOfStream) {
                 string line = reader.ReadLine();
                 if (line.Equals(e.Parameters[0], StringComparison.OrdinalIgnoreCase)) {
-                    Bot.Say(e.Connection, e.Sender.Nickname, string.Format("\u0002{0}\u0002 is already in the battle.", e.Parameters[0]));
+                    Bot.Say(e.Client, e.Sender.Nickname, string.Format("\u0002{0}\u0002 is already in the battle.", e.Parameters[0]));
                     return;
                 }
                 newBattleTxt.AppendLine(line);
@@ -2287,11 +2289,11 @@ namespace BattleBot
 #region My character
         [ArenaRegex(@"^\x032You enter the arena with a total of\x02 (\d+) \x02.* to spend.")]
         internal void OnNewCharacterSelf(object sender, RegexEventArgs e) {
-            if (!this.OwnCharacters.ContainsKey(e.Connection.Nickname))
-                this.OwnCharacters.Add(e.Connection.Nickname, new OwnCharacter());
+            if (!this.OwnCharacters.ContainsKey(e.Client.Me.Nickname))
+                this.OwnCharacters.Add(e.Client.Me.Nickname, new OwnCharacter());
 
             Character character = new Character() {
-                Category = Category.Player, Name = e.Connection.Nickname, ShortName = e.Connection.Nickname, Gender = Gender.Male,
+                Category = Category.Player, Name = e.Client.Me.Nickname, ShortName = e.Client.Me.Nickname, Gender = Gender.Male,
                 BaseHP = 100, BaseTP = 20, BaseSTR = 5, BaseDEF = 5, BaseINT = 5, BaseSPD = 5,
                 EquippedWeapon = "Fists",
                 ElementalResistances = new List<string>(), ElementalWeaknesses = new List<string>(),
@@ -2312,7 +2314,7 @@ namespace BattleBot
         [ArenaRegex(@"^\x032Your password has been set to\x02 (battlearena\d\d\w) \x02and it is recommended you change it using the command\x02 !newpass battlearena\d\d\w newpasswordhere \x02in private or at least write the password down\.")]
         internal void OnNewCharacterPassword(object sender, RegexEventArgs e) {
             OwnCharacter ownCharacter;
-            if (this.OwnCharacters.TryGetValue(e.Connection.Nickname, out ownCharacter)) {
+            if (this.OwnCharacters.TryGetValue(e.Client.Me.Nickname, out ownCharacter)) {
                 // Set the password.
                 if (ownCharacter.Password != null)
                     this.BattleAction(true, string.Format("!newpass {0} {1}", e.Match.Groups[1].Value, ownCharacter.Password));
@@ -2320,13 +2322,13 @@ namespace BattleBot
                     ownCharacter.Password = e.Match.Groups[1].Value;
                 this.WriteLine(1, 7, "Finished setting up my character.");
             }
-            this.LoggedIn = e.Connection.Nickname;
+            this.LoggedIn = e.Client.Me.Nickname;
         }
 
         [ArenaRegex(@"^(?:\x033\x02|\x02\x033)Your \x02gender has been set to\x02 (?:(male)|(female)|neither|none|its)")]
         internal void OnGender(object sender, RegexEventArgs e) {
             Character character;
-            if (this.Characters.TryGetValue(e.Connection.Nickname, out character)) {
+            if (this.Characters.TryGetValue(e.Client.Me.Nickname, out character)) {
                 if (e.Match.Groups[1].Success)
                     character.Gender = Gender.Male;
                 else if (e.Match.Groups[2].Success)
@@ -2339,7 +2341,7 @@ namespace BattleBot
         [ArenaRegex(@"^\x033You spend\x02 ([\d,]+) \x02.* for\x02 (\d+) ([^ ]+?)(?:\(s\))?\x02!(?: \x033You have\x02 ([\d,]+) \x02.* left)")]
         internal void OnOrbSpendItems(object sender, RegexEventArgs e) {
             Character character;
-            if (this.Characters.TryGetValue(e.Connection.Nickname, out character)) {
+            if (this.Characters.TryGetValue(e.Client.Me.Nickname, out character)) {
                 if (e.Match.Groups[4].Success)
                     character.RedOrbs = int.Parse(e.Match.Groups[4].Value.Replace(",", ""));
                 else
@@ -2357,7 +2359,7 @@ namespace BattleBot
         [ArenaRegex(@"^\x033You spend\x02 ([\d,]*) \x02.* for\x02 \+(\d*) \x02to your\x02 ([^ ]*) technique\x02!(?: \x033You have\x02 ([\d,]+) \x02.* left)")]
         internal void OnOrbSpendTechniques(object sender, RegexEventArgs e) {
             Character character;
-            if (this.Characters.TryGetValue(e.Connection.Nickname, out character)) {
+            if (this.Characters.TryGetValue(e.Client.Me.Nickname, out character)) {
                 if (e.Match.Groups[4].Success)
                     character.RedOrbs = int.Parse(e.Match.Groups[4].Value.Replace(",", ""));
                 else
@@ -2375,7 +2377,7 @@ namespace BattleBot
         [ArenaRegex(@"^\x033You spend\x02 ([\d,]*) \x02.* for\x02 \+(\d*) \x02to your\x02 ([^ ]*) skill\x02!(?: \x033You have\x02 ([\d,]+) \x02.* left)")]
         internal void OnOrbSpendSkills(object sender, RegexEventArgs e) {
             Character character;
-            if (this.Characters.TryGetValue(e.Connection.Nickname, out character)) {
+            if (this.Characters.TryGetValue(e.Client.Me.Nickname, out character)) {
                 if (e.Match.Groups[4].Success)
                     character.RedOrbs = int.Parse(e.Match.Groups[4].Value.Replace(",", ""));
                 else
@@ -2393,7 +2395,7 @@ namespace BattleBot
         [ArenaRegex(@"^^\x033You spend\x02 ([\d,]*) \x02.* for\x02 \+([\d,]*) \x02to your ([^ ]*)!(?: \x033You have\x02 ([\d,]+) \x02.* left)")]
         internal void OnOrbSpendAttributes(object sender, RegexEventArgs e) {
             Character character;
-            if (this.Characters.TryGetValue(e.Connection.Nickname, out character)) {
+            if (this.Characters.TryGetValue(e.Client.Me.Nickname, out character)) {
                 if (e.Match.Groups[4].Success)
                     character.RedOrbs = int.Parse(e.Match.Groups[4].Value.Replace(",", ""));
                 else
@@ -2438,7 +2440,7 @@ namespace BattleBot
         [ArenaRegex(@"^\x033You spend\x02 ([\d,]*) \x02.* to upgrade your\x02 ([^ ]*)\x02!(?: \x033You have\x02 ([\d,]+) \x02.* left)?")]
         internal void OnOrbSpendUpgrades(object sender, RegexEventArgs e) {
             Character character;
-            if (this.Characters.TryGetValue(e.Connection.Nickname, out character)) {
+            if (this.Characters.TryGetValue(e.Client.Me.Nickname, out character)) {
                 if (e.Match.Groups[3].Success)
                     character.RedOrbs = int.Parse(e.Match.Groups[3].Value.Replace(",", ""));
                 else
@@ -2454,7 +2456,7 @@ namespace BattleBot
         [ArenaRegex(@"^\x033You spend\x02 ([\d,]*) \x02black orb\(?s?\)? for \x02([\d,]*) .*!(?: \x033You have\x02 ([\d,]+) \x02black orbs? \x02left)?")]
         internal void OnOrbSpendOrbs(object sender, RegexEventArgs e) {
             Character character;
-            if (this.Characters.TryGetValue(e.Connection.Nickname, out character)) {
+            if (this.Characters.TryGetValue(e.Client.Me.Nickname, out character)) {
                 if (e.Match.Groups[3].Success)
                     character.BlackOrbs = int.Parse(e.Match.Groups[3].Value.Replace(",", ""));
                 else
@@ -2511,14 +2513,14 @@ namespace BattleBot
 
             if (this.LoggedIn == null) {
                 Character character;
-                if ((this.Characters.TryGetValue(e.Connection.Nickname, out character) && character.Name == e.Match.Groups[1].Value) ||
-                    (character == default(Character) && e.Match.Groups[1].Value == e.Connection.Nickname)) {
-                    this.LoggedIn = e.Connection.Nickname;
+                if ((this.Characters.TryGetValue(e.Client.Me.Nickname, out character) && character.Name == e.Match.Groups[1].Value) ||
+                    (character == default(Character) && e.Match.Groups[1].Value == e.Client.Me.Nickname)) {
+                    this.LoggedIn = e.Client.Me.Nickname;
                     this.WriteLine(2, 7, "Logged in successfully.");
 
                     if (character == default(Character))
-                        this.Characters.Add(e.Connection.Nickname, new Character() {
-                            ShortName = e.Connection.Nickname, Name = e.Match.Groups[1].Value, Category = Category.Player
+                        this.Characters.Add(e.Client.Me.Nickname, new Character() {
+                            ShortName = e.Client.Me.Nickname, Name = e.Match.Groups[1].Value, Category = Category.Player
                         });
 
                     this.IsAdmin = false;
@@ -3240,7 +3242,7 @@ namespace BattleBot
             // This is normally the first message that the Arena bot sends after the entry period closes.
 
             // Let DCC users know the battle has started.
-            if (this.BattleOpen && this.DCCClient != null && this.DCCClient.IsConnected)
+            if (this.BattleOpen && this.DCCClient != null && this.DCCClient.State == IRCClientState.Online)
                 ((DCCClient) this.DCCClient).SendSub("\u000312\u0002The battle has started.");
 
             this.BattleOpen = false;
@@ -4749,7 +4751,7 @@ namespace BattleBot
             }
         }
 
-        internal void LogError(string Procedure, Exception ex) {
+        internal new void LogError(string Procedure, Exception ex) {
             base.LogError(Procedure, ex);
         }
 
@@ -4758,7 +4760,7 @@ namespace BattleBot
             foreach (ClientEntry clientEntry in Bot.Clients) {
                 IRCClient client = clientEntry.Client;
                 if (client.Address == "!Console") {
-                    Bot.Say(client, "#", MyKey + " \u0003" + colour + "***\u0003 " + text);
+                    Bot.Say(client, "#", this.Key + " \u0003" + colour + "***\u0003 " + text);
                     return;
                 }
             }

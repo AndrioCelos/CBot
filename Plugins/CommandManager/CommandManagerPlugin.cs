@@ -9,9 +9,13 @@ using CBot;
 using IRC;
 
 namespace CommandManager {
-    [APIVersion(3, 1)]
+    [APIVersion(3, 2)]
     public class CommandManagerPlugin : Plugin {
         private Dictionary<string, Tuple<string, DateTime>> commandListCache = new Dictionary<string, Tuple<string, DateTime>>();
+
+        public override string Name {
+            get { return "Command Manager"; }
+        }
 
         [Command("cmdlist", 0, 1, "cmdlist [plugin]", "Returns a list of my commands.",
             null, CommandScope.Global | CommandScope.Channel | CommandScope.PM)]
@@ -20,7 +24,7 @@ namespace CommandManager {
             StringBuilder channelBuilder = new StringBuilder(string.Format("\u0002Commands for {0}:\u0002 ", e.Channel));
             int channelMinLength = channelBuilder.Length;
 
-            bool isChannel = e.Connection.IsChannel(e.Channel);
+            bool isChannel = e.Client.IsChannel(e.Channel);
 
             foreach (KeyValuePair<string, PluginEntry> pluginEntry in Bot.Plugins) {
                 List<string> commands = new List<string>(16);
@@ -31,12 +35,12 @@ namespace CommandManager {
                     string channelSub;
                     if (fields.Length == 1) channelSub = fields[0];
                     else {
-                        if (fields[0] != "*" && !fields[0].Equals(e.Connection.NetworkName, StringComparison.OrdinalIgnoreCase) && !fields[0].Equals(e.Connection.Address, StringComparison.OrdinalIgnoreCase))
+                        if (fields[0] != "*" && !fields[0].Equals(e.Client.Extensions.NetworkName, StringComparison.OrdinalIgnoreCase) && !fields[0].Equals(e.Client.Address, StringComparison.OrdinalIgnoreCase))
                             continue;
                         channelSub = fields[1];
                     }
                     if (channelSub == "*" || channelSub == "*#") { found = true; isGeneral = true; }
-                    else if (e.Connection.CaseMappingComparer.Equals(channelSub, e.Channel)) { found = true; }
+                    else if (e.Client.CaseMappingComparer.Equals(channelSub, e.Channel)) { found = true; }
                     else continue;
                 }
                 if (!found) continue;
@@ -56,7 +60,7 @@ namespace CommandManager {
                         else
                             permission = attribute.Permission;
 
-                        if (permission != null && !Bot.UserHasPermission(e.Connection, e.Channel, e.Sender.Nickname, permission)) continue;
+                        if (permission != null && !Bot.UserHasPermission(e.Client, e.Channel, e.Sender, permission)) continue;
 
                         // Add the command.
                         commands.Add(attribute.Names[0]);
@@ -84,13 +88,13 @@ namespace CommandManager {
                         if (i == pos) i = pos2 + 1;
                         else ++i;
                     }
-                    Bot.Say(e.Connection, e.Sender.Nickname, generalBuilder.ToString(pos, i - pos - 1));
+                    Bot.Say(e.Client, e.Sender.Nickname, generalBuilder.ToString(pos, i - pos - 1));
                     pos = i;
                 }
-                Bot.Say(e.Connection, e.Sender.Nickname, generalBuilder.ToString(pos, generalBuilder.Length - pos));
+                Bot.Say(e.Client, e.Sender.Nickname, generalBuilder.ToString(pos, generalBuilder.Length - pos));
             }
             if (channelBuilder.Length > channelMinLength)
-                Bot.Say(e.Connection, e.Sender.Nickname, channelBuilder.ToString());
+                Bot.Say(e.Client, e.Sender.Nickname, channelBuilder.ToString());
 
         }
     }

@@ -17,10 +17,10 @@ using IRC;
 
 using FileMode = System.IO.FileMode;
 using Timer = System.Timers.Timer;
-using User = IRC.User;
+using IRCUser = IRC.IRCUser;
 
 namespace BattleArenaManager {
-    [APIVersion(3, 1)]
+    [APIVersion(3, 2)]
     public class BattleArenaManagerPlugin : Plugin {
         private GitHubClient client;
 
@@ -73,7 +73,7 @@ namespace BattleArenaManager {
                     if (client.Address == "!Console") continue;
                     if (fields[0] == null || fields[0] == "*" ||
                         client.Address.Equals(fields[0], StringComparison.OrdinalIgnoreCase) ||
-                        (client.NetworkName != null && client.NetworkName.Equals(fields[0], StringComparison.OrdinalIgnoreCase))) {
+                        (client.Extensions.NetworkName != null && client.Extensions.NetworkName.Equals(fields[0], StringComparison.OrdinalIgnoreCase))) {
                         if (client.Channels.Contains(fields[1])) {
                             this.ArenaConnection = client;
                             this.ArenaChannel = fields[1];
@@ -151,10 +151,12 @@ namespace BattleArenaManager {
             } catch (ThreadAbortException) { }
         }
 
-        public override bool OnChannelJoinSelf(object sender, ChannelJoinEventArgs e) {
-            BattleOff = false;
-            if (this.ArenaConnection == null) this.CheckChannels();
-            return base.OnChannelJoinSelf(sender, e);
+        public override bool OnChannelJoin(object sender, ChannelJoinEventArgs e) {
+            if (e.Sender.Nickname == ((IRCClient) sender).Me.Nickname) {
+                BattleOff = false;
+                if (this.ArenaConnection == null) this.CheckChannels();
+            }
+            return base.OnChannelJoin(sender, e);
         }
 
         public void LoadConfig() {
@@ -249,14 +251,14 @@ namespace BattleArenaManager {
             return base.OnChannelMessage(sender, e);
         }
 
-        public bool RunArenaRegex(IRCClient connection, string channel, User sender, string message) {
+        public bool RunArenaRegex(IRCClient connection, string channel, IRCUser sender, string message) {
             foreach (System.Reflection.MethodInfo method in this.GetType().GetMethods(System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.NonPublic)) {
                 foreach (Attribute attribute in method.GetCustomAttributes(typeof(ArenaRegexAttribute), false)) {
                     foreach (string expression in ((ArenaRegexAttribute) attribute).Expressions) {
                         Match match = Regex.Match(message, expression);
                         if (match.Success) {
                             try {
-                                method.Invoke(this, new object[] { this, new RegexEventArgs(connection, channel, new User(sender), match) });
+                                method.Invoke(this, new object[] { this, new RegexEventArgs(connection, channel, sender, match) });
                             } catch (Exception ex) {
                                 this.LogError(method.Name, ex);
                             }
@@ -279,14 +281,14 @@ namespace BattleArenaManager {
             ConsoleUtils.WriteLine("[" + this.Key + "] A battle is starting.");
         }
 
-        public override bool OnQuit(object sender, QuitEventArgs e) {
+        public override bool OnUserQuit(object sender, QuitEventArgs e) {
             if (Environment.OSVersion.Platform == PlatformID.Unix || Environment.OSVersion.Platform == PlatformID.MacOSX) {
                 if (sender == this.ArenaConnection && ((IRCClient) sender).CaseMappingComparer.Equals(e.Sender.Nickname, this.ArenaNickname) &&
                     e.Message.StartsWith("Ping timeout"))
                     // The bot has crashed. We'd better revive it.
                     Task.Run(new Action(this.ReviveArenaBot));
             }
-            return base.OnQuit(sender, e);
+            return base.OnUserQuit(sender, e);
         }
 
         [ArenaRegex(new string[] { @"^\x034The Battle is Over!",

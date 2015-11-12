@@ -27,6 +27,14 @@ namespace CBot {
         /// <summary>Returns the IRCClient object for this connection.</summary>
         public IRCClient Client { get; internal set; }
 
+        public string[] Nicknames { get; internal set; }
+        public string[] Ident { get; internal set; }
+        public string[] FullName { get; internal set; }
+
+        public string NetworkName { get; internal set; }
+        public string Address { get; set; }
+        public int Port { get; set; }
+
         /// <summary>The list of channels to automatically join upon connecting.</summary>
         public List<AutoJoinChannel> AutoJoin;
         /// <summary>Contains the data used to deal with nickname services.</summary>
@@ -38,8 +46,12 @@ namespace CBot {
         /// <param name="name">The name of the IRC network.</param>
         /// <param name="client">The IRCClient object for this connection.</param>
         /// <param name="reconnectDelay">Returns or sets the delay, in milliseconds, with which CBot should automatically reconnect.</param>
-        public ClientEntry(string name, IRCClient client, int reconnectDelay = 30000) {
+        public ClientEntry(string name, string address, int port, IRCClient client, int reconnectDelay = 30000) {
+            if (address == null) throw new ArgumentNullException("address");
+
             this.Name = name;
+            this.Address = address;
+            this.Port = port;
             this.Client = client;
             this.ReconnectEnabled = true;
             this.ReconnectTimer = new Timer(reconnectDelay) { AutoReset = false };
@@ -50,7 +62,7 @@ namespace CBot {
         internal void ReconnectTimer_Elapsed(object sender, ElapsedEventArgs e) {
             try {
                 ConsoleUtils.WriteLine("Connecting to {0} on port {1}.", (object) this.Client.IP ?? (object) this.Client.Address, this.Client.Port);
-                this.Client.Connect();
+                this.Client.Connect(this.Address, this.Port);
             } catch (Exception ex) {
                 ConsoleUtils.WriteLine("%cREDConnection to {0} failed: {1}%r", this.Client.Address, ex.Message);
                 this.StartReconnect();

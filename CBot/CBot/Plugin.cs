@@ -98,7 +98,7 @@ namespace CBot {
                 if (fields.Length == 1)
                     fields = new string[] { "*", fields[0] };
 
-                if (fields[0] == "*" || fields[0].Equals(connection.NetworkName, StringComparison.OrdinalIgnoreCase) || fields[0].Equals(connection.Address, StringComparison.OrdinalIgnoreCase)) {
+                if (fields[0] == "*" || fields[0].Equals(connection.Extensions.NetworkName, StringComparison.OrdinalIgnoreCase) || fields[0].Equals(connection.Address, StringComparison.OrdinalIgnoreCase)) {
                     if (fields[1] == "*" || fields[1] == "#*" || fields[1] == "*#" || connection.CaseMappingComparer.Equals(fields[1], channel)) return true;
                 }
             }
@@ -118,11 +118,11 @@ namespace CBot {
                 if (fields.Length == 1)
                     fields = new string[] { "*", fields[0] };
 
-                if (fields[0] == "*" || fields[0].Equals(connection.NetworkName, StringComparison.OrdinalIgnoreCase) || fields[0].Equals(connection.Address, StringComparison.OrdinalIgnoreCase)) {
+                if (fields[0] == "*" || fields[0].Equals(connection.Extensions.NetworkName, StringComparison.OrdinalIgnoreCase) || fields[0].Equals(connection.Address, StringComparison.OrdinalIgnoreCase)) {
                     if (fields[1] == "*" || fields[1] == "*?" || connection.CaseMappingComparer.Equals(fields[1], sender)) return true;
                     // Respond to PMs from users in an active channel.
                     if (connection.IsChannel(fields[1])) {
-                        Channel channel;
+                        IRCChannel channel;
                         if (connection.Channels.TryGetValue(fields[1], out channel)) {
                             if (channel.Users.Contains(sender)) return true;
                         }
@@ -141,7 +141,7 @@ namespace CBot {
         /// <param name="InputLine">The message text.</param>
         /// <param name="globalCommand">True if the global command syntax was used; false otherwise.</param>
         /// <returns>True if a command was matched (even if it was denied); false otherwise.</returns>
-        public bool RunCommand(IRCClient Connection, User Sender, string Channel, string InputLine, bool globalCommand = false) {
+        public bool RunCommand(IRCClient Connection, IRCUser Sender, string Channel, string InputLine, bool globalCommand = false) {
             string command = InputLine.Split(new char[] { ' ' })[0];
 
             MethodInfo method = null; CommandAttribute attribute = null;
@@ -171,7 +171,7 @@ namespace CBot {
             else
                 permission = attribute.Permission;
 
-            if (permission != null && !Bot.UserHasPermission(Connection, Channel, Sender.Nickname, permission)) {
+            if (permission != null && !Bot.UserHasPermission(Connection, Channel, Sender, permission)) {
                 if (attribute.NoPermissionsMessage != null) Bot.Say(Connection, Sender.Nickname, attribute.NoPermissionsMessage);
                 return true;
             }
@@ -187,12 +187,7 @@ namespace CBot {
             // Run the command.
             // TODO: Run it on a separate thread.
             try {
-                User user;
-                if (Connection.Users.Contains(Sender.Nickname))
-                    user = Connection.Users[Sender.Nickname];
-                else
-                    user = new User(Sender);
-                CommandEventArgs e = new CommandEventArgs(Connection, Channel, user, fields);
+                CommandEventArgs e = new CommandEventArgs(Connection, Channel, Sender, fields);
                 method.Invoke(this, new object[] { this, e });
             } catch (Exception ex) {
                 Bot.LogError(this.Key, method.Name, ex);
@@ -211,7 +206,7 @@ namespace CBot {
         /// <param name="InputLine">The message text, excluding the bot's nickname if it started with such.</param>
         /// <param name="UsedMyNickname">True if the message was prefixed with the bot's nickname; false otherwise.</param>
         /// <returns>True if a command was matched (even if it was denied); false otherwise.</returns>
-        public bool RunRegex(IRCClient Connection, User Sender, string Channel, string InputLine, bool UsedMyNickname) {
+        public bool RunRegex(IRCClient Connection, IRCUser Sender, string Channel, string InputLine, bool UsedMyNickname) {
             MethodInfo method = null; RegexAttribute attribute = null; Match match = null;
 
             foreach (MethodInfo _method in this.GetType().GetMethods()) {
@@ -242,7 +237,7 @@ namespace CBot {
             else
                 permission = attribute.Permission;
 
-            if (permission != null && !Bot.UserHasPermission(Connection, Channel, Sender.Nickname, permission)) {
+            if (permission != null && !Bot.UserHasPermission(Connection, Channel, Sender, permission)) {
                 if (attribute.NoPermissionsMessage != null) Bot.Say(Connection, Sender.Nickname, attribute.NoPermissionsMessage);
                 return true;
             }
@@ -253,12 +248,7 @@ namespace CBot {
             bool handled = false;
 
             if (parameterTypes.Length == 2) {
-                User user;
-                if (Connection.Users.Contains(Sender.Nickname))
-                    user = Connection.Users[Sender.Nickname];
-                else
-                    user = new User(Sender);
-                RegexEventArgs e = new RegexEventArgs(Connection, Channel, user, match);
+                RegexEventArgs e = new RegexEventArgs(Connection, Channel, Sender, match);
                 parameters = new object[] { this, e };
             } else if (parameterTypes.Length == 5)
                 parameters = new object[] { Connection, Sender, Channel, match, handled };
@@ -566,37 +556,24 @@ namespace CBot {
         public virtual bool OnChannelAdmin(object sender, ChannelNicknameModeEventArgs e) { return false; }
         public virtual bool OnChannelAdminSelf(object sender, ChannelNicknameModeEventArgs e) { return false; }
         public virtual bool OnChannelBan(object sender, ChannelListModeEventArgs e) { return false; }
-        public virtual bool OnChannelBanSelf(object sender, ChannelListModeEventArgs e) { return false; }
         public virtual bool OnChannelTimestamp(object sender, ChannelTimestampEventArgs e) { return false; }
         public virtual bool OnChannelCTCP(object sender, ChannelMessageEventArgs e) { return false; }
         public virtual bool OnChannelDeAdmin(object sender, ChannelNicknameModeEventArgs e) { return false; }
-        public virtual bool OnChannelDeAdminSelf(object sender, ChannelNicknameModeEventArgs e) { return false; }
         public virtual bool OnChannelDeHalfOp(object sender, ChannelNicknameModeEventArgs e) { return false; }
-        public virtual bool OnChannelDeHalfOpSelf(object sender, ChannelNicknameModeEventArgs e) { return false; }
         public virtual bool OnChannelDeHalfVoice(object sender, ChannelNicknameModeEventArgs e) { return false; }
-        public virtual bool OnChannelDeHalfVoiceSelf(object sender, ChannelNicknameModeEventArgs e) { return false; }
         public virtual bool OnChannelDeOp(object sender, ChannelNicknameModeEventArgs e) { return false; }
-        public virtual bool OnChannelDeOpSelf(object sender, ChannelNicknameModeEventArgs e) { return false; }
         public virtual bool OnChannelDeOwner(object sender, ChannelNicknameModeEventArgs e) { return false; }
-        public virtual bool OnChannelDeOwnerSelf(object sender, ChannelNicknameModeEventArgs e) { return false; }
         public virtual bool OnChannelDeVoice(object sender, ChannelNicknameModeEventArgs e) { return false; }
-        public virtual bool OnChannelDeVoiceSelf(object sender, ChannelNicknameModeEventArgs e) { return false; }
         public virtual bool OnChannelExempt(object sender, ChannelListModeEventArgs e) { return false; }
-        public virtual bool OnChannelExemptSelf(object sender, ChannelListModeEventArgs e) { return false; }
         public virtual bool OnChannelHalfOp(object sender, ChannelNicknameModeEventArgs e) { return false; }
-        public virtual bool OnChannelHalfOpSelf(object sender, ChannelNicknameModeEventArgs e) { return false; }
         public virtual bool OnChannelHalfVoice(object sender, ChannelNicknameModeEventArgs e) { return false; }
-        public virtual bool OnChannelHalfVoiceSelf(object sender, ChannelNicknameModeEventArgs e) { return false; }
         public virtual bool OnChannelInviteExempt(object sender, ChannelListModeEventArgs e) { return false; }
-        public virtual bool OnChannelInviteExemptSelf(object sender, ChannelListModeEventArgs e) { return false; }
         public virtual bool OnChannelJoin(object sender, ChannelJoinEventArgs e) { return false; }
-        public virtual bool OnChannelJoinSelf(object sender, ChannelJoinEventArgs e) { return false; }
         public virtual bool OnChannelJoinDenied(object sender, ChannelDeniedEventArgs e) { return false; }
         public virtual bool OnChannelKick(object sender, ChannelKickEventArgs e) { return false; }
-        public virtual bool OnChannelKickSelf(object sender, ChannelKickEventArgs e) { return false; }
         public virtual bool OnChannelMessage(object sender, ChannelMessageEventArgs e) {
             string message = e.Message;
-            Match match = Regex.Match(e.Message, @"^" + Regex.Escape(((IRCClient) sender).Nickname) + @"\.*[:,-]? (.*)", RegexOptions.IgnoreCase);
+            Match match = Regex.Match(e.Message, @"^" + Regex.Escape(((IRCClient) sender).Me.Nickname) + @"\.*[:,-]? (.*)", RegexOptions.IgnoreCase);
             if (match.Success)
                 message = match.Groups[1].Value;
             else
@@ -616,23 +593,16 @@ namespace CBot {
         }
         public virtual bool OnChannelMessageDenied(object sender, ChannelDeniedEventArgs e) { return false; }
         public virtual bool OnChannelModeSet(object sender, ChannelModeEventArgs e) { return false; }
-        public virtual bool OnChannelModeSetSelf(object sender, ChannelModeEventArgs e) { return false; }
         public virtual bool OnChannelModeUnhandled(object sender, ChannelModeEventArgs e) { return false; }
         public virtual bool OnChannelModesSet(object sender, ChannelModesSetEventArgs e) { return false; }
         public virtual bool OnChannelModesGet(object sender, ChannelModesGetEventArgs e) { return false; }
         public virtual bool OnChannelNotice(object sender, ChannelMessageEventArgs e) { return false; }
         public virtual bool OnChannelOp(object sender, ChannelNicknameModeEventArgs e) { return false; }
-        public virtual bool OnChannelOpSelf(object sender, ChannelNicknameModeEventArgs e) { return false; }
         public virtual bool OnChannelOwner(object sender, ChannelNicknameModeEventArgs e) { return false; }
-        public virtual bool OnChannelOwnerSelf(object sender, ChannelNicknameModeEventArgs e) { return false; }
         public virtual bool OnChannelPart(object sender, ChannelPartEventArgs e) { return false; }
-        public virtual bool OnChannelPartSelf(object sender, ChannelPartEventArgs e) { return false; }
         public virtual bool OnChannelQuiet(object sender, ChannelListModeEventArgs e) { return false; }
-        public virtual bool OnChannelQuietSelf(object sender, ChannelListModeEventArgs e) { return false; }
         public virtual bool OnChannelRemoveExempt(object sender, ChannelListModeEventArgs e) { return false; }
-        public virtual bool OnChannelRemoveExemptSelf(object sender, ChannelListModeEventArgs e) { return false; }
         public virtual bool OnChannelRemoveInviteExempt(object sender, ChannelListModeEventArgs e) { return false; }
-        public virtual bool OnChannelRemoveInviteExemptSelf(object sender, ChannelListModeEventArgs e) { return false; }
         public virtual bool OnChannelRemoveKey(object sender, ChannelEventArgs e) { return false; }
         public virtual bool OnChannelRemoveLimit(object sender, ChannelEventArgs e) { return false; }
         public virtual bool OnChannelSetKey(object sender, ChannelKeyEventArgs e) { return false; }
@@ -640,22 +610,16 @@ namespace CBot {
         public virtual bool OnChannelTopic(object sender, ChannelTopicEventArgs e) { return false; }
         public virtual bool OnChannelTopicChange(object sender, ChannelTopicChangeEventArgs e) { return false; }
         public virtual bool OnChannelTopicStamp(object sender, ChannelTopicStampEventArgs e) { return false; }
-        public virtual bool OnChannelUsers(object sender, ChannelNamesEventArgs e) { return false; }
         public virtual bool OnChannelUnBan(object sender, ChannelListModeEventArgs e) { return false; }
-        public virtual bool OnChannelUnBanSelf(object sender, ChannelListModeEventArgs e) { return false; }
         public virtual bool OnChannelUnQuiet(object sender, ChannelListModeEventArgs e) { return false; }
-        public virtual bool OnChannelUnQuietSelf(object sender, ChannelListModeEventArgs e) { return false; }
         public virtual bool OnChannelVoice(object sender, ChannelNicknameModeEventArgs e) { return false; }
-        public virtual bool OnChannelVoiceSelf(object sender, ChannelNicknameModeEventArgs e) { return false; }
         public virtual bool OnPrivateCTCP(object sender, PrivateMessageEventArgs e) { return false; }
-        public virtual bool OnDisconnected(object sender, ExceptionEventArgs e) { return false; }
+        public virtual bool OnDisconnected(object sender, DisconnectEventArgs e) { return false; }
         public virtual bool OnException(object sender, ExceptionEventArgs e) { return false; }
         public virtual bool OnExemptList(object sender, ChannelModeListEventArgs e) { return false; }
         public virtual bool OnExemptListEnd(object sender, ChannelModeListEndEventArgs e) { return false; }
         public virtual bool OnInvite(object sender, ChannelInviteEventArgs e) { return false; }
         public virtual bool OnInviteSent(object sender, ChannelInviteSentEventArgs e) { return false; }
-        public virtual bool OnInviteList(object sender, ChannelModeListEventArgs e) { return false; }
-        public virtual bool OnInviteListEnd(object sender, ChannelModeListEndEventArgs e) { return false; }
         public virtual bool OnInviteExemptList(object sender, ChannelModeListEventArgs e) { return false; }
         public virtual bool OnInviteExemptListEnd(object sender, ChannelModeListEndEventArgs e) { return false; }
         public virtual bool OnKilled(object sender, PrivateMessageEventArgs e) { return false; }
@@ -670,11 +634,11 @@ namespace CBot {
         public virtual bool OnNicknameInvalid(object sender, NicknameEventArgs e) { return false; }
         public virtual bool OnNicknameTaken(object sender, NicknameEventArgs e) { return false; }
         public virtual bool OnPrivateNotice(object sender, PrivateMessageEventArgs e) { return false; }
-        public virtual bool OnPing(object sender, PingEventArgs e) { return false; }
+        public virtual bool OnPingRequest(object sender, PingEventArgs e) { return false; }
         public virtual bool OnPingReply(object sender, PingEventArgs e) { return false; }
         public virtual bool OnPrivateMessage(object sender, PrivateMessageEventArgs e) {
             string message = e.Message;
-            Match match = Regex.Match(e.Message, @"^" + Regex.Escape(((IRCClient) sender).Nickname) + @"\.*[:,-]? (.*)", RegexOptions.IgnoreCase);
+            Match match = Regex.Match(e.Message, @"^" + Regex.Escape(((IRCClient) sender).Me.Nickname) + @"\.*[:,-]? (.*)", RegexOptions.IgnoreCase);
             if (match.Success)
                 message = match.Groups[1].Value;
             else
@@ -695,16 +659,15 @@ namespace CBot {
         public virtual bool OnPrivateAction(object sender, PrivateMessageEventArgs e) {
             return this.RunRegex((IRCClient) sender, e.Sender, e.Sender.Nickname, "\u0001ACTION " + e.Message + "\u0001", false);
         }
-        public virtual bool OnQuit(object sender, QuitEventArgs e) { return false; }
-        public virtual bool OnQuitSelf(object sender, QuitEventArgs e) { return false; }
-        public virtual bool OnRawLineReceived(object sender, RawParsedEventArgs e) { return false; }
+        public virtual bool OnUserQuit(object sender, QuitEventArgs e) { return false; }
+        public virtual bool OnRawLineReceived(object sender, IRCLineEventArgs e) { return false; }
         public virtual bool OnRawLineSent(object sender, RawEventArgs e) { return false; }
         public virtual bool OnUserModesGet(object sender, UserModesEventArgs e) { return false; }
         public virtual bool OnUserModesSet(object sender, UserModesEventArgs e) { return false; }
         public virtual bool OnWallops(object sender, PrivateMessageEventArgs e) { return false; }
         public virtual bool OnServerNotice(object sender, PrivateMessageEventArgs e) { return false; }
         public virtual bool OnServerError(object sender, ServerErrorEventArgs e) { return false; }
-        public virtual bool OnSSLHandshakeComplete(object sender, EventArgs e) { return false; }
+        public virtual bool OnStateChanged(object sender, StateEventArgs e) { return false; }
         public virtual bool OnTimeOut(object sender, EventArgs e) { return false; }
         public virtual bool OnWhoList(object sender, WhoListEventArgs e) { return false; }
         public virtual bool OnWhoIsAuthenticationLine(object sender, WhoisAuthenticationEventArgs e) { return false; }

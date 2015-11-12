@@ -11,7 +11,7 @@ using IRC;
 
 namespace PluginManager
 {
-    [APIVersion(3, 1)]
+    [APIVersion(3, 2)]
     public class PluginManagerPlugin : Plugin
     {
         public override string Name {
@@ -33,17 +33,17 @@ namespace PluginManager
             }
 
             if (Bot.Plugins.ContainsKey(key)) {
-                Bot.Say(e.Connection, e.Channel, string.Format("A plugin with the key \u0002{0}\u000F is already loaded.", key));
+                Bot.Say(e.Client, e.Channel, string.Format("A plugin with the key \u0002{0}\u000F is already loaded.", key));
                 return;
             }
             if (!File.Exists(realFilename = filename)) {
                 if (Path.IsPathRooted(realFilename)) {
-                    Bot.Say(e.Connection, e.Channel, string.Format("The file \u0002{0}\u000F doesn't exist.", filename));
+                    Bot.Say(e.Client, e.Channel, string.Format("The file \u0002{0}\u000F doesn't exist.", filename));
                     return;
                 } else {
                     realFilename = Path.Combine("Plugins", filename);
                     if (!File.Exists(realFilename)) {
-                        Bot.Say(e.Connection, e.Channel, string.Format("The file \u0002{0}\u000F couldn't be found.", filename));
+                        Bot.Say(e.Client, e.Channel, string.Format("The file \u0002{0}\u000F couldn't be found.", filename));
                         return;
                     }
                 }
@@ -51,11 +51,11 @@ namespace PluginManager
 
             try {
                 Bot.LoadPlugin(key, realFilename);
-                Bot.Say(e.Connection, e.Channel, string.Format("Loaded \u0002{0}\u0002.", Bot.Plugins[key].Obj.Name));
+                Bot.Say(e.Client, e.Channel, string.Format("Loaded \u0002{0}\u0002.", Bot.Plugins[key].Obj.Name));
             } catch (InvalidPluginException ex) {
-                Bot.Say(e.Connection, e.Channel, "That file could not be loaded: {0}", ex.Message);
+                Bot.Say(e.Client, e.Channel, "That file could not be loaded: {0}", ex.Message);
             } catch (Exception ex) {
-                Bot.Say(e.Connection, e.Channel, string.Format("Failed to load the plugin: {0}", ex.Message));
+                Bot.Say(e.Client, e.Channel, string.Format("Failed to load the plugin: {0}", ex.Message));
             }
         }
 
@@ -65,9 +65,9 @@ namespace PluginManager
             PluginEntry plugin;
             if (Bot.Plugins.TryGetValue(e.Parameters[0], out plugin)) {
                 plugin.Obj.OnSave();
-                Bot.Say(e.Connection, e.Channel, string.Format("Called \u0002{0}\u0002 to save successfully.", e.Parameters[0]));
+                Bot.Say(e.Client, e.Channel, string.Format("Called \u0002{0}\u0002 to save successfully.", e.Parameters[0]));
             } else {
-                Bot.Say(e.Connection, e.Channel, string.Format("I haven't loaded a plugin with key \u0002{0}\u001F.", e.Parameters[0]));
+                Bot.Say(e.Client, e.Channel, string.Format("I haven't loaded a plugin with key \u0002{0}\u001F.", e.Parameters[0]));
             }
         }
 
@@ -77,7 +77,7 @@ namespace PluginManager
             foreach (PluginEntry pluginData in Bot.Plugins.Values) {
                 pluginData.Obj.OnSave();
             }
-            Bot.Say(e.Connection, e.Channel, "Called plugins to save successfully.");
+            Bot.Say(e.Client, e.Channel, "Called plugins to save successfully.");
         }
 
         [Command(new string[] { "unloadplugin", "unload" }, 1, 1, "unload <key>", "Drops a plugin. It's impossible to actually unload it on the fly.",
@@ -88,9 +88,9 @@ namespace PluginManager
                 plugin.Obj.OnUnload();
                 plugin.Obj.Channels = new string[0];
                 Bot.Plugins.Remove(e.Parameters[0]);
-                Bot.Say(e.Connection, e.Channel, string.Format("Dropped \u0002{0}\u0002.", e.Parameters[0]));
+                Bot.Say(e.Client, e.Channel, string.Format("Dropped \u0002{0}\u0002.", e.Parameters[0]));
             } else {
-                Bot.Say(e.Connection, e.Channel, string.Format("I haven't loaded a plugin with key \u0002{0}\u001F.", e.Parameters[0]));
+                Bot.Say(e.Client, e.Channel, string.Format("I haven't loaded a plugin with key \u0002{0}\u001F.", e.Parameters[0]));
             }
         }
 
@@ -131,12 +131,12 @@ namespace PluginManager
                         }
                     }
                     plugin.Obj.Channels = channels.ToArray();
-                    Bot.Say(e.Connection, e.Channel, string.Format("\u0002{0}\u0002 is now assigned to the following channels: \u0002{1}\u0002.", e.Parameters[0], string.Join("\u0002, \u0002", plugin.Obj.Channels)));
+                    Bot.Say(e.Client, e.Channel, string.Format("\u0002{0}\u0002 is now assigned to the following channels: \u0002{1}\u0002.", e.Parameters[0], string.Join("\u0002, \u0002", plugin.Obj.Channels)));
                 } else {
-                    Bot.Say(e.Connection, e.Channel, string.Format("\u0002{0}\u0002 is assigned to the following channels: \u0002{1}\u0002.", e.Parameters[0], string.Join("\u0002, \u0002", plugin.Obj.Channels)));
+                    Bot.Say(e.Client, e.Channel, string.Format("\u0002{0}\u0002 is assigned to the following channels: \u0002{1}\u0002.", e.Parameters[0], string.Join("\u0002, \u0002", plugin.Obj.Channels)));
                 }
             } else {
-                Bot.Say(e.Connection, e.Channel, string.Format("I haven't loaded a plugin with key \u0002{0}\u001F.", e.Parameters[0]));
+                Bot.Say(e.Client, e.Channel, string.Format("I haven't loaded a plugin with key \u0002{0}\u001F.", e.Parameters[0]));
             }
         }
 

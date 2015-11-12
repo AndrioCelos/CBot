@@ -8,11 +8,11 @@ namespace IRC {
     /// Represents a case-mapping mode.
     /// </summary>
     public enum CaseMappingMode {
-        /// <summary>ASCII: the characters 'a' through 'z' are considered the lowercase equivalents to 'a' through 'z'.</summary>
+        /// <summary>ASCII: the characters 'a' through 'z' are considered the lowercase equivalents to 'A' through 'Z'.</summary>
         ASCII,
-        /// <summary>RFC 1459: the characters 'a' through '~' are considered the lowercase equivalents to 'a' through '^'.</summary>
+        /// <summary>RFC 1459: the characters 'a' through '~' are considered the lowercase equivalents to 'A' through '^'.</summary>
         RFC1459,
-        /// <summary>Strict RFC 1459: the characters 'a' through '}' are considered the lowercase equivalents to 'a' through ']'.</summary>
+        /// <summary>Strict RFC 1459: the characters 'a' through '}' are considered the lowercase equivalents to 'A' through ']'.</summary>
         StrictRFC1459
     }
 
@@ -41,16 +41,16 @@ namespace IRC {
         internal IRCStringComparer(CaseMappingMode mode) {
             switch (mode) {
                 case CaseMappingMode.ASCII:
-                    maxUppercase = (char) 90;
-                    maxLowercase = (char) 122;
+                    maxUppercase = 'Z';
+                    maxLowercase = 'z';
                     break;
                 case CaseMappingMode.RFC1459:
-                    maxUppercase = (char) 94;
-                    maxLowercase = (char) 126;
+                    maxUppercase = '^';
+                    maxLowercase = '~';
                     break;
                 case CaseMappingMode.StrictRFC1459:
-                    maxUppercase = (char) 93;
-                    maxLowercase = (char) 125;
+                    maxUppercase = ']';
+                    maxLowercase = '}';
                     break;
                 default:
                     throw new ArgumentException("mode is not a valid case mapping mode.", "mode");
@@ -60,7 +60,7 @@ namespace IRC {
         /// <summary>Determines whether two strings are equivalent.</summary>
         /// <param name="p1">The first string to compare.</param>
         /// <param name="p2">The second string to compare.</param>
-        /// <returns>True if the strings are equivalent, or both parameters are null; false otherwise.</returns>
+        /// <returns>True if the strings are equivalent, or both null; false otherwise.</returns>
         public override bool Equals(string p1, string p2) {
             if (object.ReferenceEquals(p1, p2)) return true;
             if (p1 == null || p2 == null) return false;
@@ -68,8 +68,8 @@ namespace IRC {
 
             for (int i = 0; i < p1.Length; ++i) {
                 char c1 = p1[i]; char c2 = p2[i];
-                if (c1 >= (char) 97 && c1 <= maxLowercase) c1 -= (char) 32;
-                if (c2 >= (char) 97 && c2 <= maxLowercase) c2 -= (char) 32;
+                if (c1 >= 'a' && c1 <= maxLowercase) c1 -= (char) 32;
+                if (c2 >= 'a' && c2 <= maxLowercase) c2 -= (char) 32;
                 if (c1 != c2) return false;
             }
             return true;
@@ -82,7 +82,7 @@ namespace IRC {
             StringBuilder builder = new StringBuilder();
             for (int i = 0; i < s.Length; ++i) {
                 char c1 = s[i];
-                if (c1 >= (char) 97 && c1 <= maxLowercase) c1 -= (char) 32;
+                if (c1 >= 'a' && c1 <= maxLowercase) c1 -= (char) 32;
                 builder.Append(c1);
             }
             return builder.ToString().GetHashCode();

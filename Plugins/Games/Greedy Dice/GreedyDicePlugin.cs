@@ -12,7 +12,7 @@ using CBot;
 using IRC;
 
 namespace GreedyDice {
-    [APIVersion(3, 1)]
+    [APIVersion(3, 2)]
     public class GreedyDicePlugin : Plugin {
         private static readonly int[] RollValues = new int[] { 0, 0, 50, 50, 100, 150 };
         private static readonly string[] RollFaces = new string[] { "\u00031,8 X ", "\u00031,8 X ", "\u000313,6 ♥ ", "\u00039,3 * ", "\u00034,5* *", "\u000312,2***" };
@@ -84,31 +84,31 @@ namespace GreedyDice {
                                 switch (field.ToUpper()) {
                                     case "AI":
                                         if (Bot.TryParseBoolean(value, out value2)) this.AIEnabled = value2;
-                                        else ConsoleUtils.WriteLine("[{0}] Problem loading the configuration (line {1}): the value is invalid (expected 'yes' or 'no').", MyKey, lineNumber);
+                                        else ConsoleUtils.WriteLine("[{0}] Problem loading the configuration (line {1}): the value is invalid (expected 'yes' or 'no').", this.Key, lineNumber);
                                         break;
                                     case "ENTRYTIME":
                                         if (int.TryParse(value, out value3) && value3 >= 0) this.EntryTime = value3;
-                                        else ConsoleUtils.WriteLine("[{0}] Problem loading the configuration (line {1}): the value is invalid (expected a non-negative integer).", MyKey, lineNumber);
+                                        else ConsoleUtils.WriteLine("[{0}] Problem loading the configuration (line {1}): the value is invalid (expected a non-negative integer).", this.Key, lineNumber);
                                         break;
                                     case "ENTRYWAITLIMIT":
                                         if (int.TryParse(value, out value3) && value3 >= 0) this.EntryWaitLimit = value3;
-                                        else ConsoleUtils.WriteLine("[{0}] Problem loading the configuration (line {1}): the value is invalid (expected a non-negative integer).", MyKey, lineNumber);
+                                        else ConsoleUtils.WriteLine("[{0}] Problem loading the configuration (line {1}): the value is invalid (expected a non-negative integer).", this.Key, lineNumber);
                                         break;
                                     case "TURNTIME":
                                         if (int.TryParse(value, out value3) && value3 >= 0) this.TurnTime = value3;
-                                        else ConsoleUtils.WriteLine("[{0}] Problem loading the configuration (line {1}): the value is invalid (expected a non-negative integer).", MyKey, lineNumber);
+                                        else ConsoleUtils.WriteLine("[{0}] Problem loading the configuration (line {1}): the value is invalid (expected a non-negative integer).", this.Key, lineNumber);
                                         break;
                                     case "TURNWAITLIMIT":
                                         if (int.TryParse(value, out value3) && value3 >= 0) this.TurnWaitLimit = value3;
-                                        else ConsoleUtils.WriteLine("[{0}] Problem loading the configuration (line {1}): the value is invalid (expected a non-negative integer).", MyKey, lineNumber);
+                                        else ConsoleUtils.WriteLine("[{0}] Problem loading the configuration (line {1}): the value is invalid (expected a non-negative integer).", this.Key, lineNumber);
                                         break;
                                     default:
-                                        if (!string.IsNullOrWhiteSpace(field)) ConsoleUtils.WriteLine("[{0}] Problem loading the configuration (line {1}): the field name is unknown.", MyKey, lineNumber);
+                                        if (!string.IsNullOrWhiteSpace(field)) ConsoleUtils.WriteLine("[{0}] Problem loading the configuration (line {1}): the field name is unknown.", this.Key, lineNumber);
                                         break;
                                 }
                                 break;
                             default:
-                                if (!string.IsNullOrWhiteSpace(field)) ConsoleUtils.WriteLine("[{0}] Problem loading the configuration (line {1}): found a stray field or unknown section.", MyKey, lineNumber);
+                                if (!string.IsNullOrWhiteSpace(field)) ConsoleUtils.WriteLine("[{0}] Problem loading the configuration (line {1}): found a stray field or unknown section.", this.Key, lineNumber);
                                 break;
                         }
                     }
@@ -120,7 +120,7 @@ namespace GreedyDice {
         public void SaveConfig() {
             if (!Directory.Exists("Config"))
                 Directory.CreateDirectory("Config");
-            using (StreamWriter writer = new StreamWriter(Path.Combine("Config", MyKey + ".ini"), false)) {
+            using (StreamWriter writer = new StreamWriter(Path.Combine("Config", this.Key + ".ini"), false)) {
                 writer.WriteLine("[Game]");
                 writer.WriteLine("AI={0}", this.AIEnabled ? "On" : "Off");
                 writer.WriteLine("EntryTime={0}", this.EntryTime);
@@ -143,16 +143,16 @@ namespace GreedyDice {
                     if (!SetPermissionCheck(e)) return;
                     if (value == null) {
                         if (this.AIEnabled)
-                            Bot.Say(e.Connection, e.Channel, "I \u00039will\u000F join Greedy Dice games.");
+                            Bot.Say(e.Client, e.Channel, "I \u00039will\u000F join Greedy Dice games.");
                         else
-                            Bot.Say(e.Connection, e.Channel, "I \u00034will not\u000F join Greedy Dice games.");
+                            Bot.Say(e.Client, e.Channel, "I \u00034will not\u000F join Greedy Dice games.");
                     } else if (Bot.TryParseBoolean(value, out value3)) {
                         if (this.AIEnabled = value3)
-                            Bot.Say(e.Connection, e.Channel, "I \u00039will now\u000F join Greedy Dice games.");
+                            Bot.Say(e.Client, e.Channel, "I \u00039will now\u000F join Greedy Dice games.");
                         else
-                            Bot.Say(e.Connection, e.Channel, "I \u00034will no longer\u000F join Greedy Dice games.");
+                            Bot.Say(e.Client, e.Channel, "I \u00034will no longer\u000F join Greedy Dice games.");
                     } else
-                        Bot.Say(e.Connection, e.Sender.Nickname, string.Format("I don't recognise '{0}' as a Boolean value. Please enter 'on' or 'off'.", value));
+                        Bot.Say(e.Client, e.Sender.Nickname, string.Format("I don't recognise '{0}' as a Boolean value. Please enter 'on' or 'off'.", value));
                     break;
                 case "ENTRYTIME":
                 case "ENTRYPERIOD":
@@ -160,28 +160,28 @@ namespace GreedyDice {
                 case "ENTRY":
                     if (!SetPermissionCheck(e)) return;
                     if (value == null) {
-                        Bot.Say(e.Connection, e.Channel, "The entry period is \u0002{0}\u0002 seconds.", this.EntryTime);
+                        Bot.Say(e.Client, e.Channel, "The entry period is \u0002{0}\u0002 seconds.", this.EntryTime);
                     } else if (int.TryParse(value, out value2)) {
                         if (value2 > 0) {
                             this.EntryTime = value2;
-                            Bot.Say(e.Connection, e.Channel, "The entry period is now \u0002{0}\u0002 seconds.", this.EntryTime);
+                            Bot.Say(e.Client, e.Channel, "The entry period is now \u0002{0}\u0002 seconds.", this.EntryTime);
                         } else
-                            Bot.Say(e.Connection, e.Sender.Nickname, "The number must be positive.", value);
+                            Bot.Say(e.Client, e.Sender.Nickname, "The number must be positive.", value);
                     } else
-                        Bot.Say(e.Connection, e.Sender.Nickname, string.Format("That isn't a valid integer.", value));
+                        Bot.Say(e.Client, e.Sender.Nickname, string.Format("That isn't a valid integer.", value));
                     break;
                 case "ENTRYWAITLIMIT":
                     if (!SetPermissionCheck(e)) return;
                     if (value == null) {
-                        Bot.Say(e.Connection, e.Channel, "The entry period may be extended to \u0002{0}\u0002 seconds.", this.EntryWaitLimit);
+                        Bot.Say(e.Client, e.Channel, "The entry period may be extended to \u0002{0}\u0002 seconds.", this.EntryWaitLimit);
                     } else if (int.TryParse(value, out value2)) {
                         if (value2 > 0) {
                             this.EntryWaitLimit = value2;
-                            Bot.Say(e.Connection, e.Channel, "The entry period may now be extended to \u0002{0}\u0002 seconds.", this.EntryWaitLimit);
+                            Bot.Say(e.Client, e.Channel, "The entry period may now be extended to \u0002{0}\u0002 seconds.", this.EntryWaitLimit);
                         } else
-                            Bot.Say(e.Connection, e.Sender.Nickname, "The number must be positive.", value);
+                            Bot.Say(e.Client, e.Sender.Nickname, "The number must be positive.", value);
                     } else
-                        Bot.Say(e.Connection, e.Sender.Nickname, string.Format("That isn't a valid integer.", value));
+                        Bot.Say(e.Client, e.Sender.Nickname, string.Format("That isn't a valid integer.", value));
                     break;
                 case "TURNTIME":
                 case "TIMELIMIT":
@@ -190,47 +190,47 @@ namespace GreedyDice {
                     if (!SetPermissionCheck(e)) return;
                     if (value == null) {
                         if (this.TurnTime == 0)
-                            Bot.Say(e.Connection, e.Channel, "The turn time limit is disabled.", this.TurnTime);
+                            Bot.Say(e.Client, e.Channel, "The turn time limit is disabled.", this.TurnTime);
                         else
-                            Bot.Say(e.Connection, e.Channel, "The turn time limit is \u0002{0}\u0002 seconds.", this.TurnTime);
+                            Bot.Say(e.Client, e.Channel, "The turn time limit is \u0002{0}\u0002 seconds.", this.TurnTime);
                     } else if (int.TryParse(value, out value2)) {
                         if (value2 >= 0) {
                             this.TurnTime = value2;
                             if (value2 == 0)
-                                Bot.Say(e.Connection, e.Channel, "The turn time limit is now disabled.", this.TurnTime);
+                                Bot.Say(e.Client, e.Channel, "The turn time limit is now disabled.", this.TurnTime);
                             else
-                                Bot.Say(e.Connection, e.Channel, "The turn time limit is now \u0002{0}\u0002 seconds.", this.TurnTime);
+                                Bot.Say(e.Client, e.Channel, "The turn time limit is now \u0002{0}\u0002 seconds.", this.TurnTime);
                             // Reset the existing turn timers.
                             foreach (Game game in this.Games.Values)
                                 game.GameTimer.Interval = this.TurnTime == 0 ? 60e+3 : (this.TurnTime * 1e+3);
                         } else
-                            Bot.Say(e.Connection, e.Sender.Nickname, "The number cannot be negative.", value);
+                            Bot.Say(e.Client, e.Sender.Nickname, "The number cannot be negative.", value);
                     } else
-                        Bot.Say(e.Connection, e.Sender.Nickname, string.Format("That isn't a valid integer.", value));
+                        Bot.Say(e.Client, e.Sender.Nickname, string.Format("That isn't a valid integer.", value));
                     break;
                 case "TURNWAITLIMIT":
                     if (!SetPermissionCheck(e)) return;
                     if (value == null) {
-                        Bot.Say(e.Connection, e.Channel, "The turn time limit may be extended to \u0002{0}\u0002 seconds.", this.TurnWaitLimit);
+                        Bot.Say(e.Client, e.Channel, "The turn time limit may be extended to \u0002{0}\u0002 seconds.", this.TurnWaitLimit);
                     } else if (int.TryParse(value, out value2)) {
                         if (value2 > 0) {
                             this.TurnWaitLimit = value2;
-                            Bot.Say(e.Connection, e.Channel, "The turn time limit may now be extended to \u0002{0}\u0002 seconds.", this.TurnWaitLimit);
+                            Bot.Say(e.Client, e.Channel, "The turn time limit may now be extended to \u0002{0}\u0002 seconds.", this.TurnWaitLimit);
                         } else
-                            Bot.Say(e.Connection, e.Sender.Nickname, "The number must be positive.", value);
+                            Bot.Say(e.Client, e.Sender.Nickname, "The number must be positive.", value);
                     } else
-                        Bot.Say(e.Connection, e.Sender.Nickname, string.Format("That isn't a valid integer.", value));
+                        Bot.Say(e.Client, e.Sender.Nickname, string.Format("That isn't a valid integer.", value));
                     break;
                 default:
-                    Bot.Say(e.Connection, e.Sender.Nickname, string.Format("I don't manage a setting named \u0002{0}\u0002.", property));
+                    Bot.Say(e.Client, e.Sender.Nickname, string.Format("I don't manage a setting named \u0002{0}\u0002.", property));
                     break;
             }
         }
 
         internal bool SetPermissionCheck(CommandEventArgs e) {
-            if (Bot.UserHasPermission(e.Connection, e.Channel, e.Sender.Nickname, MyKey + ".set"))
+            if (Bot.UserHasPermission(e.Client, e.Channel, e.Sender, this.Key + ".set"))
                 return true;
-            Bot.Say(e.Connection, e.Channel, "You don't have access to that setting.");
+            Bot.Say(e.Client, e.Channel, "You don't have access to that setting.");
             return false;
         }
 
@@ -240,21 +240,21 @@ namespace GreedyDice {
             null, CommandScope.Channel)]
         public void CommandJoin(object sender, CommandEventArgs e) {
             Game game;
-            string key = e.Connection.NetworkName + "/" + e.Channel;
+            string key = e.Client.NetworkName + "/" + e.Channel;
             if (this.Games.TryGetValue(key, out game))
                 this.EntryCommand(game, e.Sender.Nickname);
             else {
                 // Start a new game.
-                game = new Game(e.Connection, e.Channel, this.EntryTime);
+                game = new Game(e.Client, e.Channel, this.EntryTime);
                 lock (game.Lock) {
                     this.Games.Add(key, game);
                     game.Players.Add(new Player(e.Sender.Nickname));
-                    Bot.Say(e.Connection, e.Channel, "\u00039\u0002{0}\u0002 is starting a game of Greedy Dice!", e.Sender.Nickname);
+                    Bot.Say(e.Client, e.Channel, "\u00039\u0002{0}\u0002 is starting a game of Greedy Dice!", e.Sender.Nickname);
                     game.GameTimer.Elapsed += GameTimer_Elapsed;
                     Thread.Sleep(600);
 
                     game.GameTimer.Start();
-                    Bot.Say(e.Connection, e.Channel, "\u000312Starting in \u0002{0}\u0002 seconds. Say \u000311!djoin\u000312 if you wish to join the game.", this.EntryTime);
+                    Bot.Say(e.Client, e.Channel, "\u000312Starting in \u0002{0}\u0002 seconds. Say \u000311!djoin\u000312 if you wish to join the game.", this.EntryTime);
                 }
             }
         }
@@ -278,14 +278,14 @@ namespace GreedyDice {
             null, CommandScope.Channel)]
         public void CommandQuit(object sender, CommandEventArgs e) {
             Game game;
-            string key = e.Connection.NetworkName + "/" + e.Channel;
+            string key = e.Client.Extensions.NetworkName + "/" + e.Channel;
             if (!this.Games.TryGetValue(key, out game))
-                Bot.Say(e.Connection, e.Sender.Nickname, "There's no game going on at the moment.");
+                Bot.Say(e.Client, e.Sender.Nickname, "There's no game going on at the moment.");
             else {
                 lock (game.Lock) {
                     int index = game.IndexOf(e.Sender.Nickname);
                     if (index == -1)
-                        Bot.Say(e.Connection, e.Sender.Nickname, "You're not in this game.");
+                        Bot.Say(e.Client, e.Sender.Nickname, "You're not in this game.");
                     else {
                         Bot.Say(game.Connection, game.Channel, "\u000312\u0002{0}\u0002 has left the game.", e.Sender.Nickname);
                         this.RemovePlayer(game, index);
@@ -295,11 +295,11 @@ namespace GreedyDice {
         }
 
         public override bool OnNicknameChange(object sender, NicknameChangeEventArgs e) {
-            this.RenamePlayer(((IRCClient) sender).NetworkName, e.Sender.Nickname, e.NewNickname);
+            this.RenamePlayer(((IRCClient) sender).Extensions.NetworkName, e.Sender.Nickname, e.NewNickname);
             return base.OnNicknameChange(sender, e);
         }
         public override bool OnNicknameChangeSelf(object sender, NicknameChangeEventArgs e) {
-            this.RenamePlayer(((IRCClient) sender).NetworkName, e.Sender.Nickname, e.NewNickname);
+            this.RenamePlayer(((IRCClient) sender).Extensions.NetworkName, e.Sender.Nickname, e.NewNickname);
             return base.OnNicknameChangeSelf(sender, e);
         }
         public void RenamePlayer(string network, string oldName, string newName) {
@@ -343,7 +343,7 @@ namespace GreedyDice {
                     }
                 }
             }
-            ConsoleUtils.WriteLine("%cRED[{0}] Error: a game timer triggered, and I can't find which game it belongs to!", MyKey);
+            ConsoleUtils.WriteLine("%cRED[{0}] Error: a game timer triggered, and I can't find which game it belongs to!", this.Key);
         }
 
         private void GameClose(Game game) {
@@ -352,12 +352,12 @@ namespace GreedyDice {
 
                 // Enter the bot.
                 if (game.Players.Count == 1 && this.AIEnabled) {
-                    this.EntryCommand(game, game.Connection.Nickname);
+                    this.EntryCommand(game, game.Connection.Me.Nickname);
                 }
 
                 if (game.Players.Count < 2) {
                     Bot.Say(game.Connection, game.Channel, "\u000312Not enough players joined. Please say \u000311!djoin\u000312 when you're ready for a game.");
-                    this.Games.Remove(game.Connection.NetworkName + "/" + game.Channel);
+                    this.Games.Remove(game.Connection.Extensions.NetworkName + "/" + game.Channel);
                     return;
                 }
 
@@ -401,7 +401,7 @@ namespace GreedyDice {
             null, CommandScope.Channel)]
         public void CommandRoll(object sender, CommandEventArgs e) {
             Game game; int playerIndex;
-            if (!this.GameTurnCheck(e.Connection, e.Channel, e.Sender.Nickname, true, out game, out playerIndex)) return;
+            if (!this.GameTurnCheck(e.Client, e.Channel, e.Sender.Nickname, true, out game, out playerIndex)) return;
             lock (game.Lock) {
                 this.RollCheck(game, playerIndex);
             }
@@ -456,7 +456,7 @@ namespace GreedyDice {
             null, CommandScope.Channel)]
         public void CommandPass(object sender, CommandEventArgs e) {
             Game game; int playerIndex;
-            if (!this.GameTurnCheck(e.Connection, e.Channel, e.Sender.Nickname, true, out game, out playerIndex)) return;
+            if (!this.GameTurnCheck(e.Client, e.Channel, e.Sender.Nickname, true, out game, out playerIndex)) return;
             lock (game.Lock) {
                 this.PassCheck(game, playerIndex);
             }
@@ -476,7 +476,7 @@ namespace GreedyDice {
         }
         
         public void AICheck(Game game) {
-            int playerIndex = game.IndexOf(game.Connection.Nickname);
+            int playerIndex = game.IndexOf(game.Connection.Me.Nickname);
             if (playerIndex != -1 && game.Players[playerIndex].CanMove) {
                 Thread AIThread = new Thread(() => this.AITurn(game));
                 AIThread.Start();
@@ -485,7 +485,7 @@ namespace GreedyDice {
 
         public void AITurn(Game game) {
             Thread.Sleep(2500);
-            int playerIndex = game.IndexOf(game.Connection.Nickname);
+            int playerIndex = game.IndexOf(game.Connection.Me.Nickname);
             if (playerIndex != -1 && game.Players[playerIndex].CanMove) {
                 lock (game.Lock) {
                     int position = 1; int totalScore = game.Players[playerIndex].Score + game.TurnScore;
@@ -633,7 +633,7 @@ namespace GreedyDice {
 
         public override bool OnChannelLeave(object sender, ChannelPartEventArgs e) {
             Game game;
-            if (this.Games.TryGetValue(((IRCClient) sender).NetworkName + "/" + e.Channel, out game)) {
+            if (this.Games.TryGetValue(((IRCClient) sender).Extensions.NetworkName + "/" + e.Channel, out game)) {
                 lock (game.Lock) {
                     int index = game.IndexOf(e.Sender.Nickname);
                     if (index != -1) {
@@ -739,7 +739,7 @@ namespace GreedyDice {
         }
 
         public static string GetGender(IRCClient client, string channel, string nickname) {
-            Channel _channel; ChannelUser user;
+            IRCChannel _channel; IRCChannelUser user;
             if (client.Channels.TryGetValue(channel, out _channel)) {
                 if (_channel.Users.TryGetValue(nickname, out user)) {
                     return user.User.GenderRefTheir.ToLowerInvariant();

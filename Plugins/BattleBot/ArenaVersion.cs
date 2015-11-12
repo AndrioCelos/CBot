@@ -40,6 +40,15 @@ namespace BattleBot {
             return this.Major == 0 && this.Minor == 0 && this.Revision == 0 && this.BetaDate == default(DateTime);
         }
 
+        public override bool Equals(object other) {
+            if (other == null || !(other is ArenaVersion)) return false;
+            return (this == (ArenaVersion) other);
+        }
+
+        public override int GetHashCode() {
+            return this.Major << 10 ^ this.Minor << 5 ^ this.Revision ^ this.BetaDate.GetHashCode();
+        }
+
         public static bool operator ==(ArenaVersion v1, ArenaVersion v2) {
             return v1.Major == v2.Major && v1.Minor == v2.Minor && v1.Revision == v2.Revision && v1.BetaDate == v2.BetaDate;
         }

@@ -1,12 +1,8 @@
-using System;
-
-namespace IRC
-{
+namespace IRC {
     /// <summary>
     /// Provides methods for dealing with mIRC formatting codes.
     /// </summary>
-	public static class Colours
-	{
+	public static class Colours	{
         /// <summary>The colour code.</summary>
 		public const char ColourCode      = '\u0003';
         /// <summary>The full 'white' colour code.</summary>
@@ -64,17 +60,16 @@ namespace IRC
         /// <param name="nickname">The nickname to colour.</param>
         /// <returns>The nickname preceded by a colour code, calculated as per HexChat.</returns>
         public static string NicknameColour(string nickname) {
-            return "\u0003" + Colours.NicknameColourIndex(nickname);
+            return "\u0003" + NicknameColourIndex(nickname);
 		}
         /// <summary>Returns the HexChat colour index for a given nickname.</summary>
         /// <param name="nickname">The nickname to colour.</param>
         /// <returns>An integer specifying which colour should be used for this nickname.</returns>
-        public static int NicknameColourIndex(string nickname)
-		{
+        public static int NicknameColourIndex(string nickname) {
 			int digest = 0;
             for (int i = 0; i < nickname.Length; ++i)
-				digest += (int) nickname[i];
-			return Colours.nicknameColours[digest % Colours.nicknameColours.Length];
+				digest += nickname[i];
+			return nicknameColours[digest % nicknameColours.Length];
 		}
 	}
 

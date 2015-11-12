@@ -4,13 +4,13 @@ using System.Collections.Generic;
 using System.Text;
 
 namespace IRC {
-    public class ChannelCollection : IEnumerable<Channel>, IEnumerable {
-        public class Enumerator : IEnumerator<Channel>, IDisposable, IEnumerator {
-            private ChannelCollection collection;
+    public class IRCChannelCollection : IEnumerable<IRCChannel>, IEnumerable {
+        public class Enumerator : IEnumerator<IRCChannel>, IDisposable, IEnumerator {
+            private IRCChannelCollection collection;
             private int index;
-            private Channel current;
+            private IRCChannel current;
 
-            internal Enumerator(ChannelCollection collection) {
+            internal Enumerator(IRCChannelCollection collection) {
                 this.collection = collection;
                 collection.enumerator = this;
                 this.index = collection.Count;
@@ -19,7 +19,7 @@ namespace IRC {
 
             public void Dispose() { }
 
-            public Channel Current {
+            public IRCChannel Current {
                 get { return current; }
             }
 
@@ -44,25 +44,25 @@ namespace IRC {
             }
         }
 
-        private Channel[] array;
+        private IRCChannel[] array;
         private int count;
-        private ChannelCollection.Enumerator enumerator;
+        private IRCChannelCollection.Enumerator enumerator;
         private IRCClient client;
 
-        public ChannelCollection() {
-            this.array = new Channel[4];
+        public IRCChannelCollection() {
+            this.array = new IRCChannel[4];
             this.count = 0;
         }
-        public ChannelCollection(IRCClient client) : this() {
+        public IRCChannelCollection(IRCClient client) : this() {
             this.client = client;
         }
 
-        public ChannelCollection.Enumerator GetEnumerator() {
-            this.enumerator = new ChannelCollection.Enumerator(this);
+        public IRCChannelCollection.Enumerator GetEnumerator() {
+            this.enumerator = new IRCChannelCollection.Enumerator(this);
             return this.enumerator;
         }
 
-        IEnumerator<Channel> IEnumerable<Channel>.GetEnumerator() {
+        IEnumerator<IRCChannel> IEnumerable<IRCChannel>.GetEnumerator() {
             return this.GetEnumerator();
         }
 
@@ -88,14 +88,14 @@ namespace IRC {
                 array.SetValue(this.array[i], ++index);
         }
 
-        public Channel this[int index] {
+        public IRCChannel this[int index] {
             get {
                 if (index >= this.count) throw new ArgumentOutOfRangeException("index");
                 return this.array[this.count - 1 - index];
             }
         }
 
-        public Channel this[string nickname] {
+        public IRCChannel this[string nickname] {
             get {
                 for (int i = 0; i < this.count; ++i)
                     if (this.array[i].Name.Equals(nickname, StringComparison.OrdinalIgnoreCase)) return this.array[i];
@@ -103,10 +103,10 @@ namespace IRC {
             }
         }
 
-        internal void Add(Channel Channel) {
+        internal void Add(IRCChannel Channel) {
             this.enumerator = null;
             if (this.array.Length == this.count) {
-                Channel[] array2 = new Channel[this.count * 2];
+                IRCChannel[] array2 = new IRCChannel[this.count * 2];
                 this.array.CopyTo(array2, 0);
                 this.array = array2;
             }
@@ -129,7 +129,7 @@ namespace IRC {
             return false;
         }
 
-        internal bool Remove(Channel Channel) {
+        internal bool Remove(IRCChannel Channel) {
             int i;
             for (i = 0; i < this.count; ++i)
                 if (this.array[i] == Channel) {
@@ -150,7 +150,7 @@ namespace IRC {
             return false;
         }
 
-        public bool TryGetValue(string name, out Channel value) {
+        public bool TryGetValue(string name, out IRCChannel value) {
             StringComparer comparer;
             if (this.client == null)
                 comparer = IRCStringComparer.RFC1459;
@@ -163,7 +163,7 @@ namespace IRC {
                     return true;
                 }
             }
-            value = default(Channel);
+            value = default(IRCChannel);
             return false;
         }
 

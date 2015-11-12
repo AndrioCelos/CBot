@@ -9,7 +9,7 @@ using CBot;
 using IRC;
 
 namespace BombDefense {
-    [APIVersion(3, 1)]
+    [APIVersion(3, 2)]
     public class BombDefensePlugin : Plugin {
         private Timer DefuseTimer = new Timer() { AutoReset = false };
         private Timer RejoinTimer = new Timer(30e+3) { AutoReset = false };
@@ -29,8 +29,8 @@ namespace BombDefense {
 
         [Regex(@"^Bomb has been planted on (\S+)\.")]
         public void OnBomb(object sender, RegexEventArgs e) {
-            if (e.Connection.CaseMappingComparer.Equals(e.Match.Groups[1].Value, e.Connection.Nickname) && e.Sender.Username.Contains("Prae")) {
-                defuseConnection = e.Connection;
+            if (e.Client.CaseMappingComparer.Equals(e.Match.Groups[1].Value, e.Client.Me.Nickname) && e.Sender.Ident.Contains("Prae")) {
+                defuseConnection = e.Client;
                 DefuseTimer.Interval = RNG.NextDouble() * 5e+3 + 5e+3;
                 DefuseTimer.Start();
             }
@@ -52,11 +52,10 @@ namespace BombDefense {
             defuseConnection.Send("JOIN #game");
         }
 
-        public override bool OnChannelKickSelf(object sender, ChannelKickEventArgs e) {
-            if (e.Channel == "#game" && e.Reason == "Badaboom!")
+        public override bool OnChannelKick(object sender, ChannelKickEventArgs e) {
+            if (e.Sender.Nickname == ((IRCClient) sender).Me.Nickname && e.Channel == "#game" && e.Reason == "Badaboom!")
                 RejoinTimer.Start();
-            return base.OnChannelKickSelf(sender, e);
+            return base.OnChannelKick(sender, e);
         }
-
     }
 }

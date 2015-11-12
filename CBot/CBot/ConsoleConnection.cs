@@ -11,19 +11,17 @@ namespace CBot {
     internal class ConsoleConnection : IRCClient {
         private static object consoleLock = new object();
 
-        internal ConsoleConnection() {
+        internal ConsoleConnection() : base(new IRCLocalUser(Bot.dNicknames[0], Bot.dNicknames[0], Bot.dNicknames[0])) {
             this.Address = "!Console";
-            this.NetworkName = "!Console";
+            this.Extensions.NetworkName = "!Console";
             this.Port = 0;
-            this.Nickname = Bot.dNicknames[0];
         }
 
-        public override void Connect() {
+        public override void Connect(string host, int port) {
             this.LastSpoke = DateTime.Now;
-            this.IsConnected = true;
-            this.IsRegistered = true;
+            this.State = IRCClientState.Online;
 
-            this.ReceivedLine(":" + this.Nickname + "!*@* JOIN #");
+            this.ReceivedLine(":" + Me.Nickname + "!*@* JOIN #");
             this.ReceivedLine(":User!User@console JOIN #");
         }
 
@@ -31,17 +29,16 @@ namespace CBot {
         }
 
         public override void Send(string t) {
-            string Prefix; string Command; string[] Parameters; string Trail = null;
-            IRCClient.ParseIRCLine(t, out Prefix, out Command, out Parameters, out Trail, true);
+            var line = IRCLine.Parse(t);
 
-            if ((Command.Equals("PRIVMSG", StringComparison.OrdinalIgnoreCase) || Command.Equals("NOTICE", StringComparison.OrdinalIgnoreCase)) && (Parameters[0] == "#" || IRCStringComparer.RFC1459.Equals(Parameters[0], "User"))) {
+            if ((line.Command.Equals("PRIVMSG", StringComparison.OrdinalIgnoreCase) || line.Command.Equals("NOTICE", StringComparison.OrdinalIgnoreCase)) && (line.Parameters[0] == "#" || IRCStringComparer.RFC1459.Equals(line.Parameters[0], "User"))) {
                 // Emulate a channel message to # or PM to 'User' by sticking it on the console.
-                ConsoleConnection.writeMessage(Parameters[1]);
+                writeMessage(line.Parameters[1]);
             }
         }
 
         public static void writeMessage(string message) {
-            lock (ConsoleConnection.consoleLock) {
+            lock (consoleLock) {
                 ConsoleColor originalBackground; ConsoleColor originalForeground;
                 originalBackground = Console.BackgroundColor;
                 originalForeground = Console.ForegroundColor;
@@ -211,7 +208,7 @@ namespace CBot {
         }
 
         internal void Put(string Text) {
-            this.ReceivedLine(":User!User@console PRIVMSG " + this.Nickname + " :" + Text);
+            this.ReceivedLine(":User!User@console PRIVMSG " + Me.Nickname + " :" + Text);
         }
     }
 }

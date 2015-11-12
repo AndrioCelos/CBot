@@ -121,7 +121,7 @@ namespace UNO {
 
         public bool IsAIUp {
             get {
-                int playerIndex = this.IndexOf(this.Connection.Nickname);
+                int playerIndex = this.IndexOf(this.Connection.Me.Nickname);
                 return (playerIndex != -1 && this.Players[playerIndex].CanMove);
             }
         }

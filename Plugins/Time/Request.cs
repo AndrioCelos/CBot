@@ -14,7 +14,7 @@ namespace Time {
 
         public IRCClient Connection { get; }
         public string Channel { get; }
-        public User Sender { get; }
+        public IRCUser Sender { get; }
 
         public DateTime? Time { get; }
         public TimeSpan? Zone { get; }
@@ -23,7 +23,7 @@ namespace Time {
 
         public event ElapsedEventHandler Timeout;
 
-        public Request(IRCClient connection, string channel, User sender, DateTime? time, TimeSpan? zone, TimeSpan? targetZone, string zoneName) {
+        public Request(IRCClient connection, string channel, IRCUser sender, DateTime? time, TimeSpan? zone, TimeSpan? targetZone, string zoneName) {
             this.Connection = connection;
             this.Channel = channel;
             this.Sender = sender;

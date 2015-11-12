@@ -4,13 +4,13 @@ using System.Collections.Generic;
 using System.Text;
 
 namespace IRC {
-    public class UserCollection : IEnumerable<User>, IEnumerable {
-        public class Enumerator : IEnumerator<User>, IDisposable, IEnumerator {
-            private UserCollection collection;
+    public class IRCUserCollection : IEnumerable<IRCUser>, IEnumerable {
+        public class Enumerator : IEnumerator<IRCUser>, IDisposable, IEnumerator {
+            private IRCUserCollection collection;
             private int index;
-            private User current;
+            private IRCUser current;
 
-            internal Enumerator(UserCollection collection) {
+            internal Enumerator(IRCUserCollection collection) {
                 this.collection = collection;
                 collection.enumerator = this;
                 this.index = collection.Count;
@@ -19,7 +19,7 @@ namespace IRC {
 
             public void Dispose() { }
 
-            public IRC.User Current {
+            public IRC.IRCUser Current {
                 get { return current; }
             }
 
@@ -44,25 +44,25 @@ namespace IRC {
             }
         }
 
-        private User[] array;
+        private IRCUser[] array;
         private int count;
-        private UserCollection.Enumerator enumerator;
+        private IRCUserCollection.Enumerator enumerator;
         private IRCClient client;
 
-        public UserCollection() {
-            this.array = new User[4];
+        public IRCUserCollection() {
+            this.array = new IRCUser[4];
             this.count = 0;
         }
-        public UserCollection(IRCClient client) : this() {
+        public IRCUserCollection(IRCClient client) : this() {
             this.client = client;
         }
 
-        public UserCollection.Enumerator GetEnumerator() {
-            this.enumerator = new UserCollection.Enumerator(this);
+        public IRCUserCollection.Enumerator GetEnumerator() {
+            this.enumerator = new IRCUserCollection.Enumerator(this);
             return this.enumerator;
         }
 
-        IEnumerator<User> IEnumerable<User>.GetEnumerator() {
+        IEnumerator<IRCUser> IEnumerable<IRCUser>.GetEnumerator() {
             return this.GetEnumerator();
         }
 
@@ -88,14 +88,14 @@ namespace IRC {
                 array.SetValue(this.array[i], index++);
         }
 
-        public User this[int index] {
+        public IRCUser this[int index] {
             get {
                 if (index >= this.count) throw new ArgumentOutOfRangeException("index");
                 return this.array[this.count - 1 - index];
             }
         }
 
-        public User this[string nickname] {
+        public IRCUser this[string nickname] {
             get {
                 for (int i = 0; i < this.count; ++i)
                     if (this.array[i].Nickname.Equals(nickname, StringComparison.OrdinalIgnoreCase)) return this.array[i];
@@ -103,10 +103,10 @@ namespace IRC {
             }
         }
 
-        internal void Add(User user) {
+        internal void Add(IRCUser user) {
             this.enumerator = null;
             if (this.array.Length == this.count) {
-                User[] array2 = new User[this.count * 2];
+                IRCUser[] array2 = new IRCUser[this.count * 2];
                 this.array.CopyTo(array2, 0);
                 this.array = array2;
             }
@@ -129,7 +129,7 @@ namespace IRC {
             return false;
         }
 
-        internal bool Remove(User user) {
+        internal bool Remove(IRCUser user) {
             int i;
             for (i = 0; i < this.count; ++i)
                 if (this.array[i] == user) {
@@ -150,8 +150,11 @@ namespace IRC {
             return false;
         }
 
-        internal User Get(string mask, bool add) {
-            User user;
+        internal IRCUser Get(string mask, bool add) {
+            return this.Get(mask, null, null, add);
+        }
+        internal IRCUser Get(string mask, string account, string fullName, bool add) {
+            IRCUser user;
             string nickname; string username; string host;
 
             System.Text.RegularExpressions.Match match = System.Text.RegularExpressions.Regex.Match(mask, @"([^!@]*)(?:!([^@]*))?(?:@(.*))?");
@@ -160,17 +163,19 @@ namespace IRC {
             host = match.Groups[3].Success ? match.Groups[3].Value : "*";
 
             if (this.TryGetValue(nickname, out user)) {
-                if (username != "*") user.Username = username;
+                if (username != "*") user.Ident = username;
                 if (host != "*") user.Host = host;
+                if (account != null) user.Account = (account == "*" ? null : account);
+                if (fullName != null) user.FullName = fullName;
             } else {
-                user = new User(this.client, nickname, username, host);
+                user = new IRCUser(this.client, nickname, username, host, account == "*" ? null : account, fullName);
                 if (add) this.Add(user);
             }
 
             return user;
         }
 
-        public bool TryGetValue(string nickname, out User value) {
+        public bool TryGetValue(string nickname, out IRCUser value) {
             StringComparer comparer;
             if (this.client == null)
                 comparer = IRCStringComparer.RFC1459;
@@ -183,7 +188,7 @@ namespace IRC {
                     return true;
                 }
             }
-            value = default(User);
+            value = default(IRCUser);
             return false;
         }
 

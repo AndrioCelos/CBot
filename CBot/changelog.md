@@ -1,7 +1,11 @@
-Version 3.2 – To be released
-----------------------------
+Version 3.2 – 12 November 2015
+------------------------------
 
-
+* Done a lot of cleaning to the IRC library.
+* Nickname, ident and full name are now supplied using an `IRCLocalUser` object.
+* RPL_ISUPPORT extensions have been moved to the `Extensions` property.
+* `IRCChannelUser.Status` is now a set of mode characters instead of an enum. It now works with any status flag mentioned in RPL_ISUPPORT. You can still compare like this: `channelUser.Status >= ChannelStatus.Halfop`.
+* Some events have been rearranged.
 
 Version 3.1.1 – 5 November 2014
 -------------------------------

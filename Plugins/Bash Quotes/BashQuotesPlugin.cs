@@ -28,7 +28,7 @@ namespace BashQuotes
         }
     }
 
-    [APIVersion(3, 1)]
+    [APIVersion(3, 2)]
     public class BashQuotesPlugin : Plugin
     {
         private System.Timers.Timer QuoteTimer;

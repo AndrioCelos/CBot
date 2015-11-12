@@ -11,7 +11,7 @@ using IRC;
 
 namespace Gender
 {
-    [APIVersion(3, 1)]
+    [APIVersion(3, 2)]
     public class GenderPlugin : Plugin
     {
         public Dictionary<string, IRC.Gender> Gender;
@@ -39,7 +39,7 @@ namespace Gender
 
         public override void OnSave() {
             this.SaveConfig();
-            this.SaveData(MyKey + "-data.ini");
+            this.SaveData(this.Key + "-data.ini");
         }
 
         public override void OnUnload() {
@@ -77,7 +77,7 @@ namespace Gender
                                 } else ConsoleUtils.WriteLine("[{0}] Problem loading the configuration (line {1}): the value is invalid (expected a non-negative integer).", key, lineNumber);
                                 break;
                             default:
-                                if (!string.IsNullOrWhiteSpace(field)) ConsoleUtils.WriteLine("[{0}] Problem loading the configuration (line {1}): the field name is unknown.", MyKey, lineNumber);
+                                if (!string.IsNullOrWhiteSpace(field)) ConsoleUtils.WriteLine("[{0}] Problem loading the configuration (line {1}): the field name is unknown.", this.Key, lineNumber);
                                 break;
                         }
                         break;
@@ -99,7 +99,7 @@ namespace Gender
                         string[] fields = line.Split(new char[] { '=' }, 2);
 
                         if (fields.Length != 2) {
-                            ConsoleUtils.WriteLine("[{0}] Problem loading the configuration (line {1}): the line is not in the correct format.", MyKey, lineNumber);
+                            ConsoleUtils.WriteLine("[{0}] Problem loading the configuration (line {1}): the line is not in the correct format.", this.Key, lineNumber);
                         } else {
                             IRC.Gender gender;
                             if (fields[1].Equals("male", StringComparison.InvariantCultureIgnoreCase))
@@ -121,7 +121,7 @@ namespace Gender
         public void SaveConfig() {
             if (!Directory.Exists("Config"))
                 Directory.CreateDirectory("Config");
-            using (StreamWriter writer = new StreamWriter(Path.Combine("Config", MyKey + ".ini"), false)) {
+            using (StreamWriter writer = new StreamWriter(Path.Combine("Config", this.Key + ".ini"), false)) {
                 writer.WriteLine("[Config]");
                 writer.WriteLine("WhoInterval={0}", this.WhoTimer.Enabled ? this.WhoTimer.Interval / 1000 : 0);
                 writer.Close();
@@ -151,17 +151,17 @@ namespace Gender
 
             if (e.Parameters.Length == 1) {
                 valid = true;
-                mask = "*!*" + (e.Sender.Username.StartsWith("~") ? e.Sender.Username.Substring(1) : e.Sender.Username) + "@" + e.Sender.Host;
+                mask = "*!*" + (e.Sender.Ident.StartsWith("~") ? e.Sender.Ident.Substring(1) : e.Sender.Ident) + "@" + e.Sender.Host;
                 if (e.Parameters[0].Equals("male", StringComparison.InvariantCultureIgnoreCase) || e.Parameters[00].Equals("m", StringComparison.InvariantCultureIgnoreCase)) {
                     gender = IRC.Gender.Male;
-                    Bot.Say(e.Connection, e.Channel, "Gender for \u0002{0}\u0002 has been set to \u0002male\u0002.", mask);
+                    Bot.Say(e.Client, e.Channel, "Gender for \u0002{0}\u0002 has been set to \u0002male\u0002.", mask);
                 } else if (e.Parameters[0].Equals("female", StringComparison.InvariantCultureIgnoreCase) || e.Parameters[0].Equals("f", StringComparison.InvariantCultureIgnoreCase)) {
                     gender = IRC.Gender.Female;
-                    Bot.Say(e.Connection, e.Channel, "Gender for \u0002{0}\u0002 has been set to \u0002female\u0002.", mask);
+                    Bot.Say(e.Client, e.Channel, "Gender for \u0002{0}\u0002 has been set to \u0002female\u0002.", mask);
                 } else if (e.Parameters[0].Equals("none", StringComparison.InvariantCultureIgnoreCase) || e.Parameters[0].Equals("n", StringComparison.InvariantCultureIgnoreCase) ||
                     e.Parameters[0].Equals("bot", StringComparison.InvariantCultureIgnoreCase) || e.Parameters[0].Equals("b", StringComparison.InvariantCultureIgnoreCase)) {
                     gender = IRC.Gender.Bot;
-                    Bot.Say(e.Connection, e.Channel, "Gender for \u0002{0}\u0002 has been set to \u0002none\u0002.", mask);
+                    Bot.Say(e.Client, e.Channel, "Gender for \u0002{0}\u0002 has been set to \u0002none\u0002.", mask);
                 } else if (e.Parameters[0].Equals("clear", StringComparison.InvariantCultureIgnoreCase) || e.Parameters[0].Equals("c", StringComparison.InvariantCultureIgnoreCase)) {
                     gender = IRC.Gender.Unspecified;
                 } else
@@ -170,48 +170,48 @@ namespace Gender
             if (valid) {
                 if (gender == IRC.Gender.Unspecified) {
                     if (this.Gender.Remove(mask))
-                        Bot.Say(e.Connection, e.Channel, "Gender for \u0002{0}\u0002 has been cleared.", mask);
+                        Bot.Say(e.Client, e.Channel, "Gender for \u0002{0}\u0002 has been cleared.", mask);
                     else {
-                        Bot.Say(e.Connection, e.Sender.Nickname, "No gender for \u0002{0}\u0002 was set.", mask);
+                        Bot.Say(e.Client, e.Sender.Nickname, "No gender for \u0002{0}\u0002 was set.", mask);
                         return;
                     }
                 } else
                     this.Gender[mask] = gender;
                 e.Sender.Gender = gender;
                 return;
-            } else if (Bot.UserHasPermission(e.Connection, e.Channel, e.Sender.Nickname, MyKey + ".setgender.others")) {
+            } else if (Bot.UserHasPermission(e.Client, e.Channel, e.Sender, this.Key + ".setgender.others")) {
                 if (e.Parameters.Length == 1 || e.Parameters[1].Equals("clear", StringComparison.InvariantCultureIgnoreCase) ||
                                                 e.Parameters[1].Equals("c", StringComparison.InvariantCultureIgnoreCase)) {
                     gender = IRC.Gender.Unspecified;
                     if (this.Gender.Remove(e.Parameters[0]))
-                        Bot.Say(e.Connection, e.Channel, "Gender for \u0002{0}\u0002 has been cleared.", e.Parameters[0]);
+                        Bot.Say(e.Client, e.Channel, "Gender for \u0002{0}\u0002 has been cleared.", e.Parameters[0]);
                     else {
-                        Bot.Say(e.Connection, e.Sender.Nickname, "No gender for \u0002{0}\u0002 was set.", e.Parameters[0]);
+                        Bot.Say(e.Client, e.Sender.Nickname, "No gender for \u0002{0}\u0002 was set.", e.Parameters[0]);
                         return;
                     }
                 } else if (e.Parameters[1].Equals("male", StringComparison.InvariantCultureIgnoreCase) ||
                            e.Parameters[1].Equals("m", StringComparison.InvariantCultureIgnoreCase)) {
                     gender = IRC.Gender.Male;
                     this.Gender[e.Parameters[0]] = IRC.Gender.Male;
-                    Bot.Say(e.Connection, e.Channel, "Gender for \u0002{0}\u0002 has been set to \u0002male\u0002.", e.Parameters[0]);
+                    Bot.Say(e.Client, e.Channel, "Gender for \u0002{0}\u0002 has been set to \u0002male\u0002.", e.Parameters[0]);
                 } else if (e.Parameters[1].Equals("female", StringComparison.InvariantCultureIgnoreCase) ||
                            e.Parameters[1].Equals("f", StringComparison.InvariantCultureIgnoreCase)) {
                     gender = IRC.Gender.Female;
                     this.Gender[e.Parameters[0]] = IRC.Gender.Female;
-                    Bot.Say(e.Connection, e.Channel, "Gender for \u0002{0}\u0002 has been set to \u0002female\u0002.", e.Parameters[0]);
+                    Bot.Say(e.Client, e.Channel, "Gender for \u0002{0}\u0002 has been set to \u0002female\u0002.", e.Parameters[0]);
                 } else if (e.Parameters[1].Equals("none", StringComparison.InvariantCultureIgnoreCase) ||
                            e.Parameters[1].Equals("n", StringComparison.InvariantCultureIgnoreCase) ||
                            e.Parameters[1].Equals("bot", StringComparison.InvariantCultureIgnoreCase) ||
                            e.Parameters[1].Equals("b", StringComparison.InvariantCultureIgnoreCase)) {
                     gender = IRC.Gender.Bot;
                     this.Gender[e.Parameters[0]] = IRC.Gender.Bot;
-                    Bot.Say(e.Connection, e.Channel, "Gender for \u0002{0}\u0002 has been set to \u0002none\u0002.", e.Parameters[0]);
+                    Bot.Say(e.Client, e.Channel, "Gender for \u0002{0}\u0002 has been set to \u0002none\u0002.", e.Parameters[0]);
                 } else {
-                    Bot.Say(e.Connection, e.Sender.Nickname, "'{0}' isn't a valid option. Use 'male', 'female', 'none' or 'clear'.", e.Parameters[1]);
+                    Bot.Say(e.Client, e.Sender.Nickname, "'{0}' isn't a valid option. Use 'male', 'female', 'none' or 'clear'.", e.Parameters[1]);
                     return;
                 }
             } else {
-                Bot.Say(e.Connection, e.Sender.Nickname, "You don't have permission to set a gender for others.");
+                Bot.Say(e.Client, e.Sender.Nickname, "You don't have permission to set a gender for others.");
                 return;
             }
 
@@ -224,8 +224,8 @@ namespace Gender
             if (index2 == -1) {
                 foreach (ClientEntry clientEntry in Bot.Clients) {
                     IRCClient client = clientEntry.Client;
-                    if (fields[0] == "*" || fields[0].Equals(client.NetworkName, StringComparison.OrdinalIgnoreCase) || fields[0].Equals(client.Address, StringComparison.OrdinalIgnoreCase)) {
-                        User user;
+                    if (fields[0] == "*" || fields[0].Equals(client.Extensions.NetworkName, StringComparison.OrdinalIgnoreCase) || fields[0].Equals(client.Address, StringComparison.OrdinalIgnoreCase)) {
+                        IRCUser user;
                         if (client.Users.TryGetValue(fields[1].Substring(0, index), out user)) {
                             if (Bot.MaskCheck(user.ToString(), fields[1]))
                                 user.Gender = gender;
@@ -236,7 +236,7 @@ namespace Gender
                 foreach (ClientEntry clientEntry in Bot.Clients) {
                     IRCClient client = clientEntry.Client;
                     if (fields[0] == "*" || fields[0].Equals(client.NetworkName, StringComparison.OrdinalIgnoreCase) || fields[0].Equals(client.Address, StringComparison.OrdinalIgnoreCase)) {
-                        foreach (User user in client.Users) {
+                        foreach (IRCUser user in client.Users) {
                             if (Bot.MaskCheck(user.ToString(), fields[1]))
                                 user.Gender = gender;
                         }
@@ -262,12 +262,12 @@ namespace Gender
                 if (index2 == -1) {
                     foreach (ClientEntry clientEntry in Bot.Clients) {
                         IRCClient client = clientEntry.Client;
-                        if (fields[0] == "*" || fields[0].Equals(client.NetworkName, StringComparison.OrdinalIgnoreCase) || fields[0].Equals(client.Address, StringComparison.OrdinalIgnoreCase)) {
-                            User user;
+                        if (fields[0] == "*" || fields[0].Equals(client.Extensions.NetworkName, StringComparison.OrdinalIgnoreCase) || fields[0].Equals(client.Address, StringComparison.OrdinalIgnoreCase)) {
+                            IRCUser user;
                             if (client.Users.TryGetValue(fields[1].Substring(0, index), out user)) {
                                 if (Bot.MaskCheck(user.ToString(), fields[1])) {
                                     gender = user.Gender;
-                                    header = user.Nickname + "\u0002 on \u0002" + client.NetworkName;
+                                    header = user.Nickname + "\u0002 on \u0002" + client.Extensions.NetworkName;
                                     break;
                                 }
                             }
@@ -276,11 +276,11 @@ namespace Gender
                 } else {
                     foreach (ClientEntry clientEntry in Bot.Clients) {
                         IRCClient client = clientEntry.Client;
-                        if (fields[0] == "*" || fields[0].Equals(client.NetworkName, StringComparison.OrdinalIgnoreCase) || fields[0].Equals(client.Address, StringComparison.OrdinalIgnoreCase)) {
-                            foreach (User user in client.Users) {
+                        if (fields[0] == "*" || fields[0].Equals(client.Extensions.NetworkName, StringComparison.OrdinalIgnoreCase) || fields[0].Equals(client.Address, StringComparison.OrdinalIgnoreCase)) {
+                            foreach (IRCUser user in client.Users) {
                                 if (Bot.MaskCheck(user.ToString(), fields[1])) {
                                     gender = user.Gender;
-                                    header = user.Nickname + "\u0002 on \u0002" + client.NetworkName;
+                                    header = user.Nickname + "\u0002 on \u0002" + client.Extensions.NetworkName;
                                     break;
                                 }
                             }
@@ -289,18 +289,18 @@ namespace Gender
                 }
 
                 if (header == null) {
-                    Bot.Say(e.Connection, e.Sender.Nickname, "I didn't find any matching users.");
+                    Bot.Say(e.Client, e.Sender.Nickname, "I didn't find any matching users.");
                     return;
                 }
             }
             if (gender == IRC.Gender.Male)
-                Bot.Say(e.Connection, e.Channel, "\u0002{0}\u0002 is \u0002male\u0002.", header);
+                Bot.Say(e.Client, e.Channel, "\u0002{0}\u0002 is \u0002male\u0002.", header);
             else if (gender == IRC.Gender.Female)
-                Bot.Say(e.Connection, e.Channel, "\u0002{0}\u0002 is \u0002female\u0002.", header);
+                Bot.Say(e.Client, e.Channel, "\u0002{0}\u0002 is \u0002female\u0002.", header);
             else if (gender == IRC.Gender.Bot)
-                Bot.Say(e.Connection, e.Channel, "\u0002{0}\u0002 is \u0002none\u0002.", header);
+                Bot.Say(e.Client, e.Channel, "\u0002{0}\u0002 is \u0002none\u0002.", header);
             else
-                Bot.Say(e.Connection, e.Channel, "\u0002{0}\u0002 is \u0002unknown\u0002.", header);
+                Bot.Say(e.Client, e.Channel, "\u0002{0}\u0002 is \u0002unknown\u0002.", header);
         }
 
         [Command(new string[] { "set" }, 1, 2, "set [setting] [value]", "Changes settings for this plugin.",
@@ -311,12 +311,12 @@ namespace Gender
                     case "WHO":
                     case "WHOINTERVAL":
                         if (this.WhoTimer.Enabled)
-                            Bot.Say(e.Connection, e.Channel, "WHO requests \u00039are\u000F being sent every \u0002{0}\u0002 seconds.", this.WhoTimer.Interval / 1000);
+                            Bot.Say(e.Client, e.Channel, "WHO requests \u00039are\u000F being sent every \u0002{0}\u0002 seconds.", this.WhoTimer.Interval / 1000);
                         else
-                            Bot.Say(e.Connection, e.Channel, "WHO requests \u00034are not\u000F being sent.", 0);
+                            Bot.Say(e.Client, e.Channel, "WHO requests \u00034are not\u000F being sent.", 0);
                         break;
                     default:
-                        Bot.Say(e.Connection, e.Sender.Nickname, string.Format("I don't manage a setting named \u0002{0}\u0002.", e.Parameters[1]));
+                        Bot.Say(e.Client, e.Sender.Nickname, string.Format("I don't manage a setting named \u0002{0}\u0002.", e.Parameters[1]));
                         break;
                 }
             } else {
@@ -327,20 +327,20 @@ namespace Gender
                         if (int.TryParse(e.Parameters[1], out value)) {
                             if (value == 0) {
                                 this.WhoTimer.Stop();
-                                Bot.Say(e.Connection, e.Channel, "WHO requests will \u00034no longer\u000F be sent.", 0);
+                                Bot.Say(e.Client, e.Channel, "WHO requests will \u00034no longer\u000F be sent.", 0);
                             } else if (value >= 5) {
                                 this.WhoTimer.Interval = value * 1000;
                                 this.WhoTimer.Start();
-                                Bot.Say(e.Connection, e.Channel, "WHO requests will \u00039now\u000F be sent every \u0002{0}\u0002 seconds.", value);
+                                Bot.Say(e.Client, e.Channel, "WHO requests will \u00039now\u000F be sent every \u0002{0}\u0002 seconds.", value);
                             } else if (value > 0)
-                                Bot.Say(e.Connection, e.Sender.Nickname, "That number is too small.", value);
+                                Bot.Say(e.Client, e.Sender.Nickname, "That number is too small.", value);
                             else
-                                Bot.Say(e.Connection, e.Sender.Nickname, "The number cannot be negative.", value);
+                                Bot.Say(e.Client, e.Sender.Nickname, "The number cannot be negative.", value);
                         } else
-                            Bot.Say(e.Connection, e.Sender.Nickname, string.Format("That's not a valid integer.", e.Parameters[1]));
+                            Bot.Say(e.Client, e.Sender.Nickname, string.Format("That's not a valid integer.", e.Parameters[1]));
                         break;
                     default:
-                        Bot.Say(e.Connection, e.Sender.Nickname, string.Format("I don't manage a setting named \u0002{0}\u0002.", e.Parameters[1]));
+                        Bot.Say(e.Client, e.Sender.Nickname, string.Format("I don't manage a setting named \u0002{0}\u0002.", e.Parameters[1]));
                         break;
                 }
             }
@@ -353,7 +353,7 @@ namespace Gender
                     fields = new string[] { "*", fields[0] };
                 int index = fields[1].IndexOf('!');
                 int index2 = index == -1 ? -1 : fields[1].IndexOfAny(new char[] { '*', '?' }, 0, index);
-                if (fields[0] == "*" || fields[0].Equals(((IRCClient) sender).NetworkName, StringComparison.OrdinalIgnoreCase) || fields[0].Equals(((IRCClient) sender).Address, StringComparison.OrdinalIgnoreCase)) {
+                if (fields[0] == "*" || fields[0].Equals(((IRCClient) sender).Extensions.NetworkName, StringComparison.OrdinalIgnoreCase) || fields[0].Equals(((IRCClient) sender).Address, StringComparison.OrdinalIgnoreCase)) {
                     if (Bot.MaskCheck(e.Sender.ToString(), fields[1])) {
                         e.Sender.Gender = entry.Value;
                         return base.OnChannelJoin(sender, e);
@@ -363,23 +363,6 @@ namespace Gender
             return base.OnChannelJoin(sender, e);
         }
 
-        public override bool OnChannelJoinSelf(object sender, ChannelJoinEventArgs e) {
-            foreach (KeyValuePair<string, IRC.Gender> entry in this.Gender) {
-                string[] fields = entry.Key.Split(new char[] { '/' }, 2);
-                if (fields.Length == 1)
-                    fields = new string[] { "*", fields[0] };
-                int index = fields[1].IndexOf('!');
-                int index2 = index == -1 ? -1 : fields[1].IndexOfAny(new char[] { '*', '?' }, 0, index);
-                if (fields[0] == "*" || fields[0].Equals(((IRCClient) sender).NetworkName, StringComparison.OrdinalIgnoreCase) || fields[0].Equals(((IRCClient) sender).Address, StringComparison.OrdinalIgnoreCase)) {
-                    if (Bot.MaskCheck(e.Sender.ToString(), fields[1])) {
-                        e.Sender.Gender = entry.Value;
-                        return base.OnChannelJoinSelf(sender, e);
-                    }
-                }
-            }
-            return base.OnChannelJoinSelf(sender, e);
-        }
-
         public override bool OnWhoList(object sender, WhoListEventArgs e) {
             foreach (KeyValuePair<string, IRC.Gender> entry in this.Gender) {
                 string[] fields = entry.Key.Split(new char[] { '/' }, 2);
@@ -387,7 +370,7 @@ namespace Gender
                     fields = new string[] { "*", fields[0] };
                 int index = fields[1].IndexOf('!');
                 int index2 = index == -1 ? -1 : fields[1].IndexOfAny(new char[] { '*', '?' }, 0, index);
-                if (fields[0] == "*" || fields[0].Equals(((IRCClient) sender).NetworkName, StringComparison.OrdinalIgnoreCase) || fields[0].Equals(((IRCClient) sender).Address, StringComparison.OrdinalIgnoreCase)) {
+                if (fields[0] == "*" || fields[0].Equals(((IRCClient) sender).Extensions.NetworkName, StringComparison.OrdinalIgnoreCase) || fields[0].Equals(((IRCClient) sender).Address, StringComparison.OrdinalIgnoreCase)) {
                     if (Bot.MaskCheck(e.Nickname + "!" + e.Username + "@" + e.Host, fields[1])) {
                         ((IRCClient) sender).Users[e.Nickname].Gender = entry.Value;
                         return base.OnWhoList(sender, e);
