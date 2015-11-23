@@ -1043,7 +1043,12 @@ namespace CBot {
                                     switch (Field.ToUpper()) {
                                         case "PASSWORD":
                                         case "PASS":
-                                            newUser.Password = Value;
+                                            // TODO: Remove ambiguity with 128-character passwords.
+                                            if (Value.Length != 128)
+                                                // Assume a string not 128 characters long is a plaintext password.
+                                                newUser.Password = string.Join(null, HashPassword(Value).Select(b => b.ToString("x2")));
+                                            else
+                                                newUser.Password = Value;
                                             break;
                                     }
                                 } else if (s.Trim() != "") {
@@ -1707,6 +1712,22 @@ namespace CBot {
             }
             ErrorLogWriter.WriteLine();
             ErrorLogWriter.Close();
+        }
+
+        /// <summary>Returns a hash and salt for a password.</summary>
+        public static byte[] HashPassword(string password) {
+            byte[] salt = new byte[32], hash = new byte[32];
+
+            // Generate random salt using a cryptographically-secure psuedo-random number generator.
+            new RNGCryptoServiceProvider().GetBytes(salt);
+
+            // Use SHA-256 to generate the hash.
+            hash = new SHA256Managed().ComputeHash(salt.Concat(Encoding.UTF8.GetBytes(password)).ToArray());
+
+            byte[] result = new byte[64];
+            salt.CopyTo(result,  0);
+            hash.CopyTo(result, 32);
+            return result;
         }
 
         /// <summary>Attempts to log in a user with a given password.</summary>
