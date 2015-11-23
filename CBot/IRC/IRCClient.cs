@@ -771,7 +771,7 @@ namespace IRC {
             this.disconnectReason = 0;
             this.Address = host;
             // Connect to the server.
-            this.tcpClient = new TcpClient() { ReceiveBufferSize = 1024, SendBufferSize = 1024, ReceiveTimeout = this.PingTimeout * 2000, SendTimeout = this.PingTimeout * 1000 };
+            this.tcpClient = new TcpClient() { ReceiveBufferSize = 1024, SendBufferSize = 1024 };
             this.State = IRCClientState.Connecting;
             this.tcpClient.BeginConnect(host, port, this.onConnected, host);
 
@@ -783,7 +783,7 @@ namespace IRC {
             this.disconnectReason = 0;
             this.Address = ip.ToString();
             // Connect to the server.
-            this.tcpClient = new TcpClient() { ReceiveBufferSize = 1024, SendBufferSize = 1024, ReceiveTimeout = this.PingTimeout * 2000, SendTimeout = this.PingTimeout * 1000 };
+            this.tcpClient = new TcpClient() { ReceiveBufferSize = 1024, SendBufferSize = 1024 };
             this.State = IRCClientState.Connecting;
             this.tcpClient.BeginConnect(ip, port, this.onConnected, ip.ToString());
 
@@ -800,21 +800,18 @@ namespace IRC {
                 return;
             }
 
-            this.reader = new StreamReader(this.tcpClient.GetStream(), Encoding);
-            this.writer = new StreamWriter(this.tcpClient.GetStream(), Encoding);
-
             if (this.ssl) {
                 // Make the SSL handshake.
                 this.State = IRCClientState.SSLHandshaking;
                 this.SSLStream = new SslStream(this.tcpClient.GetStream(), false, this.validateCertificate, null);
 
-                this.reader = new StreamReader(this.SSLStream, Encoding);
-                this.writer = new StreamWriter(this.SSLStream, Encoding);
-
                 try {
                     var protocols = SslProtocols.Tls12 | SslProtocols.Tls11 | SslProtocols.Tls;  // SSLv3 has gone to the dogs.
                     this.SSLStream.AuthenticateAsClient((string) result.AsyncState, null, protocols, true);
-                    this.writer = new StreamWriter(this.SSLStream);
+
+                    this.reader = new StreamReader(this.SSLStream, Encoding);
+                    this.writer = new StreamWriter(this.SSLStream, Encoding);
+
                     this.State = IRCClientState.Registering;
 
                     this.ReadThread = new Thread(this.ReadLoop) { Name = "IRCClient read thread: " + (this.NetworkName ?? this.Address) };
@@ -835,6 +832,9 @@ namespace IRC {
                     return;
                 }
             } else {
+                this.reader = new StreamReader(this.tcpClient.GetStream(), Encoding);
+                this.writer = new StreamWriter(this.tcpClient.GetStream(), Encoding);
+
                 this.ReadThread = new Thread(this.ReadLoop) { Name = "IRCClient read thread: " + (this.NetworkName ?? this.Address) };
                 this.ReadThread.Start();
 
@@ -881,6 +881,7 @@ namespace IRC {
                     line = reader.ReadLine();
                 } catch (Exception ex) when (ex is IOException || ex is SocketException || ex is ObjectDisposedException) {
                     if (this.State == IRCClientState.Disconnected) break;
+                    this.writer.Close();
                     this.PingTimer.Stop();
                     this.OnDisconnected(new DisconnectEventArgs(DisconnectReason.Exception, ex));
                     break;
@@ -931,18 +932,20 @@ namespace IRC {
         /// <param name="data">The message to send.</param>
         /// <exception cref="InvalidOperationException">This IRCClient is not connected to a server.</exception>
         public virtual void Send(string data) {
-            if (!tcpClient.Connected) throw new InvalidOperationException("The client is not connected.");
+            lock (this.Lock) {
+                if (!tcpClient.Connected) throw new InvalidOperationException("The client is not connected.");
 
-            this.OnRawLineSent(new RawEventArgs(data));
+                this.OnRawLineSent(new RawEventArgs(data));
 
-            this.writer.Write(data);
-            this.writer.Write("\r\n");
-            this.writer.Flush();
+                this.writer.Write(data);
+                this.writer.Write("\r\n");
+                this.writer.Flush();
 
-            if (this.disconnectReason == 0 && data.StartsWith("QUIT", StringComparison.OrdinalIgnoreCase))
-                this.disconnectReason = DisconnectReason.Quit;
-            else if (data.StartsWith("PRIVMSG ", StringComparison.OrdinalIgnoreCase))
-                this.LastSpoke = DateTime.Now;
+                if (this.disconnectReason == 0 && data.StartsWith("QUIT", StringComparison.OrdinalIgnoreCase))
+                    this.disconnectReason = DisconnectReason.Quit;
+                else if (data.StartsWith("PRIVMSG ", StringComparison.OrdinalIgnoreCase))
+                    this.LastSpoke = DateTime.Now;
+            }
         }
 
         /// <summary>Sends a raw message to the IRC server.</summary>
