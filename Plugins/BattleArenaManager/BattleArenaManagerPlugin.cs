@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
+using System.IO.Compression;
 using System.Linq;
 using System.Net;
 using System.Text;
@@ -17,7 +18,6 @@ using IRC;
 
 using FileMode = System.IO.FileMode;
 using Timer = System.Timers.Timer;
-using IRCUser = IRC.IRCUser;
 
 namespace BattleArenaManager {
     [APIVersion(3, 2)]
@@ -30,16 +30,21 @@ namespace BattleArenaManager {
         public string ArenaDirectory;
 
         public bool CheckForUpdates = true;
+        public bool ReviveBot = false;
+        public bool ListenForErrors = false;
+
         public string RepositoryOwner = "Iyouboushi";
         public string RepositoryName = "mIRC-BattleArena";
         public string APIKey;
-        public bool ListenForErrors = false;
-        public string ArenaLogPath;
+        public string BackupExecutable;
+        public string BackupPath = "backups/{0:yyyy-MM-dd}{1}.zip";
+
+        public string ArenaLogPath = "logs/EsperNet/status.{0:yyyyMMdd}.log";
         public string[] ErrorNotificationTargets;
 
         private Thread logListenThread;
 
-        public DateTime LastUpdate = DateTime.MinValue;
+        public DateTime LastUpdate = DateTime.Now;
         private Timer checkTimer;
         public bool UpdateNextBattle { get; private set; }
 
@@ -86,9 +91,11 @@ namespace BattleArenaManager {
 
         public override void Initialize() {
             this.LoadConfig();
+            this.LoadData();
 
             this.client = new GitHubClient(new ProductHeaderValue("BattleArena-Manager"));
-            this.client.Credentials = new Credentials(this.APIKey);
+            if (this.APIKey != null)
+                this.client.Credentials = new Credentials(this.APIKey);
 
             this.defaultLanguage.Add("UpToDate", "We're up to date.");
             this.defaultLanguage.Add("NewCommit", "I found {0} new commit: '{1}'");
@@ -201,8 +208,14 @@ namespace BattleArenaManager {
                             case "REPOSITORYNAME":
                                 this.RepositoryName = value;
                                 break;
-                            case "APIKey":
-                                this.RepositoryName = value;
+                            case "APIKEY":
+                                this.APIKey = value;
+                                break;
+                            case "BACKUPEXECUTABLE":
+                                this.BackupExecutable = value;
+                                break;
+                            case "BACKUPPATH":
+                                this.BackupPath = value;
                                 break;
                             case "LISTENFORERRORS":
                                 if (Bot.TryParseBoolean(value, out value3)) {
@@ -215,6 +228,11 @@ namespace BattleArenaManager {
                             case "LOGPATH":
                                 this.ArenaLogPath = value;
                                 break;
+                            case "REVIVEBOT":
+                                if (Bot.TryParseBoolean(value, out value3)) {
+                                    this.ReviveBot = value3;
+                                } else ConsoleUtils.WriteLine("[{0}] Problem loading the configuration (line {1}): the value is not recognised as a valid Boolean value.", this.Key, lineNumber);
+                                break;
 
                             default:
                                 if (!string.IsNullOrWhiteSpace(field)) ConsoleUtils.WriteLine("[{0}] Problem loading the configuration (line {1}): the field name is unknown.", this.Key, lineNumber);
@@ -226,22 +244,36 @@ namespace BattleArenaManager {
             }
         }
 
+        public void LoadData() {
+            if (File.Exists(Path.Combine("data", this.Key, "LastUpdate.txt"))) {
+                var text = File.ReadAllText(Path.Combine("data", this.Key, "LastUpdate.txt"));
+                this.LastUpdate = DateTime.Parse(text);
+            }
+        }
+
         public void SaveConfig() {
-            if (!Directory.Exists("Config")) Directory.CreateDirectory("Config");
+            Directory.CreateDirectory("Config");
             using (StreamWriter writer = new StreamWriter(Path.Combine("Config", this.Key + ".ini"), false)) {
                 writer.WriteLine("[Config]");
                 writer.WriteLine("ArenaNickname={0}", this.ArenaNickname);
                 writer.WriteLine("ArenaDirectory={0}", this.ArenaDirectory);
-                writer.WriteLine("LastUpdate={0}", this.LastUpdate.ToString("u"));
                 writer.WriteLine("CheckForUpdates={0}", this.CheckForUpdates ? "Yes" : "No");
                 writer.WriteLine("RepositoryOwner={0}", this.RepositoryOwner);
                 writer.WriteLine("RepositoryName={0}", this.RepositoryName);
-                writer.WriteLine("APIKey={0}", this.APIKey);
+                if (this.APIKey != null)
+                    writer.WriteLine("APIKey={0}", this.APIKey);
                 writer.WriteLine("ListenForErrors={0}", this.ListenForErrors ? "Yes" : "No");
                 writer.WriteLine("LogPath={0}", this.ArenaLogPath);
-                writer.WriteLine("ErrorNotificationTargets={0}", string.Join(",", this.ErrorNotificationTargets));
+                if (this.ErrorNotificationTargets != null)
+                    writer.WriteLine("ErrorNotificationTargets={0}", string.Join(",", this.ErrorNotificationTargets));
+                writer.WriteLine("ReviveBot={0}", this.ReviveBot ? "Yes" : "No");
                 writer.Close();
             }
+        }
+
+        public void SaveData() {
+            Directory.CreateDirectory(Path.Combine("data", this.Key));
+            File.WriteAllText(Path.Combine("data", this.Key, "LastUpdate.txt"), this.LastUpdate.ToString("u"));
         }
 
         public override bool OnChannelMessage(object sender, ChannelMessageEventArgs e) {
@@ -283,7 +315,7 @@ namespace BattleArenaManager {
 
         public override bool OnUserQuit(object sender, QuitEventArgs e) {
             if (Environment.OSVersion.Platform == PlatformID.Unix || Environment.OSVersion.Platform == PlatformID.MacOSX) {
-                if (sender == this.ArenaConnection && ((IRCClient) sender).CaseMappingComparer.Equals(e.Sender.Nickname, this.ArenaNickname) &&
+                if (this.ReviveBot && sender == this.ArenaConnection && ((IRCClient) sender).CaseMappingComparer.Equals(e.Sender.Nickname, this.ArenaNickname) &&
                     e.Message.StartsWith("Ping timeout"))
                     // The bot has crashed. We'd better revive it.
                     Task.Run(new Action(this.ReviveArenaBot));
@@ -331,7 +363,7 @@ namespace BattleArenaManager {
             CommitRequest request = new CommitRequest();
             if (this.LastUpdate != DateTime.MinValue) request.Since = this.LastUpdate;
 
-            var commits = await this.client.Repository.Commits.GetAll("Iyouboushi", "mIRC-BattleArena", request);
+            var commits = await this.client.Repository.Commits.GetAll(this.RepositoryOwner, this.RepositoryName, request);
             if (commits.Count == 0) {
                 if (forceAnnounce) Bot.Say(this.ArenaConnection, this.ArenaChannel, this.GetMessage("UpToDate", null, this.ArenaChannel, commits.Count, null));
                 return;
@@ -372,31 +404,30 @@ namespace BattleArenaManager {
 
         public async Task ApplyUpdate() {
             this.LastUpdate = DateTime.UtcNow;
-            this.SaveConfig();
+            this.SaveData();
 
             Process process; string file;
 
             try {
-                // Backup existing data.
-                ConsoleUtils.WriteLine("Creating backup...");
-                //process = new Process() { StartInfo = new ProcessStartInfo(Path.Combine(Environment.SystemDirectory, "cmd.exe"), "/Q /C backup.bat")
-                //    { UseShellExecute = false, RedirectStandardOutput = true, WorkingDirectory = this.ArenaDirectory } };
-                process = new Process() { StartInfo = new ProcessStartInfo("/bin/sh", "./backup.sh")
-                    { UseShellExecute = false, RedirectStandardOutput = true, WorkingDirectory = this.ArenaDirectory } };
-                process.Start();
-                process.StandardOutput.ReadToEnd();
-                process.WaitForExit();
-                if (process.ExitCode != 0) {
-                    ConsoleUtils.WriteLine("Backup failed (sh exited with code " + process.ExitCode + "). Aborting.");
-                    Bot.Say(this.ArenaConnection, this.ArenaChannel, this.GetMessage("BackupFailure", null, this.ArenaChannel, process.ExitCode));
-                    return;
+                if (this.BackupExecutable != null) {
+                    // Backup existing data.
+                    ConsoleUtils.WriteLine("Creating backup...");
+                    process = new Process() { StartInfo = new ProcessStartInfo(this.BackupExecutable, this.BackupPath) { UseShellExecute = false, RedirectStandardOutput = true, WorkingDirectory = this.ArenaDirectory } };
+                    process.Start();
+                    process.StandardOutput.ReadToEnd();
+                    process.WaitForExit();
+                    if (process.ExitCode != 0) {
+                        ConsoleUtils.WriteLine("Backup failed (the process exited with code " + process.ExitCode + "). Aborting.");
+                        Bot.Say(this.ArenaConnection, this.ArenaChannel, this.GetMessage("BackupFailure", null, this.ArenaChannel, process.ExitCode));
+                        return;
+                    }
                 }
 
                 // Download the file.
                 ConsoleUtils.WriteLine("Downloading data...");
                 try {
-                    string URL = await this.client.Repository.Content.GetArchiveLink("Iyouboushi", "mIRC-BattleArena", ArchiveFormat.Tarball);
-                    file = Path.Combine(Path.GetTempPath(), "BattleArena.tar.gz");
+                    string URL = await this.client.Repository.Content.GetArchiveLink(this.RepositoryOwner, this.RepositoryName, ArchiveFormat.Zipball);
+                    file = Path.Combine(Path.GetTempPath(), "BattleArena.zip");
                     WebClient client = new WebClient();
                     client.DownloadFile(URL, file);
                     ConsoleUtils.WriteLine("Saved to " + file);
@@ -406,23 +437,17 @@ namespace BattleArenaManager {
                     return;
                 }
 
-                // Untar the content.
+                // Extract the content.
                 ConsoleUtils.WriteLine("Extracting data...");
                 string baseFolderName = null;
-                //process = new Process() { StartInfo = new ProcessStartInfo(@"C:\Program Files\7-Zip\7z.exe", "l " + file) { UseShellExecute = false, RedirectStandardOutput = true, WorkingDirectory = Path.GetTempPath() } };
-                process = new Process() { StartInfo = new ProcessStartInfo("/bin/tar", "-tf " + file) { UseShellExecute = false, RedirectStandardOutput = true, WorkingDirectory = Path.GetTempPath() } };
-                process.Start();
-                while (!process.StandardOutput.EndOfStream) {
-                    string line = process.StandardOutput.ReadLine();
-                    //Match m = Regex.Match(line, @"^\d{4}-\d\d-\d\d \d\d:\d\d:\d\d D\S{4} .{12} .{12}  ([^/\\]+)$");
-                    Match m = Regex.Match(line, @"^([^/\\]+)/$");
-                    if (m.Success) baseFolderName = m.Groups[1].Value;
-                }
-                process.WaitForExit();
-                if (process.ExitCode != 0) {
-                    ConsoleUtils.WriteLine("Failed (tar exited with code " + process.ExitCode + ").");
-                    Bot.Say(this.ArenaConnection, this.ArenaChannel, this.GetMessage("UnpackFailure", null, this.ArenaChannel, process.ExitCode));
-                    return;
+
+                using (var zipball = ZipFile.OpenRead(file)) {
+                    foreach (var entry in zipball.Entries) {
+                        if (entry.FullName.IndexOf('/') == entry.FullName.Length - 1) {
+                            baseFolderName = entry.FullName.TrimEnd('/');
+                            break;
+                        }
+                    }
                 }
 
                 if (baseFolderName == null) {
@@ -431,16 +456,8 @@ namespace BattleArenaManager {
                     return;
                 }
 
-                //process = new Process() { StartInfo = new ProcessStartInfo(@"C:\Program Files\7-Zip\7z.exe", "x -aoa " + file) { UseShellExecute = false, RedirectStandardOutput = true, WorkingDirectory = Path.GetTempPath() } };
-                process = new Process() { StartInfo = new ProcessStartInfo("/bin/tar", "-xf " + file) { UseShellExecute = false, RedirectStandardOutput = true, WorkingDirectory = Path.GetTempPath() } };
-                process.Start();
-                process.StandardOutput.ReadToEnd();
-                process.WaitForExit();
-                if (process.ExitCode != 0) {
-                    ConsoleUtils.WriteLine("Failed (tar exited with code " + process.ExitCode + ")");
-                    Bot.Say(this.ArenaConnection, this.ArenaChannel, this.GetMessage("UnpackFailure", null, this.ArenaChannel, process.ExitCode));
-                    return;
-                }
+                var path = Path.GetTempPath();
+                ZipFile.ExtractToDirectory(file, path);
                 ConsoleUtils.WriteLine("Extracted to " + Path.Combine(Path.GetTempPath(), baseFolderName));
 
                 try {
@@ -460,6 +477,7 @@ namespace BattleArenaManager {
                     // Copy data files.
                     ConsoleUtils.WriteLine("Updating data files...");
                     foreach (string directory in new string[] { "bosses", "monsters", "npcs", "summons", "dbs", "lsts", "txts", "dungeons" }) {
+                        Directory.CreateDirectory(Path.Combine(this.ArenaDirectory, directory));
                         files = Directory.GetFiles(Path.Combine(Path.GetTempPath(), baseFolderName, "battlearena", directory));
                         foreach (string file2 in files) {
                             File.Copy(file2, Path.Combine(this.ArenaDirectory, directory, Path.GetFileName(file2)), true);
@@ -468,6 +486,7 @@ namespace BattleArenaManager {
                     File.Copy(Path.Combine(Path.GetTempPath(), baseFolderName, "battlearena", "characters", "new_chr.char"), Path.Combine(this.ArenaDirectory, "characters", "new_chr.char"), true);
 
                     // Load scripts.
+                    // This will require the following script to be loaded by the Arena bot: https://gist.github.com/AndrioCelos/c040c03119f3029f535f
                     Bot.Say(this.ArenaConnection, this.ArenaNickname, "!!reload " + string.Join(" ", filesToReload), SayOptions.NoticeNever);
 
                     ConsoleUtils.WriteLine("Complete.");
