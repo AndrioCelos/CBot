@@ -35,6 +35,8 @@ namespace CBot {
         public string Address { get; set; }
         public int Port { get; set; }
 
+        public bool SaveToConfig { get; set; } = true;
+
         /// <summary>The list of channels to automatically join upon connecting.</summary>
         public List<AutoJoinChannel> AutoJoin;
         /// <summary>Contains the data used to deal with nickname services.</summary>

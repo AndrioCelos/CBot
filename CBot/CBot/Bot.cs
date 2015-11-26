@@ -251,7 +251,7 @@ namespace CBot {
 
             // Add the console client.
             ConsoleConnection consoleClient = new ConsoleConnection();
-            Bot.Clients.Add(new ClientEntry("!Console", "!Console", 0, consoleClient));
+            Bot.Clients.Add(new ClientEntry("!Console", "!Console", 0, consoleClient) { SaveToConfig = false });
             SetUpClientEvents(consoleClient);
 
             Console.Write("Loading configuration file...");
@@ -1367,33 +1367,35 @@ namespace CBot {
                 Writer.WriteLine("Avatar=" + Bot.dAvatar);
             }
             foreach (ClientEntry client in Bot.Clients) {
-                Writer.WriteLine();
-                Writer.WriteLine("[" + client.Name + "]");
-                Writer.WriteLine("Address=" + client.Address + ":" + client.Port);
-                if (client.Client.Password != null)
-                    Writer.WriteLine("Password=" + client.Client.Password);
-                if (client.Nicknames != null)
-                    Writer.WriteLine("Nicknames=" + string.Join(",", client.Nicknames));
-                Writer.WriteLine("Username=" + client.Client.Me.Ident);
-                Writer.WriteLine("FullName=" + client.Client.Me.FullName);
-                if (client.AutoJoin.Count != 0) {
-                    Writer.WriteLine("Autojoin=" + string.Join(",", client.AutoJoin.Select(c => c.Channel)));
-                }
-                Writer.WriteLine("SSL=" + (client.Client.SSL ? "Yes" : "No"));
-                if (client.Client.SASLUsername != null && client.Client.SASLPassword != null) {
-                    Writer.WriteLine("SASL-Username=" + client.Client.SASLUsername);
-                    Writer.WriteLine("SASL-Password=" + client.Client.SASLPassword);
-                }
-                Writer.WriteLine("AllowInvalidCertificate=" + (client.Client.AllowInvalidCertificate ? "Yes" : "No"));
-                if (client.NickServ != null) {
-                    Writer.WriteLine("NickServ-Nicknames=" + string.Join(",", client.NickServ.RegisteredNicknames));
-                    Writer.WriteLine("NickServ-Password=" + client.NickServ.Password);
-                    Writer.WriteLine("NickServ-AnyNickname=" + (client.NickServ.AnyNickname ? "Yes" : "No"));
-                    Writer.WriteLine("NickServ-UseGhostCommand=" + (client.NickServ.UseGhostCommand ? "Yes" : "No"));
-                    Writer.WriteLine("NickServ-GhostCommand=" + client.NickServ.GhostCommand);
-                    Writer.WriteLine("NickServ-IdentifyCommand=" + client.NickServ.IdentifyCommand);
-                    Writer.WriteLine("NickServ-Hostmask=" + client.NickServ.Hostmask);
-                    Writer.WriteLine("NickServ-RequestMask=" + client.NickServ.RequestMask);
+                if (client.SaveToConfig) {
+                    Writer.WriteLine();
+                    Writer.WriteLine("[" + client.Name + "]");
+                    Writer.WriteLine("Address=" + client.Address + ":" + client.Port);
+                    if (client.Client.Password != null)
+                        Writer.WriteLine("Password=" + client.Client.Password);
+                    if (client.Nicknames != null)
+                        Writer.WriteLine("Nicknames=" + string.Join(",", client.Nicknames));
+                    Writer.WriteLine("Username=" + client.Client.Me.Ident);
+                    Writer.WriteLine("FullName=" + client.Client.Me.FullName);
+                    if (client.AutoJoin.Count != 0) {
+                        Writer.WriteLine("Autojoin=" + string.Join(",", client.AutoJoin.Select(c => c.Channel)));
+                    }
+                    Writer.WriteLine("SSL=" + (client.Client.SSL ? "Yes" : "No"));
+                    if (client.Client.SASLUsername != null && client.Client.SASLPassword != null) {
+                        Writer.WriteLine("SASL-Username=" + client.Client.SASLUsername);
+                        Writer.WriteLine("SASL-Password=" + client.Client.SASLPassword);
+                    }
+                    Writer.WriteLine("AllowInvalidCertificate=" + (client.Client.AllowInvalidCertificate ? "Yes" : "No"));
+                    if (client.NickServ != null) {
+                        Writer.WriteLine("NickServ-Nicknames=" + string.Join(",", client.NickServ.RegisteredNicknames));
+                        Writer.WriteLine("NickServ-Password=" + client.NickServ.Password);
+                        Writer.WriteLine("NickServ-AnyNickname=" + (client.NickServ.AnyNickname ? "Yes" : "No"));
+                        Writer.WriteLine("NickServ-UseGhostCommand=" + (client.NickServ.UseGhostCommand ? "Yes" : "No"));
+                        Writer.WriteLine("NickServ-GhostCommand=" + client.NickServ.GhostCommand);
+                        Writer.WriteLine("NickServ-IdentifyCommand=" + client.NickServ.IdentifyCommand);
+                        Writer.WriteLine("NickServ-Hostmask=" + client.NickServ.Hostmask);
+                        Writer.WriteLine("NickServ-RequestMask=" + client.NickServ.RequestMask);
+                    }
                 }
             }
             Writer.WriteLine();

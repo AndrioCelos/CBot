@@ -265,7 +265,7 @@ namespace BattleBot
                 this.WriteLine(1, 4, "Received a DCC CHAT request from {0}.  IP: {1}  Port: {2}", e.Sender.Nickname, IP, port);
                 // Create the DCC connection.
                 this.DCCClient = new DCCClient(this, IP, port);
-                ClientEntry newEntry = new ClientEntry("!" + this.Key, IP.ToString(), port, this.DCCClient);
+                ClientEntry newEntry = new ClientEntry("!" + this.Key, IP.ToString(), port, this.DCCClient) { SaveToConfig = false };
                 Bot.Clients.Add(newEntry);
                 Bot.SetUpClientEvents(this.DCCClient);
                 try {
