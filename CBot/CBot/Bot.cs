@@ -51,6 +51,7 @@ namespace CBot {
 
         internal static string ConfigPath = "Config";
         internal static string LanguagesPath = "Languages";
+        internal static string PluginsPath = "plugins";
         internal static string Language = "Default";
 
         private static bool ConfigFileFound;
@@ -108,7 +109,7 @@ namespace CBot {
         /// <param name="fullName">The full name to use on IRC.</param>
         /// <returns>The new ClientEntry object.</returns>
         public static ClientEntry NewClient(string name, string address, int port, string[] nicknames, string username, string fullName) {
-            IRCClient newClient = new IRCClient(new IRCLocalUser(nicknames[0], username, fullName));
+            IRCClient newClient = new IRCClient(new IRCLocalUser(nicknames[0], username, fullName), name);
             ClientEntry newEntry = new ClientEntry(name, address, port, newClient);
 
             Bot.SetUpClientEvents(newClient);
@@ -286,26 +287,29 @@ namespace CBot {
                 ConsoleUtils.WriteLine(" %cBLUEFile CBotUsers.ini is missing.%r");
             }
 
-            Console.WriteLine("Loading plugins...");
+            Console.Write("Loading plugins...");
             if (File.Exists("CBotPlugins.ini")) {
                 Bot.PluginsFileFound = true;
+                Console.WriteLine();
                 try {
                     Bot.LoadPlugins();
                 } catch (Exception ex) {
                     Console.WriteLine();
                     ConsoleUtils.WriteLine("%cREDI couldn't load the plugins: " + ex.Message + "%r");
                     ConsoleUtils.WriteLine("%cWHITEPress Escape to exit, or any other key to continue . . .");
-                    if (Console.ReadKey(true).Key == ConsoleKey.Escape) Environment.Exit(0);
+                    if (Console.ReadKey(true).Key == ConsoleKey.Escape) Environment.Exit(2);
                 }
             } else {
-                ConsoleUtils.WriteLine("%cBLUEFile CBotPlugins.ini is missing.%r");
+                ConsoleUtils.WriteLine(" %cBLUEFile CBotPlugins.ini is missing.%r");
             }
             Bot.FirstRun();
+            if (!Bot.PluginsFileFound) Bot.LoadPlugins();
 
             foreach (ClientEntry client in Bot.Clients) {
                 try {
+                    if (client.Nicknames == null) client.Nicknames = Bot.dNicknames;
                     if (client.Name != "!Console")
-                        ConsoleUtils.WriteLine("Connecting to {0} ({1}) on port {2}.", client.Client.NetworkName, client.Client.Address, client.Client.Port);
+                        ConsoleUtils.WriteLine("Connecting to {0} ({1}) on port {2}.", client.Client.NetworkName, client.Address, client.Port);
                     client.Client.Connect(client.Address, client.Port);
                 } catch (Exception ex) {
                     ConsoleUtils.WriteLine("%cREDConnection to {0} failed: {1}%r", client.Client.NetworkName, ex.Message);
@@ -334,7 +338,7 @@ namespace CBot {
                                 fields.Length >= 6 ? string.Join(" ", fields.Skip(5)) : dFullName);
                             if (fields.Length >= 3 && fields[2].StartsWith("+")) client.Client.SSL = true;
                             try {
-                                ConsoleUtils.WriteLine("Connecting to {0} ({1}) on port {2}.", client.Client.NetworkName, client.Client.Address, client.Client.Port);
+                                ConsoleUtils.WriteLine("Connecting to {0} ({1}) on port {2}.", client.Client.NetworkName, client.Address, client.Port);
                                 client.Client.Connect(client.Address, client.Port);
                             } catch (Exception ex) {
                                 ConsoleUtils.WriteLine("%cREDConnection to {0} failed: {1}%r", client.Client.NetworkName, ex.Message);
@@ -371,6 +375,536 @@ namespace CBot {
                     ConsoleUtils.WriteLine("%cDKRED" + ex.StackTrace + "%r");
                 }
             }
+        }
+
+        private static void FirstRun() {
+            if (!Bot.ConfigFileFound)
+                FirstRunConfig();
+            if (!Bot.UsersFileFound)
+                FirstRunUsers();
+            if (!Bot.PluginsFileFound)
+                FirstRunPlugins();
+        }
+
+        private static void FirstRunConfig() {
+            Console.WriteLine();
+            Console.WriteLine("This appears to be the first time I have been run here. Let us take a moment to set up.");
+
+            Console.WriteLine("Please enter the identity details I should use on IRC.");
+            do {
+                Console.Write("Nicknames (comma- or space-separated, in order of preference): ");
+                string input = Console.ReadLine();
+                Bot.dNicknames = input.Split(new char[] { ',', ' ' }, StringSplitOptions.RemoveEmptyEntries);
+                foreach (string nickname in Bot.dNicknames) {
+                    if (nickname[0] >= '0' && nickname[0] <= '9') {
+                        Console.WriteLine("A nickname can't begin with a digit.");
+                        Bot.dNicknames = null;
+                        break;
+                    }
+                    foreach (char c in nickname) {
+                        if ((c < 'A' || c > '}') && (c < '0' || c > '9') && c != '-') {
+                            Console.WriteLine("'" + nickname + "' contains invalid characters.");
+                            Bot.dNicknames = null;
+                            break;
+                        }
+                    }
+                }
+            } while (Bot.dNicknames == null);
+
+            do {
+                Console.Write("Ident username: ");
+                Bot.dUsername = Console.ReadLine();
+                foreach (char c in Bot.dUsername) {
+                    if ((c < 'A' || c > '}') && (c < '0' && c > '9') && c != '-') {
+                        Console.WriteLine("That username contains invalid characters.");
+                        Bot.dUsername = null;
+                        break;
+                    }
+                }
+            } while (Bot.dUsername == string.Empty);
+
+            do {
+                Console.Write("Full name: ");
+                Bot.dFullName = Console.ReadLine();
+            } while (Bot.dFullName == string.Empty);
+
+            Console.Write("User info for CTCP (blank entry for the default): ");
+            Bot.dUserInfo = Console.ReadLine();
+            if (Bot.dUserInfo == "") Bot.dUserInfo = "CBot by Andrio Celos";
+
+            Bot.DefaultCommandPrefixes = null;
+            do {
+                Console.Write("What do you want my command prefix to be? ");
+                string input = Console.ReadLine();
+                if (input.Length != 1)
+                    Console.WriteLine("It must be a single character.");
+                else {
+                    Bot.DefaultCommandPrefixes = new string[] { input };
+                }
+            } while (Bot.DefaultCommandPrefixes == null);
+
+            Console.WriteLine();
+
+            if (boolPrompt("Shall I connect to an IRC network? ")) {
+                string networkName;
+                string address = null;
+                string password = null;
+                ushort port = 0;
+                bool tls = false;
+                bool acceptInvalidCertificate = false;
+                IEnumerable<AutoJoinChannel> autoJoinChannels;
+
+                do {
+                    Console.Write("What is the name of the IRC network? ");
+                    networkName = Console.ReadLine();
+                } while (networkName == "");
+                do {
+                    Console.Write("What is the address of the server? ");
+                    string input = Console.ReadLine();
+                    if (input == "") continue;
+                    Match match = Regex.Match(input, @"^(?>([^:]*):(?:(\+)?(\d{1,5})))$", RegexOptions.Singleline);
+                    if (match.Success) {
+                        // Allow entries that include a port number, of the form irc.esper.net:+6697
+                        if (!ushort.TryParse(match.Groups[3].Value, out port) || port == 0) {
+                            Console.WriteLine("That isn't a valid port number.");
+                            continue;
+                        }
+                        address = match.Groups[1].Value;
+                        tls = match.Groups[2].Success;
+                    } else {
+                        address = input;
+                    }
+                } while (address == null);
+
+                while (port == 0) {
+                    Console.Write("What port number should I connect on? ");
+                    string input = Console.ReadLine();
+                    if (input.Length == 0) continue;
+                    if (input[0] == '+') {
+                        tls = true;
+                        input = input.Substring(1);
+                    }
+                    if (!ushort.TryParse(input, out port) || port == 0) {
+                        Console.WriteLine("That is not a valid port number.");
+                        tls = false;
+                    }
+                }
+
+                if (!tls)
+                    tls = boolPrompt("Should I use TLS? ");
+                if (tls) 
+                    acceptInvalidCertificate = boolPrompt("Should I connect if the server's certificate is invalid? ");
+
+                if (boolPrompt("Do I need to use a password to register to the IRC server? ")) {
+                    Console.Write("What is it? ");
+                    password = passwordPrompt();
+                }
+
+                NickServSettings nickServ = null;
+                Console.WriteLine();
+                if (boolPrompt("Is there a NickServ registration for me on " + networkName + "? ")) {
+                    nickServ = new NickServSettings();
+                    do {
+                        Console.Write("Grouped nicknames (comma- or space-separated): ");
+                        nickServ.RegisteredNicknames = Console.ReadLine().Split(new char[] { ',', ' ' }, StringSplitOptions.RemoveEmptyEntries);
+                        foreach (string nickname in nickServ.RegisteredNicknames) {
+                            if (nickname[0] >= '0' && nickname[0] <= '9') {
+                                Console.WriteLine("A nickname can't begin with a digit.");
+                                nickServ.RegisteredNicknames = null;
+                                break;
+                            }
+                            foreach (char c in nickname) {
+                                if ((c < 'A' || c > '}') && (c < '0' && c > '9') && c != '-') {
+                                    Console.WriteLine("'" + nickname + "' contains invalid characters.");
+                                    nickServ.RegisteredNicknames = null;
+                                    break;
+                                }
+                            }
+                        }
+                    } while (nickServ.RegisteredNicknames == null);
+
+                    do {
+                        Console.Write("NickServ account password: ");
+                        nickServ.Password = passwordPrompt();
+                    } while (nickServ.Password.Length == 0);
+
+                    nickServ.AnyNickname = boolPrompt(string.Format("Can I log in from any nickname by including '{0}' in the identify command? ", nickServ.RegisteredNicknames[0]));
+                }
+
+                Console.WriteLine();
+                Console.Write("What channels (comma- or space-separated) should I join upon connecting? ");
+                autoJoinChannels = Console.ReadLine().Split(new char[] { ',', ' ' }, StringSplitOptions.RemoveEmptyEntries).Select(c => new AutoJoinChannel(c));
+
+                ClientEntry client = Bot.NewClient(networkName, address, port, Bot.dNicknames, Bot.dUsername, Bot.dFullName);
+                client.Client.Password = password;
+                client.Client.SSL = tls;
+                client.Client.AllowInvalidCertificate = acceptInvalidCertificate;
+                client.NickServ = nickServ;
+                client.AutoJoin.AddRange(autoJoinChannels);
+            }
+
+            Bot.SaveConfig();
+
+            Console.WriteLine("OK, that's the IRC connection configuration done.");
+            Console.WriteLine("Press any key to continue...");
+            Console.ReadKey(true);
+        }
+
+        private static void FirstRunUsers() {
+            int method;
+            string accountName;
+            string input;
+
+            Console.WriteLine();
+            Console.WriteLine("How do you want to identify yourself to me?");
+            ConsoleUtils.WriteLine("%cWHITEA%r: With a password, via PM, through the Identify plugin");
+            ConsoleUtils.WriteLine("%cWHITEB%r: With a NickServ account");
+            ConsoleUtils.WriteLine("%cWHITEC%r: With a hostmask or vHost");
+            ConsoleUtils.WriteLine("%cWHITED%r: Skip this step");
+            Console.WriteLine();
+
+            while (true) {
+                Console.Write("Your choice (enter the letter): ");
+                input = Console.ReadLine();
+                if (input.Length == 0) continue;
+
+                if (input[0] >= 'a' && input[0] <= 'c') {
+                    method = input[0] - 'a';
+                    break;
+                } else if (input[0] >= 'A' && input[0] <= 'C') {
+                    method = input[0] - 'A';
+                    break;
+                } else if (input[0] == 'd' || input[0] == 'D')
+                    return;
+                else
+                    Console.WriteLine("There was no such option yet.");
+            }
+
+            string prompt;
+            switch (method) {
+                case 0:
+                    prompt = "What do you want your account name to be? ";
+                    break;
+                case 1:
+                    prompt = "What is your NickServ account name? ";
+                    break;
+                case 2:
+                    prompt = "What hostmask should identify you? (Example: *!*you@your.vHost) ";
+                    break;
+                default:
+                    prompt = null;
+                    break;
+            }
+
+            while (true) {
+                if (input == null && method == 0) {
+                    Console.WriteLine(prompt);
+                    Console.Write("For simplicity, we recommend you use your IRC nickname. ");
+                } else
+                    Console.Write(prompt);
+
+                input = Console.ReadLine();
+                if (input.Length == 0) continue;
+
+                if (input.Contains(" "))
+                    Console.WriteLine("It can't contain spaces.");
+                else if (method == 0 && input.Contains("@"))
+                    Console.WriteLine("It can't contain '@'.");
+                else if (method == 2 && !input.Contains("@"))
+                    Console.WriteLine("That doesn't look like a hostmask. Please include an '@'.");
+                else if (method == 2 && input.EndsWith("@*")) {
+                    Console.WriteLine("This would allow anyone using your nickname to pretend to be you!");
+                    if (boolPrompt("Are you really sure you want to use a wildcard host? ")) {
+                        accountName = input;
+                        break;
+                    }
+                } else {
+                    accountName = input;
+                    break;
+                }
+            }
+
+            switch (method) {
+                case 0:
+                    // Prompt for a password.
+                    RNGCryptoServiceProvider RNG = new RNGCryptoServiceProvider();
+                    SHA256Managed SHA256M = new SHA256Managed();
+                    while (true) {
+                        var builder = new StringBuilder();
+
+                        Console.Write("Please enter a password. ");
+                        input = passwordPrompt();
+                        if (input == "") continue;
+                        if (input.Contains(" ")) {
+                            Console.WriteLine("It can't contain spaces.");
+                            continue;
+                        }
+
+                        // Hash the password.
+                        byte[] salt = new byte[32];
+                        RNG.GetBytes(salt);
+                        byte[] hash = SHA256M.ComputeHash(salt.Concat(Encoding.UTF8.GetBytes(input)).ToArray());
+
+                        Console.Write("Please confirm your password. ");
+                        input = passwordPrompt();
+                        byte[] confirmHash = SHA256M.ComputeHash(salt.Concat(Encoding.UTF8.GetBytes(input)).ToArray());
+                        if (!hash.SequenceEqual(confirmHash)) {
+                            Console.WriteLine("The passwords don't match.");
+                            continue;
+                        }
+
+                        // Add the account and give all permissions.
+                        Bot.Accounts.Add(accountName, new Account {
+                            Password = string.Join(null, salt.Select(b => b.ToString("x2"))) + string.Join(null, hash.Select(b => b.ToString("x2"))),
+                            Permissions = new string[] { "*" }
+                        });
+
+                        ConsoleUtils.WriteLine("Thank you. To log in from IRC, enter %cWHITE/msg {0} !id <password>%r or %cWHITE/msg {0} !id {1} <password>%r, without the brackets.", Bot.Nickname(), accountName);
+                        break;
+                    }
+                    break;
+                case 1:
+                    // Add the account and give all permissions.
+                    Bot.Accounts.Add("$a:" + accountName, new Account { Permissions = new string[] { "*" } });
+                    ConsoleUtils.WriteLine("Thank you. Don't forget to log in to your NickServ account.", Bot.Nickname(), accountName);
+                    break;
+                case 2:
+                    // Add the account and give all permissions.
+                    Bot.Accounts.Add(accountName, new Account { Permissions = new string[] { "*" } });
+                    ConsoleUtils.WriteLine("Thank you. Don't forget to enable your vHost, if needed.", Bot.Nickname(), accountName);
+                    break;
+            }
+
+            Bot.SaveUsers();
+
+            Console.WriteLine("Press any key to continue...");
+            Console.ReadKey(true);
+        }
+
+        private static void FirstRunPlugins() {
+            Console.WriteLine();
+            Console.WriteLine("Now we will select plugins to use.");
+            Console.WriteLine("Each plugin instance will be identified by a name, or key. This must be unique, and should be alphanumeric.");
+            Console.WriteLine("Thus, you can load multiple instances of the same plugin, perhaps for different channels.");
+            Console.WriteLine("Press any key to continue...");
+            Console.ReadKey(true);
+
+            var pluginList = new List<Tuple<string, string, ConsoleColor>>();
+            var pluginFiles = new List<string>();
+            var selected = new List<Tuple<string, string, string[]>>();  // key, filename, channels
+
+            // Find a plugins directory.
+            if (!Directory.Exists("plugins")) {
+                ConsoleUtils.WriteLine("The default 'plugins' directory does not seem to exist.");
+                while (true) {
+                    ConsoleUtils.Write("Where should I look for plugins? (Blank entry for nowhere) ");
+                    string input = Console.ReadLine();
+                    if (string.IsNullOrWhiteSpace(input)) {
+                        // If the user doesn't enter a path, assume that there is no specific directory containing plugins.
+                        // We will ask them for full paths later.
+                        Bot.PluginsPath = null;
+                        break;
+                    }
+
+                    if (Directory.Exists(input)) {
+                        Bot.PluginsPath = input;
+                        break;
+                    }
+                    ConsoleUtils.WriteLine("There is no such directory.");
+                    if (!boolPrompt("Try again? ")) {
+                        Bot.PluginsPath = null;
+                        break;
+                    }
+                }
+            }
+
+            // Prepare the menu.
+            if (Bot.PluginsPath != null) {
+                // List all DLL files in the plugins directory and show which ones are valid plugins.
+                foreach (string file in Directory.GetFiles(Bot.PluginsPath, "*.dll")) {
+                    // Look for a plugin class.
+                    bool found = false;
+                    string message = null;
+                    var assembly = Assembly.LoadFrom(file);
+
+                    foreach (Type type in assembly.GetTypes()) {
+                        if (typeof(Plugin).IsAssignableFrom(type)) {
+                            // Check the version attribute.
+                            var attribute = type.GetCustomAttribute<APIVersionAttribute>(false);
+
+                            if (attribute == null) {
+                                message = "Outdated plugin – no API version is specified.";
+                            } else if (attribute.Version < Bot.MinPluginVersion) {
+                                message = string.Format("Outdated plugin – built for version {0}.{1}.", attribute.Version.Major, attribute.Version.Minor);
+                            } else if (attribute.Version > Bot.Version) {
+                                message = string.Format("Outdated bot – the plugin is built for version {0}.{1}.", attribute.Version.Major, attribute.Version.Minor);
+                            } else {
+                                found = true;
+                                pluginFiles.Add(Path.Combine(Bot.PluginsPath, Path.GetFileName(file)));
+                                pluginList.Add(new Tuple<string, string, ConsoleColor>(pluginFiles.Count.ToString().PadLeft(2), ": " + Path.GetFileName(file), ConsoleColor.Gray));
+                                break;
+                            }
+                        }
+                    }
+
+                    if (!found) {
+                        if (message != null) {
+                            pluginList.Add(new Tuple<string, string, ConsoleColor>("  ", "  " + Path.GetFileName(file) + " - " + message, ConsoleColor.DarkRed));
+                        } else {
+                            pluginList.Add(new Tuple<string, string, ConsoleColor>("  ", "  " + Path.GetFileName(file) + " - no valid plugin class.", ConsoleColor.DarkGray));
+                        }
+                    }
+                }
+            }
+
+            // Show the menu.
+            bool done = false;
+            do {
+                Console.Clear();
+                if (pluginList.Count != 0) {
+                    Console.WriteLine("Available plugins:");
+                    foreach (var entry in pluginList) {
+                        Console.ForegroundColor = ConsoleColor.White;
+                        Console.Write(entry.Item1);
+                        Console.ForegroundColor = entry.Item3;
+                        Console.WriteLine(entry.Item2);
+                    }
+                    Console.ResetColor();
+                    Console.WriteLine();
+                    ConsoleUtils.WriteLine(" %cWHITEA%r: Select all unselected plugins listed above for all channels");
+                }
+                ConsoleUtils.WriteLine(" %cWHITEB%r: Specify another file");
+                ConsoleUtils.WriteLine(" %cWHITEQ%r: Finish");
+                Console.WriteLine();
+                if (selected.Count != 0) {
+                    Console.WriteLine("Currently selected plugins:");
+                    foreach (var entry in selected) {
+                        Console.WriteLine("    " + entry.Item1 + ": " + entry.Item2);
+                    }
+                    Console.WriteLine();
+                }
+                Console.Write("Select what? (enter the letter or number) ");
+
+                // Get the user's selection.
+                string input; int input2;
+                while (true) {
+                    input = Console.ReadLine().Trim();
+                    if (input == string.Empty) {
+                        --Console.CursorTop;
+                        Console.Write("Select what? (enter the letter or number) ");
+                        continue;
+                    }
+                    break;
+                }
+
+                string file = null;
+
+                if (input[0] == 'a' || input[0] == 'A') {
+                    // Select all plugins that aren't already selected.
+                    foreach (string file2 in pluginFiles) {
+                        string key = Path.GetFileNameWithoutExtension(file2);
+                        if (!selected.Any(entry => entry.Item2 == file2))
+                            selected.Add(new Tuple<string, string, string[]>(key, file2, new string[] { "*" }));
+                    }
+                } else if (input[0] == 'b' || input[0] == 'B') {
+                    do {
+                        Console.Write("File path: ");
+                        input = Console.ReadLine();
+                        if (File.Exists(input)) {
+                            file = input;
+                            break;
+                        }
+                        ConsoleUtils.WriteLine("There is no such file.");
+                    } while (boolPrompt("Try again? "));
+                } else if (input[0] == 'q' || input[0] == 'Q') {
+                    if (selected.Count == 0) {
+                        bool input3;
+                        Console.Write("You haven't selected any plugins. Cancel anyway? ");
+                        if (TryParseBoolean(Console.ReadLine(), out input3) && input3) done = true;
+                    } else
+                        done = true;
+                } else if (int.TryParse(input, out input2) && input2 >= 1 && input2 <= pluginFiles.Count) {
+                    file = pluginFiles[input2 - 1];
+                }
+
+                if (file != null) {
+                    string key; string[] channels;
+                    // A file was selected.
+                    Console.Write("What key should identify this instance? (Blank entry for " + Path.GetFileNameWithoutExtension(file) + ") ");
+                    input = Console.ReadLine().Trim();
+                    if (input.Length == 0) {
+                        key = Path.GetFileNameWithoutExtension(file);
+                    } else {
+                        key = input;
+                    }
+
+                    ConsoleUtils.WriteLine("You may enter one or more channels, separated by spaces or commas, in the format %cWHITE#channel%r, %cWHITENetworkName/#channel%r or %cWHITENetworkName/*%r.");
+                    Console.Write("What channels should this instancebe active in? (Blank entry for all channels) ");
+                    input = Console.ReadLine().Trim();
+                    if (input.Length == 0) {
+                        channels = new string[] { "*" };
+                    } else {
+                        channels = input.Split(new char[] { ' ', ',' }, StringSplitOptions.RemoveEmptyEntries);
+                    }
+
+                    selected.Add(new Tuple<string, string, string[]>(key, file, channels));
+                }
+            } while (!done);
+
+            // Write out the config file.
+            using (var writer = new StreamWriter(File.Open("CBotPlugins.ini", FileMode.CreateNew, FileAccess.Write))) {
+                foreach (var entry in selected) {
+                    writer.WriteLine("[" + entry.Item1 + "]");
+                    writer.WriteLine("Filename=" + entry.Item2);
+                    writer.WriteLine("Channels=" + string.Join(",", entry.Item3));
+                    writer.WriteLine();
+                }
+            }
+
+            Console.WriteLine();
+            Console.WriteLine("Configuration is now complete.");
+            Console.WriteLine("Press any key to continue...");
+            Console.ReadKey(true);
+        }
+
+        private static bool boolPrompt(string message) {
+            string input;
+            while (true) {
+                Console.Write(message);
+                input = Console.ReadLine();
+                if (input.Length != 0) {
+                    switch (input[0]) {
+                        case 'y': case 'Y':
+                        case 's': case 'S':
+                        case 'o': case 'O':
+                        case 'j': case 'J':
+                            return true;
+                        case 'n': case 'N':
+                        case 'a': case 'A':
+                        case 'p': case 'P':
+                            return false;
+                        default:
+                            Console.WriteLine("Please enter 'yes' or 'no'.");
+                            break;
+                    }
+                }
+            }
+        }
+
+        private static string passwordPrompt() {
+            var builder = new StringBuilder();
+            while (true) {
+                ConsoleKeyInfo c = Console.ReadKey(true);
+                if (c.Key == ConsoleKey.Enter) break;
+                if (c.Key == ConsoleKey.Backspace) {
+                    if (builder.Length != 0) builder.Remove(builder.Length - 1, 0);
+                } else if (c.KeyChar != '\0')  // if they typed a character, and not F1, Home or something similar...
+                    builder.Append(c.KeyChar);
+                else
+                    Console.Beep();
+            }
+            Console.WriteLine();
+            return builder.ToString();
         }
 
         /// <summary>Loads a plugin and adds it to CBot's list of active plugins.</summary>
@@ -471,333 +1005,6 @@ namespace CBot {
             }
         }
 
-        private static void FirstRun() {
-            if (!Bot.ConfigFileFound) {
-                Console.WriteLine();
-                Console.WriteLine("This appears to be the first time I have been run here. Let us take a moment to set up.");
-
-                Console.WriteLine("Please enter the identity details I should use on IRC.");
-                Bot.dNicknames = new string[0];
-                while (Bot.dNicknames.Length == 0) {
-                    Console.Write("Nicknames (comma- or space-separated, in order of preference): ");
-                    string Input = Console.ReadLine();
-                    Bot.dNicknames = Input.Split(new char[] { ',', ' ' }, StringSplitOptions.RemoveEmptyEntries);
-                    foreach (string nickname in Bot.dNicknames) {
-                        if (nickname == "") continue;
-                        if (nickname[0] >= '0' && nickname[0] <= '9') {
-                            Console.WriteLine("A nickname may not begin with a digit.");
-                            Bot.dNicknames = new string[0];
-                            break;
-                        }
-                        foreach (char c in nickname) {
-                            if ((c < 'A' || c > '}') && (c < '0' && c > '9') && c != '-') {
-                                Console.WriteLine("Nickname '" + nickname + "' contains invalid characters.");
-                                Bot.dNicknames = new string[0];
-                                break;
-                            }
-                        }
-                    }
-                }
-
-                Bot.dUsername = "";
-                while (Bot.dUsername == "") {
-                    Console.Write("Username: ");
-                    Bot.dUsername = Console.ReadLine();
-                    foreach (char c in Bot.dUsername) {
-                        if ((c < 'A' || c > '}') && (c < '0' && c > '9') && c != '-') {
-                            Console.WriteLine("That username contains invalid characters.");
-                            Bot.dUsername = "";
-                            break;
-                        }
-                    }
-                }
-
-                Bot.dFullName = "";
-                while (Bot.dFullName == "") {
-                    Console.Write("Full name: ");
-                    Bot.dFullName = Console.ReadLine();
-                }
-
-                Bot.dUserInfo = "";
-                while (Bot.dUserInfo == "") {
-                    Console.Write("User info for CTCP: ");
-                    Bot.dUserInfo = Console.ReadLine();
-                }
-
-                Bot.DefaultCommandPrefixes = null;
-                while (Bot.DefaultCommandPrefixes == null) {
-                    Console.Write("What do you want my command prefix to be? ");
-                    string Input = Console.ReadLine();
-                    if (Input.Length != 1)
-                        Console.WriteLine("It must be a single character.");
-                    else {
-                        Bot.DefaultCommandPrefixes = new string[] { Input };
-                    }
-                }
-
-                bool SetUpNetwork;
-                Console.WriteLine();
-                while (true) {
-                    Console.Write("Shall I connect to an IRC network? ");
-                    string Input = Console.ReadLine();
-                    if (Input.Length < 1) return;
-                    if (Input[0] == 'Y' || Input[0] == 'y' ||
-                        Input[0] == 'S' || Input[0] == 's' ||
-                        Input[0] == 'O' || Input[0] == 'o' ||
-                        Input[0] == 'J' || Input[0] == 'j') {
-                        SetUpNetwork = true;
-                        break;
-                    } else if (Input[0] == 'N' || Input[0] == 'n' ||
-                               Input[0] == 'A' || Input[0] == 'a' ||
-                               Input[0] == 'P' || Input[0] == 'p') {
-                        SetUpNetwork = false;
-                        break;
-                    }
-                }
-
-                if (SetUpNetwork) {
-                    string NetworkName;
-                    string NetworkAddress = null;
-                    ushort NetworkPort = 0;
-                    bool UseSSL = false;
-                    bool AcceptInvalidSSLCertificate = false;
-                    IEnumerable<AutoJoinChannel> AutoJoinChannels;
-
-                    do {
-                        Console.Write("What is the name of the IRC network? ");
-                        NetworkName = Console.ReadLine();
-                    } while (NetworkName == "");
-                    do {
-                        Console.Write("What is the address of the server? ");
-                        string Input = Console.ReadLine();
-                        if (Input == "") continue;
-                        Match match = Regex.Match(Input, @"^(?>([^:]*):(?:(\+)?(\d{1,5})))$", RegexOptions.Singleline);
-                        if (match.Success) {
-                            if (!ushort.TryParse(match.Groups[3].Value, out NetworkPort) || NetworkPort == 0) {
-                                Console.WriteLine("That is not a valid port number.");
-                                continue;
-                            }
-                            NetworkAddress = match.Groups[1].Value;
-                            UseSSL = match.Groups[2].Success;
-                        } else {
-                            NetworkAddress = Input;
-                        }
-                    } while (NetworkAddress == null);
-                    while (NetworkPort == 0) {
-                        Console.Write("What port number should I connect on? ");
-                        string Input = Console.ReadLine();
-                        if (Input == "") continue;
-                        if (Input[0] == '+') {
-                            UseSSL = true;
-                            Input = Input.Substring(1);
-                        }
-                        if (!ushort.TryParse(Input, out NetworkPort) || NetworkPort == 0) {
-                            Console.WriteLine("That is not a valid port number.");
-                            UseSSL = false;
-                        }
-                    }
-                    if (!UseSSL) {
-                        while (true) {
-                            Console.Write("Shall I use SSL? ");
-                            string Input = Console.ReadLine();
-                            if (Input.Length < 1) return;
-                            if (Input[0] == 'Y' || Input[0] == 'y' ||
-                                Input[0] == 'S' || Input[0] == 's' ||
-                                Input[0] == 'O' || Input[0] == 'o' ||
-                                Input[0] == 'J' || Input[0] == 'j') {
-                                UseSSL = true;
-                                break;
-                            } else if (Input[0] == 'N' || Input[0] == 'n' ||
-                                       Input[0] == 'A' || Input[0] == 'a' ||
-                                       Input[0] == 'P' || Input[0] == 'p') {
-                                UseSSL = false;
-                                break;
-                            }
-                        }
-                    }
-                    if (UseSSL) {
-                        while (true) {
-                            Console.Write("Shall I connect if the server's certificate is invalid? ");
-                            string Input = Console.ReadLine();
-                            if (Input.Length < 1) return;
-                            if (Input[0] == 'Y' || Input[0] == 'y' ||
-                                Input[0] == 'S' || Input[0] == 's' ||
-                                Input[0] == 'O' || Input[0] == 'o' ||
-                                Input[0] == 'J' || Input[0] == 'j') {
-                                AcceptInvalidSSLCertificate = true;
-                                break;
-                            } else if (Input[0] == 'N' || Input[0] == 'n' ||
-                                       Input[0] == 'A' || Input[0] == 'a' ||
-                                       Input[0] == 'P' || Input[0] == 'p') {
-                                AcceptInvalidSSLCertificate = false;
-                                break;
-                            }
-                        }
-                    }
-
-                    NickServSettings NickServ;
-                    Console.WriteLine();
-                    while (true) {
-                        Console.Write("Is there a NickServ registration for me on " + NetworkName + "? ");
-                        string Input = Console.ReadLine();
-                        if (Input.Length < 1) return;
-                        if (Input[0] == 'Y' || Input[0] == 'y' ||
-                            Input[0] == 'S' || Input[0] == 's' ||
-                            Input[0] == 'O' || Input[0] == 'o' ||
-                            Input[0] == 'J' || Input[0] == 'j') {
-                            NickServ = new NickServSettings();
-                            break;
-                        } else if (Input[0] == 'N' || Input[0] == 'n' ||
-                                   Input[0] == 'A' || Input[0] == 'a' ||
-                                   Input[0] == 'P' || Input[0] == 'p') {
-                            NickServ = null;
-                            break;
-                        }
-                    }
-
-                    if (NickServ != null) {
-                        do {
-                            Console.Write("Grouped nicknames (comma- or space-separated): ");
-                            string Input = Console.ReadLine();
-                            NickServ.RegisteredNicknames = Input.Split(new char[] { ',', ' ' }, StringSplitOptions.RemoveEmptyEntries);
-                            foreach (string nickname in NickServ.RegisteredNicknames) {
-                                if (nickname == "") continue;
-                                if (nickname[0] >= '0' && nickname[0] <= '9') {
-                                    Console.WriteLine("A nickname may not begin with a digit.");
-                                    NickServ.RegisteredNicknames = new string[0];
-                                    break;
-                                }
-                                foreach (char c in nickname) {
-                                    if ((c < 'A' || c > '}') && (c < '0' && c > '9') && c != '-') {
-                                        Console.WriteLine("Nickname '" + nickname + "' contains invalid characters.");
-                                        NickServ.RegisteredNicknames = new string[0];
-                                        break;
-                                    }
-                                }
-                            }
-                        } while (NickServ.RegisteredNicknames.Length == 0);
-
-                        NickServ.Password = "";
-                        do {
-                            Console.Write("NickServ account password: ");
-                            NickServ.Password = Console.ReadLine();
-                        } while (NickServ.Password == "");
-
-                        while (true) {
-                            Console.Write("Can I log in from any nickname by including '{0}' in the identify command? ", NickServ.RegisteredNicknames[0]);
-                            string Input = Console.ReadLine();
-                            if (Input.Length < 1) return;
-                            if (Input[0] == 'Y' || Input[0] == 'y' ||
-                                Input[0] == 'S' || Input[0] == 's' ||
-                                Input[0] == 'O' || Input[0] == 'o' ||
-                                Input[0] == 'J' || Input[0] == 'j') {
-                                NickServ.AnyNickname = true;
-                                break;
-                            } else if (Input[0] == 'N' || Input[0] == 'n' ||
-                                       Input[0] == 'A' || Input[0] == 'a' ||
-                                       Input[0] == 'P' || Input[0] == 'p') {
-                                NickServ.AnyNickname = false;
-                                break;
-                            }
-                        }
-                    }
-
-                    Console.WriteLine();
-                    do {
-                        Console.Write("What channels (comma- or space-separated) should I join upon connecting? ");
-                        string Input = Console.ReadLine();
-                        AutoJoinChannels = Input.Split(new char[] { ',', ' ' }, StringSplitOptions.RemoveEmptyEntries).Select(c => new AutoJoinChannel(c));
-                    } while (AutoJoinChannels == null);
-
-                    ClientEntry client = Bot.NewClient(NetworkName, NetworkAddress, (int) NetworkPort, Bot.dNicknames, Bot.dUsername, Bot.dFullName);
-                    client.Client.SSL = UseSSL;
-                    client.Client.AllowInvalidCertificate = AcceptInvalidSSLCertificate;
-                    if (NickServ != null)
-                        client.NickServ = NickServ;
-                    client.AutoJoin.AddRange(AutoJoinChannels);
-                    Console.WriteLine("OK, that's the IRC connection configuration done.");
-                    Console.WriteLine("Press any key to continue . . .");
-                    Console.ReadKey(true);
-                }
-            }
-
-            if (!Bot.UsersFileFound) {
-                string AccountName; StringBuilder passwordBuilder = null;
-
-                Console.WriteLine();
-                string Input = null;
-                while (true) {
-                    Console.WriteLine("What do you want your account name to be?");
-                    if (Input == null)
-                        Console.Write("For simplicity, we recommend you use your IRC nickname. ");
-                    Input = Console.ReadLine();
-                    if (Input == "") continue;
-                    if (Input.Contains(" "))
-                        Console.WriteLine("It can't contain spaces.");
-                    else {
-                        AccountName = Input;
-                        break;
-                    }
-                }
-
-                RNGCryptoServiceProvider RNG = new RNGCryptoServiceProvider();
-                SHA256Managed SHA256M = new SHA256Managed();
-                do {
-                    Console.Write("Please enter a password. ");
-                    Input = "";
-                    while (true) {
-                        ConsoleKeyInfo c = Console.ReadKey(true);
-                        if (c.Key == ConsoleKey.Enter) break;
-                        Input += c.KeyChar.ToString();
-                    }
-                    Console.WriteLine();
-                    if (Input == "") continue;
-                    if (Input.Contains(" ")) {
-                        Console.WriteLine("It can't contain spaces.");
-                        continue;
-                    }
-
-                    // Hash the password.
-                    byte[] Salt = new byte[32];
-                    RNG.GetBytes(Salt);
-                    byte[] Hash = SHA256M.ComputeHash(Salt.Concat(Encoding.UTF8.GetBytes(Input)).ToArray());
-                    Console.Write("Please confirm your password. ");
-                    Input = "";
-                    while (true) {
-                        ConsoleKeyInfo c = Console.ReadKey(true);
-                        if (c.Key == ConsoleKey.Enter) break;
-                        Input += c.KeyChar.ToString();
-                    }
-                    Console.WriteLine();
-                    if (Input == "" || Input.Contains(" ")) {
-                        Console.WriteLine("The passwords do not match.");
-                        continue;
-                    }
-
-                    byte[] ConfirmHash = SHA256M.ComputeHash(Salt.Concat(Encoding.UTF8.GetBytes(Input)).ToArray());
-                    if (!Hash.SequenceEqual(ConfirmHash)) {
-                        Console.WriteLine("The passwords do not match.");
-                        continue;
-                    }
-
-                    passwordBuilder = new StringBuilder();
-                    int i;
-                    for (i = 0; i < 32; ++i)
-                        passwordBuilder.Append(Salt[i].ToString("x2"));
-                    for (i = 0; i < 32; ++i)
-                        passwordBuilder.Append(Hash[i].ToString("x2"));
-                    Bot.Accounts.Add(AccountName, new Account {
-                        Password = passwordBuilder.ToString(),
-                        Permissions = new string[] { "*" }
-                    });
-                    ConsoleUtils.WriteLine("Thank you. To log in from IRC, enter %cWHITE/msg {0} !id <password>%r or %cWHITE/msg {0} !id {1} <password>%r, without the brackets.", Bot.Nickname(), AccountName);
-                    Console.WriteLine("Press any key to continue . . .");
-                    Console.ReadKey(true);
-                    break;
-                } while (passwordBuilder == null);
-            }
-        }
-
         /// <summary>Loads configuration data from the file CBotConfig.ini if it is present.</summary>
         public static void LoadConfig() {
             if (File.Exists("CBotConfig.ini")) {
@@ -882,9 +1089,10 @@ namespace CBot {
                                                 client.Client.Address = ss[0];
                                                 if (ss.Length > 1) {
                                                     ushort port;
-                                                    if (ushort.TryParse(ss[1], out port) && port != 0)
+                                                    if (ushort.TryParse(ss[1], out port) && port != 0) {
+                                                        client.Port = port;
                                                         client.Client.Port = port;
-                                                    else
+                                                    } else
                                                         ConsoleUtils.WriteLine("%cREDPort number for " + ss[0] + " is invalid.");
                                                 } else {
                                                     client.Client.Port = 6667;
@@ -1143,7 +1351,7 @@ namespace CBot {
             if (error) {
                 ConsoleUtils.WriteLine("%cREDSome plugins failed to load.%r");
                 ConsoleUtils.WriteLine("%cWHITEPress Escape to exit, or any other key to continue . . .");
-                if (Console.ReadKey(true).Key == ConsoleKey.Escape) Environment.Exit(0);
+                if (Console.ReadKey(true).Key == ConsoleKey.Escape) Environment.Exit(2);
             }
         }
 
@@ -1161,14 +1369,15 @@ namespace CBot {
             foreach (ClientEntry client in Bot.Clients) {
                 Writer.WriteLine();
                 Writer.WriteLine("[" + client.Name + "]");
-                Writer.WriteLine("Address=" + client.Client.Address + ":" + client.Client.Port);
+                Writer.WriteLine("Address=" + client.Address + ":" + client.Port);
                 if (client.Client.Password != null)
                     Writer.WriteLine("Password=" + client.Client.Password);
-                Writer.WriteLine("Nicknames=" + string.Join(",", client.Nicknames));
+                if (client.Nicknames != null)
+                    Writer.WriteLine("Nicknames=" + string.Join(",", client.Nicknames));
                 Writer.WriteLine("Username=" + client.Client.Me.Ident);
                 Writer.WriteLine("FullName=" + client.Client.Me.FullName);
                 if (client.AutoJoin.Count != 0) {
-                    Writer.WriteLine("Autojoin=" + string.Join(",", client.AutoJoin));
+                    Writer.WriteLine("Autojoin=" + string.Join(",", client.AutoJoin.Select(c => c.Channel)));
                 }
                 Writer.WriteLine("SSL=" + (client.Client.SSL ? "Yes" : "No"));
                 if (client.Client.SASLUsername != null && client.Client.SASLPassword != null) {
@@ -2233,13 +2442,14 @@ namespace CBot {
                 return;
 
             IRCClient client = (IRCClient) sender;
+
             if (e.Line.Command == "001") {  // Login complete
                 foreach (ClientEntry clientEntry in Bot.Clients) {
                     if (clientEntry.Client == client) {
                         // Identify with NickServ.
                         if (clientEntry.NickServ != null) {
                             Match match = null;
-                            if (clientEntry.NickServ.AnyNickname || clientEntry.NickServ.RegisteredNicknames.Contains(client.Me.Nickname)) {
+                            if (client.Me.Account == null && (clientEntry.NickServ.AnyNickname || clientEntry.NickServ.RegisteredNicknames.Contains(client.Me.Nickname))) {
                                 // Identify to NickServ.
                                 match = Regex.Match(clientEntry.NickServ.Hostmask, "^([A-}]+)(?![^!])");
                                 Bot.NickServIdentify(clientEntry, match.Success ? match.Groups[1].Value : "NickServ");
