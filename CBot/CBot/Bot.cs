@@ -656,6 +656,7 @@ namespace CBot {
                         // Add the account and give all permissions.
                         Bot.Accounts.Add(accountName, new Account {
                             Password = string.Join(null, salt.Select(b => b.ToString("x2"))) + string.Join(null, hash.Select(b => b.ToString("x2"))),
+                            HashType = HashType.SHA256Salted,
                             Permissions = new string[] { "*" }
                         });
 
@@ -1075,7 +1076,10 @@ namespace CBot {
                                                 break;
                                         }
                                     } else if (Section.Equals("prefixes", StringComparison.OrdinalIgnoreCase)) {
-                                        ChannelCommandPrefixes.Add(Field, Value.Split(new char[] { ' ' }, StringSplitOptions.RemoveEmptyEntries));
+                                        if (Field.Equals("Default", StringComparison.CurrentCultureIgnoreCase))
+                                            DefaultCommandPrefixes = Value.Split(new char[] { ' ' }, StringSplitOptions.RemoveEmptyEntries);
+                                        else
+                                            ChannelCommandPrefixes.Add(Field, Value.Split(new char[] { ' ' }, StringSplitOptions.RemoveEmptyEntries));
                                     } else {
                                         if (client.NickServ == null && (
                                             Field.StartsWith("NickServ", StringComparison.OrdinalIgnoreCase) ||
@@ -1251,12 +1255,10 @@ namespace CBot {
                                     switch (Field.ToUpper()) {
                                         case "PASSWORD":
                                         case "PASS":
-                                            // TODO: Remove ambiguity with 128-character passwords.
-                                            if (Value.Length != 128)
-                                                // Assume a string not 128 characters long is a plaintext password.
-                                                newUser.Password = string.Join(null, HashPassword(Value).Select(b => b.ToString("x2")));
-                                            else
-                                                newUser.Password = Value;
+                                            newUser.Password = Value;
+                                            break;
+                                        case "HASHTYPE":
+                                            newUser.HashType = (HashType) Enum.Parse(typeof(HashType), Value, true);
                                             break;
                                     }
                                 } else if (s.Trim() != "") {
@@ -1268,6 +1270,10 @@ namespace CBot {
                             }
                         }
                     }
+                    if (newUser.HashType == HashType.None && newUser.Password != null)
+                        // Old format
+                        newUser.HashType = (newUser.Password.Length == 128 ? HashType.SHA256Salted : HashType.PlainText);
+
                     Bot.Accounts.Add(Section, newUser);
                     Reader.Close();
                 } catch (Exception ex) {
@@ -1400,6 +1406,7 @@ namespace CBot {
             }
             Writer.WriteLine();
             Writer.WriteLine("[Prefixes]");
+            Writer.WriteLine("Default=" + string.Join(" ", DefaultCommandPrefixes));
             foreach (KeyValuePair<string, string[]> Connection2 in Bot.ChannelCommandPrefixes) {
                 Writer.WriteLine(Connection2.Key + "=" + string.Join(" ", Connection2.Value));
             }
@@ -1411,7 +1418,10 @@ namespace CBot {
             StreamWriter Writer = new StreamWriter("CBotUsers.ini", false);
             foreach (KeyValuePair<string, Account> User in Bot.Accounts) {
                 Writer.WriteLine("[" + User.Key + "]");
-                Writer.WriteLine("Password=" + User.Value.Password);
+                if (User.Value.HashType != HashType.None) {
+                    Writer.WriteLine("HashType=" + User.Value.HashType);
+                    Writer.WriteLine("Password=" + User.Value.Password);
+                }
                 string[] permissions = User.Value.Permissions;
                 for (int i = 0; i < permissions.Length; ++i) {
                     string Permission = permissions[i];
@@ -1972,24 +1982,7 @@ namespace CBot {
                     message = string.Format("You are already identified as \u000312{0}\u000F.", identification.AccountName);
                     success = false;
                 } else {
-                    // Verify the password.
-                    byte[] salt = new byte[32];
-                    byte[] hash2 = new byte[32];
-                    StringBuilder hashBuilder = new StringBuilder();
-
-                    // First, decode the salt and correct hash.
-                    for (int i = 0; i < 32; ++i)
-                        salt[i] = Convert.ToByte(account.Password.Substring(i * 2, 2), 16);
-                    for (int i = 0; i < 32; ++i)
-                        hash2[i] = Convert.ToByte(account.Password.Substring(i * 2 + 64, 2), 16);
-
-                    // Hash the input password.
-                    // TODO: upgrade to bcrypt at some point... maybe.
-                    HashAlgorithm hashAlgorithm = new SHA256Managed();
-                    byte[] hash = hashAlgorithm.ComputeHash(salt.Concat(Encoding.UTF8.GetBytes(password)).ToArray());
-
-                    // Compare the hashes: they should be the same.
-                    if (Bot.SlowEquals(hash2, hash)) {
+                    if (account.VerifyPassword(password)) {
                         identification = new Identification { AccountName = accountName, Channels = new List<string>() };
                         Bot.Identifications.Add(target, identification);
                         message = string.Format("You have identified successfully as \u000309{0}\u000F.", accountName);
@@ -2002,27 +1995,6 @@ namespace CBot {
                 }
             }
             return success;
-        }
-
-        /// <summary>Compares two byte arrays in constant time.</summary>
-        /// <param name="v1">The first array to compare.</param>
-        /// <param name="v2">The second array to compare.</param>
-        /// <returns>true if the two arrays have the same length and content; false otherwise.</returns>
-        /// <remarks>
-        ///   The time-constant comparison is used for security purposes.
-        ///   The term refers to the property that the time taken by this function is unrelated to the content of the arrays,
-        ///     but is related to their lengths (specifically, the smaller of their lengths).
-        ///   In theory, variations in the time taken to compare the arrays could be used to gain secret information
-        ///   about a user's credentials. In practice, such an attack would be difficult to perform over IRC, but
-        ///   we use time-constant comparisons anyway.
-        ///   For more information, see https://crackstation.net/hashing-security.htm
-        ///     'Why does the hashing code on this page compare the hashes in "length-constant" time?'
-        /// </remarks>
-        public static bool SlowEquals(byte[] v1, byte[] v2) {
-            int diff = v1.Length ^ v2.Length;  // The XOr operation returns 0 if, and only if, the operands are identical.
-            for (int i = 0; i < v1.Length && i < v2.Length; ++i)
-                diff |= (int) (v1[i] ^ v2[i]);
-            return (diff == 0);
         }
 
         /// <summary>Sends a message to a channel or user on IRC using an appropriate command.</summary>
