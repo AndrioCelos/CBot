@@ -9,14 +9,14 @@ namespace CBot {
     /// </summary>
     public class CommandEventArgs : EventArgs {
         /// <summary>The IRCClient object on which the command was heard.</summary>
-        public IRCClient Client { get; private set; }
+        public IRCClient Client { get; }
         /// <summary>The channel in which the command was used, or the sender's nickname if it was a PM.</summary>
-        public string Channel { get; private set; }
+        public string Channel { get; }
         /// <summary>The user invoking the command.</summary>
-        public IRCUser Sender { get; private set; }
+        public IRCUser Sender { get; }
 
         /// <summary>The list of parameters to the command.</summary>
-        public string[] Parameters { get; private set; }
+        public string[] Parameters { get; }
 
         /// <summary>If this is set to true, no more commands will be processed for this message. Defaults to true.</summary>
         public bool Cancel { get; set; }
@@ -42,14 +42,14 @@ namespace CBot {
     /// </summary>
     public class RegexEventArgs : EventArgs {
         /// <summary>The IRCClient object on which the trigger occurred.</summary>
-        public IRCClient Client { get; private set; }
+        public IRCClient Client { get; }
         /// <summary>The channel in which the trigger occurred, or the sender's nickname if it was a PM.</summary>
-        public string Channel { get; private set; }
+        public string Channel { get; }
         /// <summary>The user triggering the procedure.</summary>
-        public IRCUser Sender { get; private set; }
+        public IRCUser Sender { get; }
 
         /// <summary>The RegularExpressions.Match object containing details of the match.</summary>
-        public Match Match { get; private set; }
+        public Match Match { get; }
 
         /// <summary>If this is set to true, no more triggers will be processed for this message. Defaults to false.</summary>
         public bool Cancel { get; set; }

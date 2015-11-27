@@ -118,7 +118,7 @@ namespace BashQuotes
                 this.QuoteTimer.Interval = 60e+3;
             }
             if (this.Channels.Length == 0) return;
-            if (Quotes1 != null && Index < Quotes1.Count) {
+            if (Index < Quotes1?.Count) {
                 // Show a quote.
                 this.SayToAllChannels(string.Format("\u0002-------- {2} #{0} - \u0002Rating:\u0002 {1} --------", Quotes1.Keys.ElementAt(Index), Quotes1.Values.ElementAt(Index).Rating, this.source1.Name));
                 foreach (string line in Quotes1.Values.ElementAt(Index).Text.Split(new string[] { "<br />", '\r'.ToString(), '\n'.ToString() }, StringSplitOptions.RemoveEmptyEntries)) {

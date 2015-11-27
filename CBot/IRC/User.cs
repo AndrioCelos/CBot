@@ -42,7 +42,7 @@ namespace IRC {
         public bool Oper { get; protected internal set; }
 
         /// <summary>A list of channels we share with this user</summary>
-        public IRCChannelCollection Channels { get; private set; }
+        public IRCChannelCollection Channels { get; }
 
         /// <summary>The IRCClient object that this user belongs to.</summary>
         public IRCClient Client { get; internal set; }

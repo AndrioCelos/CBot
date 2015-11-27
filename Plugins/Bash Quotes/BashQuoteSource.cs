@@ -19,7 +19,7 @@ namespace BashQuotes {
         public static Regex Regex = new Regex(@"<p class=""quote""><a (?>[^>]*)><b>#(\d+)</b>.*?\((?:<font (?>[^>]*)>)?(-?\d+)(?:</font>)?\).*?<p class=""qt"">((?>[^<]*)(?:<br />(?>[^<]*))*)</p>",
             RegexOptions.IgnoreCase | RegexOptions.Singleline);
 
-        public string UserAgent { get; private set; }
+        public string UserAgent { get; }
 
         public BashQuoteSource(string userAgent) {
             this.UserAgent = userAgent;

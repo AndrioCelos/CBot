@@ -4,7 +4,7 @@
         public HighlightOptions Highlight { get; set; }
         public bool AllowDuelWithBot { get; set; }
         public bool Hints { get; set; }
-        public bool[] HintsSeen { get; private set; }
+        public bool[] HintsSeen { get; }
 
         public PlayerSettings() {
             this.AutoSort = AutoSortOptions.ByColour;
