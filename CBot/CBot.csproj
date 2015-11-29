@@ -58,6 +58,7 @@
     <Compile Include="CBot\InvalidPluginException.cs" />
     <Compile Include="CBot\NickServSettings.cs" />
     <Compile Include="CBot\SayOptions.cs" />
+    <Compile Include="CBot\CommandRequest.cs" />
     <Compile Include="IRC\Channel.cs" />
     <Compile Include="IRC\ChannelCollection.cs" />
     <Compile Include="IRC\ChannelModes.cs" />

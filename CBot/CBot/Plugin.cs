@@ -172,6 +172,17 @@ namespace CBot {
                 permission = attribute.Permission;
 
             if (permission != null && !Bot.UserHasPermission(Connection, Channel, Sender, permission)) {
+                // If the user's account name is unknown, they might actually have permission.
+                // We'll need to send a WHOIS request asynchronously to check for this, though.
+                if (Bot.commandCallbackNeeded && Sender.Account == null) {
+                    Bot.GetClientEntry(Connection).commandCallbacks[Sender.Nickname] = new CommandRequest() {
+                        Regex = false, Plugin = this, Sender = Sender, Channel = Channel, InputLine = InputLine, GlobalCommand = globalCommand,
+                        FailureMessage = attribute.NoPermissionsMessage
+                    };
+                    Connection.Send("WHOIS " + Sender.Nickname);
+                    return true;
+                }
+
                 if (attribute.NoPermissionsMessage != null) Bot.Say(Connection, Sender.Nickname, attribute.NoPermissionsMessage);
                 return true;
             }
@@ -238,6 +249,17 @@ namespace CBot {
                 permission = attribute.Permission;
 
             if (permission != null && !Bot.UserHasPermission(Connection, Channel, Sender, permission)) {
+                // If the user's account name is unknown, they might actually have permission.
+                // We'll need to send a WHOIS request asynchronously to check for this, though.
+                if (Bot.commandCallbackNeeded && Sender.Account == null) {
+                    Bot.GetClientEntry(Connection).commandCallbacks[Sender.Nickname] = new CommandRequest() {
+                        Regex = true, Plugin = this, Sender = Sender, Channel = Channel, InputLine = InputLine, GlobalCommand = UsedMyNickname,
+                        FailureMessage = attribute.NoPermissionsMessage
+                    };
+                    Connection.Send("WHOIS " + Sender.Nickname);
+                    return true;
+                }
+
                 if (attribute.NoPermissionsMessage != null) Bot.Say(Connection, Sender.Nickname, attribute.NoPermissionsMessage);
                 return true;
             }

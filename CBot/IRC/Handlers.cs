@@ -80,6 +80,15 @@ namespace IRC {
             client.OnAwaySet(new AwayEventArgs(line.Parameters[1]));
         }
 
+        [IRCMessageHandler(Replies.RPL_WHOISREGNICK)]
+        public static void Handle307(IRCClient client, IRCLine line) {
+            if (client.accountKnown) return;
+
+            IRCUser user;
+            if (client.Users.TryGetValue(line.Parameters[1], out user))
+                user.Account = line.Parameters[1];
+        }
+
         [IRCMessageHandler("310")]
         public static void Handle310(IRCClient client, IRCLine line) {
             client.OnWhoIsHelperLine(new WhoisOperEventArgs(line.Parameters[1], line.Parameters[2]));
@@ -131,6 +140,7 @@ namespace IRC {
 
         [IRCMessageHandler(Replies.RPL_ENDOFWHOIS)]
         public static void Handle318(IRCClient client, IRCLine line) {
+            client.accountKnown = false;
             client.OnWhoIsEnd(new WhoisEndEventArgs(line.Parameters[1], line.Parameters[2]));
         }
 
@@ -156,11 +166,19 @@ namespace IRC {
             client.OnChannelModesGet(new ChannelModesGetEventArgs(channel, modes));
         }
 
-        [IRCMessageHandler("329")]
+        [IRCMessageHandler(Replies.RPL_CREATIONTIME)]
         public static void Handle329(IRCClient client, IRCLine line) {
             var time = IRCClient.DecodeUnixTime(double.Parse(line.Parameters[2]));
             if (client.Channels.Contains(line.Parameters[1])) client.Channels[line.Parameters[1]].Timestamp = time;
             client.OnChannelTimestamp(new ChannelTimestampEventArgs(line.Parameters[1], time));
+        }
+
+        [IRCMessageHandler(Replies.RPL_WHOISACCOUNT)]
+        public static void Handle330(IRCClient client, IRCLine line) {
+            IRCUser user;
+            if (client.Users.TryGetValue(line.Parameters[1], out user))
+                user.Account = line.Parameters[2];
+            client.accountKnown = true;
         }
 
         [IRCMessageHandler(Replies.RPL_TOPIC)]
@@ -169,7 +187,7 @@ namespace IRC {
             client.OnChannelTopic(new ChannelTopicEventArgs(line.Parameters[1], line.Parameters[2]));
         }
 
-        [IRCMessageHandler("333")]
+        [IRCMessageHandler(Replies.RPL_TOPICWHOTIME)]
         public static void Handle333(IRCClient client, IRCLine line) {
             var time = IRCClient.DecodeUnixTime(double.Parse(line.Parameters[3]));
             IRCChannel channel;

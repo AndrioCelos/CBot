@@ -423,9 +423,6 @@ namespace IRC {
         protected internal void OnUserQuit(QuitEventArgs e) {
             this.UserQuit?.Invoke(this, e);
         }
-        protected internal void OnQuitSelf(QuitEventArgs e) {
-            this.QuitSelf?.Invoke(this, e);
-        }
         protected internal void OnRawLineReceived(IRCLineEventArgs e) {
             this.RawLineReceived?.Invoke(this, e);
         }
@@ -571,6 +568,7 @@ namespace IRC {
 
         private IRCClientState state;
         private DisconnectReason disconnectReason;
+        internal bool accountKnown;  // Some servers send both 330 and 307 in WHOIS replies. We need to ignore the 307 in that case.
 
         /// <summary>Contains functions used to handle replies received from the server.</summary>
         protected internal Dictionary<string, IRCMessageHandler> MessageHandlers;
@@ -627,8 +625,8 @@ namespace IRC {
             foreach (var method in type.GetMethods(BindingFlags.InvokeMethod | BindingFlags.Public | BindingFlags.Static)) {
                 foreach (var attribute in method.GetCustomAttributes<IRCMessageHandlerAttribute>()) {
                     this.MessageHandlers.Add(attribute.Command, (IRCMessageHandler) method.CreateDelegate(typeof(IRCMessageHandler)));
+                }
             }
-        }
         }
 
         /// <summary>Returns or sets a value specifying whether the connection is or is to be made via TLS.</summary>
@@ -675,10 +673,12 @@ namespace IRC {
                 }
             }
         }
-        
+
         /// <summary>Connects and logs in to an IRC network.</summary>
         public virtual void Connect(string host, int port) {
             this.disconnectReason = 0;
+            this.accountKnown = false;
+
             this.Address = host;
             // Connect to the server.
             this.tcpClient = new TcpClient() { ReceiveBufferSize = 1024, SendBufferSize = 1024 };
@@ -687,10 +687,12 @@ namespace IRC {
 
             if (this._PingTimeout != 0) this.PingTimer.Start();
             this.Pinged = false;
-            }
+        }
         /// <summary>Connects and logs in to an IRC network.</summary>
         public virtual void Connect(IPAddress ip, int port) {
             this.disconnectReason = 0;
+            this.accountKnown = false;
+
             this.Address = ip.ToString();
             // Connect to the server.
             this.tcpClient = new TcpClient() { ReceiveBufferSize = 1024, SendBufferSize = 1024 };
@@ -708,10 +710,10 @@ namespace IRC {
                 this.OnException(new ExceptionEventArgs(ex, true));
                 this.State = IRCClientState.Disconnected;
                 return;
-        }
+            }
 
             if (this.ssl) {
-            // Make the SSL handshake.
+                // Make the SSL handshake.
                 this.State = IRCClientState.SSLHandshaking;
                 this.SSLStream = new SslStream(this.tcpClient.GetStream(), false, this.validateCertificate, null);
 
@@ -750,8 +752,8 @@ namespace IRC {
 
                 this.State = IRCClientState.Registering;
                 this.Register();
-                }
-                            }
+            }
+        }
 
         protected virtual bool validateCertificate(object sender, X509Certificate certificate, X509Chain chain, SslPolicyErrors sslPolicyErrors) {
             // If the certificate is valid, continue.
@@ -764,7 +766,7 @@ namespace IRC {
             ValidateCertificateEventArgs e = new ValidateCertificateEventArgs(certificate, chain, sslPolicyErrors, this.AllowInvalidCertificate);
             this.OnValidateCertificate(e);
             return e.Valid;
-                    }
+        }
 
         protected virtual void Register() {
             if (this.Password != null)
@@ -772,7 +774,7 @@ namespace IRC {
             this.Send("CAP LS");
             this.Send("NICK " + Me.Nickname);
             this.Send("USER " + Me.Ident + " 4 * :" + Me.FullName);
-                }
+        }
 
         /// <summary>Ungracefully closes the connection to the IRC network.</summary>
         public virtual void Disconnect() {
@@ -780,7 +782,7 @@ namespace IRC {
             this.PingTimer.Stop();
             this.OnDisconnected(new DisconnectEventArgs(DisconnectReason.ClientDisconnected, null));
             this.State = IRCClientState.Disconnected;
-                        }
+        }
 
         protected virtual void ReadLoop() {
             // Read data.
@@ -794,19 +796,19 @@ namespace IRC {
                     this.writer.Close();
                     this.PingTimer.Stop();
                     this.OnDisconnected(new DisconnectEventArgs(DisconnectReason.Exception, ex));
-                        break;
-                    }
+                    break;
+                }
 
                 if (this.State == IRCClientState.Disconnected) break;
                 if (line == null) {  // Server disconnected.
                     if (this.disconnectReason == 0) this.disconnectReason = DisconnectReason.ServerDisconnected;
                     this.OnDisconnected(new DisconnectEventArgs(this.disconnectReason, null));
                     this.State = IRCClientState.Disconnected;
-                        break;
-                    }
-                this.ReceivedLine(line);
+                    break;
                 }
+                this.ReceivedLine(line);
             }
+        }
 
         /// <summary>The UNIX epoch, used for timestamps on IRC, which is midnight UTC of 1 January 1970.</summary>
         public static DateTime Epoch => new DateTime(1970, 1, 1, 0, 0, 0, DateTimeKind.Utc);
@@ -833,7 +835,7 @@ namespace IRC {
                 IRCMessageHandler handler;
                 if (this.MessageHandlers.TryGetValue(line.Command, out handler))
                     handler?.Invoke(this, line);
-                                else
+                else
                     this.OnRawLineUnhandled(new IRCLineEventArgs(data, line));
             }
         }
@@ -843,9 +845,9 @@ namespace IRC {
         /// <exception cref="InvalidOperationException">This IRCClient is not connected to a server.</exception>
         public virtual void Send(string data) {
             lock (this.Lock) {
-            if (!tcpClient.Connected) throw new InvalidOperationException("The client is not connected.");
+                if (!tcpClient.Connected) throw new InvalidOperationException("The client is not connected.");
 
-            this.OnRawLineSent(new RawEventArgs(data));
+                this.OnRawLineSent(new RawEventArgs(data));
 
                 this.writer.Write(data);
                 this.writer.Write("\r\n");
@@ -854,8 +856,8 @@ namespace IRC {
                 if (this.disconnectReason == 0 && data.StartsWith("QUIT", StringComparison.OrdinalIgnoreCase))
                     this.disconnectReason = DisconnectReason.Quit;
                 else if (data.StartsWith("PRIVMSG ", StringComparison.OrdinalIgnoreCase))
-                this.LastSpoke = DateTime.Now;
-        }
+                    this.LastSpoke = DateTime.Now;
+            }
         }
 
         /// <summary>Sends a raw message to the IRC server.</summary>
@@ -919,8 +921,8 @@ namespace IRC {
                 case 'v':
                     this.HandleChannelModeNickname(sender, target, direction, mode, parameter, this.ChannelDeVoice, this.ChannelVoice);
                     break;
-                        }
-                        }
+            }
+        }
         protected internal void HandleChannelModeList(string sender, string target, bool direction, char mode, string parameter,
             EventHandler<ChannelListModeEventArgs> downEvent, EventHandler<ChannelListModeEventArgs> upEvent) {
             if (!this.Extensions.ChanModes.TypeA.Contains(mode)) return;
@@ -929,7 +931,7 @@ namespace IRC {
                 upEvent?.Invoke(this, new ChannelListModeEventArgs(this.Users.Get(sender, false), target, parameter, matchedUsers));
             else
                 downEvent?.Invoke(this, new ChannelListModeEventArgs(this.Users.Get(sender, false), target, parameter, matchedUsers));
-                    }
+        }
         protected internal void HandleChannelModeNickname(string sender, string target, bool direction, char mode, string parameter,
             EventHandler<ChannelNicknameModeEventArgs> downEvent, EventHandler<ChannelNicknameModeEventArgs> upEvent) {
             if (!this.Extensions.StatusPrefix.ContainsKey(mode)) return;

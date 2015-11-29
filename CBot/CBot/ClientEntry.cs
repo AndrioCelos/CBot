@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Reflection;
 using System.Timers;
 
 using IRC;
@@ -41,6 +42,8 @@ namespace CBot {
         public List<AutoJoinChannel> AutoJoin;
         /// <summary>Contains the data used to deal with nickname services.</summary>
         public NickServSettings NickServ;
+
+        internal Dictionary<string, CommandRequest> commandCallbacks = new Dictionary<string, CommandRequest>();
 
         /// <summary>
         /// Creates a new ClientEntry object with the specified network name, IRCClient object and reconnect delay.

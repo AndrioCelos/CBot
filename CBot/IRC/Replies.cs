@@ -43,6 +43,7 @@
         public const string RPL_AWAY              = "301";
         public const string RPL_UNAWAY            = "305";
         public const string RPL_NOWAWAY           = "306";
+        public const string RPL_WHOISREGNICK      = "307";
         public const string RPL_WHOISUSER         = "311";
         public const string RPL_WHOISSERVER       = "312";
         public const string RPL_WHOISOPERATOR     = "313";
@@ -56,8 +57,11 @@
         public const string RPL_LISTEND           = "323";
         public const string RPL_UNIQOPIS          = "325";
         public const string RPL_CHANNELMODEIS     = "324";
+        public const string RPL_CREATIONTIME      = "329";
+        public const string RPL_WHOISACCOUNT      = "330";
         public const string RPL_NOTOPIC           = "331";
         public const string RPL_TOPIC             = "332";
+        public const string RPL_TOPICWHOTIME      = "333";
         public const string RPL_INVITING          = "341";
         public const string RPL_SUMMONING         = "342";
         public const string RPL_INVITELIST        = "346";
@@ -68,6 +72,7 @@
         public const string RPL_WHOREPLY          = "352";
         public const string RPL_ENDOFWHO          = "315";
         public const string RPL_NAMREPLY          = "353";
+        public const string RPL_WHOSPCRPL         = "354";
         public const string RPL_ENDOFNAMES        = "366";
         public const string RPL_LINKS             = "364";
         public const string RPL_ENDOFLINKS        = "365";
