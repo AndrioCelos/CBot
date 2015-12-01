@@ -1802,7 +1802,8 @@ namespace CBot {
 
             foreach (string permission2 in permissions) {
                 string[] hayFields;
-                if (permission2 == "*" && !IRCPermission) {
+                if (permission2 == "*") {
+                    if (IRCPermission) continue;
                     if (score <= 1) score = 1;
                 } else {
                     bool polarity = true;
