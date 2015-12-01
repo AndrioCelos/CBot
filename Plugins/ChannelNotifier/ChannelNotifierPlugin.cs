@@ -102,7 +102,8 @@ namespace ChannelNotifier
                     } else if (client.IsChannel(fields[1]) && (client != originConnection || !client.CaseMappingComparer.Equals(fields[1], originChannel))) {
                         client.Send("PRIVMSG " + fields[1] + " :" + message);
                     } else {
-                        if ((client != originConnection || !client.CaseMappingComparer.Equals(fields[1], originChannel)) && Bot.UserHasPermission(client, null, client.Users[fields[1]], this.Key + ".receive"))
+                        IRCUser user;
+                        if ((client != originConnection || !client.CaseMappingComparer.Equals(fields[1], originChannel)) && client.Users.TryGetValue(fields[1], out user) && Bot.UserHasPermission(client, null, user, this.Key + ".receive"))
                             client.Send("PRIVMSG " + fields[1] + " :" + message);
                     }
                 }

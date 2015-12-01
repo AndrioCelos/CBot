@@ -49,7 +49,7 @@ namespace IdentifyPlugin {
                 password = e.Parameters[1];
             }
 
-            if (Bot.Identify(e.Client.Address + "/" + e.Sender.Nickname, username, password, out id, out message)) {
+            if (Bot.Identify(e.Client.NetworkName + "/" + e.Sender.Nickname, username, password, out id, out message)) {
                 if (e.Client.Extensions.SupportsWatch) e.Client.Send("WATCH +{0}", e.Sender.Nickname);
             }
 

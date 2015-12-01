@@ -1260,6 +1260,9 @@ namespace CBot {
                                         case "PASSWORD":
                                         case "PASS":
                                             newUser.Password = Value;
+                                            if (newUser.HashType == HashType.None && newUser.Password != null)
+                                                // Old format
+                                                newUser.HashType = (newUser.Password.Length == 128 ? HashType.SHA256Salted : HashType.PlainText);
                                             break;
                                         case "HASHTYPE":
                                             newUser.HashType = (HashType) Enum.Parse(typeof(HashType), Value, true);
@@ -1274,9 +1277,6 @@ namespace CBot {
                             }
                         }
                     }
-                    if (newUser.HashType == HashType.None && newUser.Password != null)
-                        // Old format
-                        newUser.HashType = (newUser.Password.Length == 128 ? HashType.SHA256Salted : HashType.PlainText);
 
                     Bot.Accounts.Add(Section, newUser);
                     Reader.Close();
