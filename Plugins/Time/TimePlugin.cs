@@ -68,7 +68,7 @@ namespace Time {
                             if (TryParseCTCPTime(timeString, out time)) {
                                 int minutesDifference = (int) Math.Round((time - DateTime.Now).TotalMinutes / 15) * 15;
                                 var UTCOffset = DateTimeOffset.Now.Offset + TimeSpan.FromMinutes(minutesDifference);
-                                
+
                                 if (request.Zone == null)
                                     DoConversion((IRCClient) sender, e.Sender.Nickname, request.Channel, request.Time, "your time", UTCOffset, request.ZoneName, request.TargetZone.Value);
                                 else
@@ -81,7 +81,7 @@ namespace Time {
                         }
                     }
                 }
-           } 
+           }
 
             return base.OnPrivateNotice(sender, e);
         }

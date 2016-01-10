@@ -420,7 +420,7 @@ namespace GreedyDice {
                     if (game.IsAIUp)
                         Bot.Say(game.Connection, game.Channel, "\u000312\u0002{0}\u0002 rolled \u0002{1}\u0003 {2}\u000312,99\u0002 Since no points have been scored yet, I won't count that.",
                             game.Players[playerIndex].Name, GreedyDicePlugin.RollFaces[roll1], GreedyDicePlugin.RollFaces[roll2]);
-                    else { 
+                    else {
                         Bot.Say(game.Connection, game.Channel, "\u000312\u0002{0}\u0002 rolled \u0002{1}\u0003 {2}\u000312,99\u0002 Since you haven't got any points, I won't count that.",
                             game.Players[playerIndex].Name, GreedyDicePlugin.RollFaces[roll1], GreedyDicePlugin.RollFaces[roll2]);
                         Thread.Sleep(600);
@@ -474,7 +474,7 @@ namespace GreedyDice {
             Thread.Sleep(1500);
             this.NextPlayer(game, true);
         }
-        
+
         public void AICheck(Game game) {
             int playerIndex = game.IndexOf(game.Connection.Me.Nickname);
             if (playerIndex != -1 && game.Players[playerIndex].CanMove) {
@@ -599,7 +599,7 @@ namespace GreedyDice {
                         return false;
                     }
                     nextPlayer = 0;
-                } 
+                }
             } while (game.Players[nextPlayer].Quit);
             if (nextPlayer == game.Turn) {
                 // Stop the game if everyone idles out and it goes full circle.

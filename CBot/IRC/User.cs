@@ -83,7 +83,7 @@ namespace IRC {
                 }
             }
         }
-        
+
         /// <summary>Returns this user's username and hostname, separated by a '@'.</summary>
         public string UserAndHost {
             get {
@@ -123,7 +123,7 @@ namespace IRC {
             this.Ident = match.Groups[2].Success ? match.Groups[2].Value : "*";
             this.Host = match.Groups[3].Success ? match.Groups[3].Value : "*";
         }
-        
+
         /// <summary>
         /// Returns ths hostmask of this User object.
         /// </summary>

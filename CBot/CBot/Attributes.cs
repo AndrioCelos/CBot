@@ -111,7 +111,7 @@ namespace CBot {
         public CommandScope Scope;
         /// <summary>If true, the procedure will only trigger if the message starts with the bot's nickname.</summary>
         public bool MustUseNickname;
-        
+
         /// <summary>
         /// Creates a new RegexAttribute.
         /// </summary>

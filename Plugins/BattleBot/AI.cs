@@ -638,7 +638,7 @@ namespace BattleBot {
 
         private void CheckSkills(Character character, Combatant combatant) {
             if ((this.plugin.BattleConditions & BattleCondition.NoSkills) != 0) return;
-            
+
             float topScore = 0F;
             foreach (Tuple<Action, string, string, float> entry in this.Ratings)
                 topScore = Math.Max(topScore, entry.Item4);

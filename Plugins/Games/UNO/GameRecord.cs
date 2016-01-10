@@ -14,7 +14,7 @@ namespace UNO {
             public object random;
             public string signature;
         }
-        
+
         public class FailedShuffle {
             public string[] cards;
             public string error;

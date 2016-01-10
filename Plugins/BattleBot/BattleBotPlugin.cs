@@ -20,7 +20,7 @@ namespace BattleBot
         public ArenaVersion Version;
         public bool IsBattleDungeon;
         public bool VersionPreCTCP;
-        
+
         public int Level;
         public int TurnNumber;
 
@@ -4017,7 +4017,7 @@ namespace BattleBot
             if (this.TurnAbility != null && this.TurnAbility != "?") {
                 // Check for monsters absorbing attacks.
                 Technique technique;
-                if (this.Techniques.TryGetValue(this.TurnAbility, out technique) && technique.Type != TechniqueType.Heal && technique.Type != TechniqueType.AoEHeal && 
+                if (this.Techniques.TryGetValue(this.TurnAbility, out technique) && technique.Type != TechniqueType.Heal && technique.Type != TechniqueType.AoEHeal &&
                         technique.Element != null && !technique.Element.Equals("None", StringComparison.InvariantCultureIgnoreCase)) {
                     Character character = this.GetCharacter(e.Match.Groups[1].Value, false);
                     if (character != null) {
@@ -4028,7 +4028,7 @@ namespace BattleBot
                     }
                 }
             }
-            
+
             this.TurnAoE = true;
         }
 
@@ -4210,7 +4210,7 @@ namespace BattleBot
                             this.UnmatchedFullNames.Add(new UnmatchedName() { Name = e.Match.Groups[1].Value, Category = (Category) 7 });
                             return;
                         }
-                    } 
+                    }
                 }
             }
 

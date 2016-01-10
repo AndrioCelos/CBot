@@ -19,7 +19,7 @@ namespace UNO {
         public bool IsOpen;
         public bool Ended;
         public DateTime StartTime;
-        
+
         public Timer GameTimer;
         public DateTime TurnStartTime;
         public int WaitTime;

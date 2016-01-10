@@ -197,7 +197,7 @@ namespace IRC {
             this.Key = key;
         }
     }
-    
+
     public class ChannelLimitEventArgs : EventArgs {
         public IRCUser Sender { get; set; }
         public string Channel { get; set; }

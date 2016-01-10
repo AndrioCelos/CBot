@@ -2733,7 +2733,7 @@ namespace UNO {
                         game.Connection.Send("NOTICE " + game.Players[game.HintRecipient].Name + " :\u00032[\u000312?\u00032]\u000F " + UNOPlugin.Hints[game.Hint]);
                     else
                         game.Connection.Send("NOTICE " + game.Players[game.HintRecipient].Name + " :\u00032[\u000312?\u00032]\u000F " + string.Format(UNOPlugin.Hints[game.Hint], game.HintParameters));
-                    
+
                     if (game.Hint <= 2) game.Hint = 0;
                     player.HintsSeen[game.Hint] = true;
                 }
@@ -2741,7 +2741,7 @@ namespace UNO {
             }
             ConsoleUtils.WriteLine("%cRED[{0}] Error: a game hint timer triggered, and I can't find which game it belongs to!", this.Key);
         }
-        
+
         public void ShowHint(Game game, int recipient, int index, int delay, params object[] parameters) {
             game.HintRecipient = recipient;
             game.Hint = index;
@@ -4174,7 +4174,7 @@ namespace UNO {
             bool firstEntry = true;
             List<PlayerStats> top = UNOPlugin.SortLeaderboard(list, sortKey);
             foreach (PlayerStats entry in top) {
-                if (firstEntry) 
+                if (firstEntry)
                     firstEntry = false;
                 else
                     writer.Write(",");

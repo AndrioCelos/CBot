@@ -494,7 +494,7 @@ namespace CBot {
 
                 if (!tls)
                     tls = boolPrompt("Should I use TLS? ");
-                if (tls) 
+                if (tls)
                     acceptInvalidCertificate = boolPrompt("Should I connect if the server's certificate is invalid? ");
 
                 if (boolPrompt("Do I need to use a password to register to the IRC server? ")) {

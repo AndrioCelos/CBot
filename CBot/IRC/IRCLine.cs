@@ -215,7 +215,7 @@ namespace IRC {
                 builder.Append(" ");
             }
             builder.Append(this.Command);
-            
+
             for (int i = 0; i < this.Parameters.Length; ++i) {
                 builder.Append(" ");
                 if (this.HasTrail && i == this.Parameters.Length - 1) builder.Append(":");

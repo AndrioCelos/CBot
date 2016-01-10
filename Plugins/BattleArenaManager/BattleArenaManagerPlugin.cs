@@ -374,7 +374,7 @@ namespace BattleArenaManager {
                 string message; int x = commit.Commit.Message.IndexOf('\n');
                 if (x == -1) message = commit.Commit.Message;
                 else message = commit.Commit.Message.Substring(0, x).TrimEnd('\r');
-               
+
                 if (commitMessage == null || message.Length > commitMessage.Length)
                     commitMessage = message;
             }
@@ -512,7 +512,7 @@ namespace BattleArenaManager {
                 throw new PlatformNotSupportedException("Reviving the Arena bot is currently only supported on UNIX systems.");
 
             Process process;
-   
+
             // Terminate mIRC.
             process = new Process() {
                 StartInfo = new ProcessStartInfo(Path.Combine("/", "bin", "bash"),
@@ -520,15 +520,15 @@ namespace BattleArenaManager {
             };
             process.Start();
             process.WaitForExit();
-   
+
             if (process.ExitCode != 0) {
                 ConsoleUtils.WriteLine("Termination failed (bash exited with code " + process.ExitCode + "). Aborting.");
                 Bot.Say(this.ArenaConnection, this.ArenaChannel, this.GetMessage("TerminationFailure", null, this.ArenaChannel, process.ExitCode));
                 return;
             }
-   
+
             Thread.Sleep(5000);
-   
+
             // Start mIRC anew.
             process = new Process() {
                 StartInfo = new ProcessStartInfo(Path.Combine("/", "bin", "bash"),
@@ -536,7 +536,7 @@ namespace BattleArenaManager {
             };
             process.Start();
             process.WaitForExit();
-   
+
             if (process.ExitCode != 0) {
                 ConsoleUtils.WriteLine("Restart failed (bash exited with code " + process.ExitCode + "). Aborting.");
                 Bot.Say(this.ArenaConnection, this.ArenaChannel, this.GetMessage("RestartFailure", null, this.ArenaChannel, process.ExitCode));

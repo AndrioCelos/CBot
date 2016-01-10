@@ -39,14 +39,14 @@ namespace BashQuotes
             get { return this.source1; }
         }
 
-        private QuoteSource source2;
+        private QuoteSource source;
         public QuoteSource Source {
             get {
-                return this.source2;
+                return this.source;
             }
             set {
                 if (value == null) throw new ArgumentNullException();
-                this.source2 = value;
+                this.source = value;
             }
         }
 
@@ -84,7 +84,7 @@ namespace BashQuotes
         private void Initialise() {
             if (this.QuoteTimer == null) {
                 this.source1 = new BashQuoteSource(UserAgent);
-                this.source2 = this.source1;
+                this.source = this.source1;
 
                 this.getQuotesTask = Task.Run(async () => await this.GetQuotes());
 
@@ -160,127 +160,10 @@ namespace BashQuotes
                 }
             }
         }
-        
-        /*
-        public void GetQuotes() {
-            try {
-                TcpClient client = new TcpClient();
-
-                DateTime waitStart = DateTime.Now;
-                string response; StringBuilder data = new StringBuilder(); int state = 0;
-                string contentType = null;
-                byte[] buffer = new byte[1024]; int n; bool cr = false;
-
-                // Connect and send the request.
-                Console.WriteLine("[Bash Quotes] Connecting to bash.org...");
-                client.Connect("bash.org", 80);
-
-                Console.WriteLine("[Bash Quotes] Connected in {0} ms.", (DateTime.Now - waitStart).TotalMilliseconds);
-
-                StreamWriter writer = new StreamWriter(client.GetStream());
-                writer.WriteLine("GET /?random HTTP/1.1");
-                writer.WriteLine("Host: bash.org");
-                writer.WriteLine("User-Agent: {0}", BashQuotesPlugin.UserAgent);
-                writer.WriteLine("Accept: text/html");
-                writer.WriteLine("Connection: Close");
-                writer.WriteLine();
-                writer.Flush();
-
-                Console.WriteLine("[Bash Quotes] Downloading data...");
-                // Wait for a response.
-                do {
-                    n = client.GetStream().Read(buffer, 0, 1024);
-                    if (n == 0) break;
-                    for (int i = 0; i < n; ++i) {
-                        if (state == 2)
-                            data.Append((char) buffer[i]);
-                        else if (data.Length > 0 && buffer[i] == 10 && data[data.Length - 1] == '\r') {
-                            // End of the line
-                            if (state == 0) {
-                                // Response code
-                                response = data.ToString();
-                                response = response.Split(new char[] { ' ' }, 3).ElementAtOrDefault(1);
-                                if (response == "200") {
-                                    // HTTP 200 OK
-                                    state = 1;
-                                } else {
-                                    throw new WebException(string.Format("Received a HTTP {0}.", response));
-                                }
-                            } else {
-                                // Header
-                                if (data.Length == 0) {
-                                    // A blank line indicates the end of the headers.
-                                    if (contentType != null && contentType.Equals("text/html", StringComparison.OrdinalIgnoreCase)) {
-                                        // Not HTML data.
-                                        throw new WebException("The document isn't a HTML page.");
-                                    }
-                                } else {
-                                    string[] fields = data.ToString().Split(new char[] { ':' }, 2);
-                                    string key = fields[0]; string value = fields.ElementAtOrDefault(1);
-
-                                    switch (key.ToUpper()) {
-                                        case "CONTENT-TYPE":
-                                            contentType = value;
-                                            break;
-                                    }
-                                }
-                            }
-                            data.Clear();
-                            cr = false;
-                        } else {
-                            if (cr) {
-                                data.Append('\r');
-                                cr = false;
-                            }
-                            if (buffer[i] == 13)
-                                cr = true;
-                            else
-                                data.Append((char) buffer[i]);
-                        }
-                    }
-                } while ((DateTime.Now - waitStart) < TimeSpan.FromSeconds(30));
-                if (data == null) throw new WebException("The request timed out.");
-                client.Close();
-                File.WriteAllText("bash.html", data.ToString());
-
-                Console.WriteLine("[Bash Quotes] Parsing data...");
-                MatchCollection matches = Regex.Matches(data.ToString());
-
-                Quotes2 = new SortedDictionary<int, Quote>();
-                if (matches.Count == 0) {
-                    ++this.FailureCount;
-                    if (this.FailureCount == 3) {
-                        this.FailureMessage = "\u00034No quotes were found three times in a row. Retrying in 20 minutes.";
-                    }
-                    Console.WriteLine("[Bash Quotes] Did not find any quotes. Failure count: {1}", Quotes2.Count, this.FailureCount);
-                } else {
-                    this.FailureCount = 0;
-                    this.QuoteTimer.Interval = 60e+3;
-                    foreach (Match match in matches) {
-                        if (match.Groups[3].Value == "") continue;
-
-                        // Reject quotes that are more than 20 lines long.
-                        int lines; int pos = -1;
-                        for (lines = 1; lines <= 20; ++lines) {
-                            pos = match.Groups[3].Value.IndexOf("<br />", pos + 1);
-                            if (pos == -1) break;
-                        }
-                        if (lines > 20) continue;
-
-                        Quotes2.Add(int.Parse(match.Groups[1].Value), new Quote(System.Web.HttpUtility.HtmlDecode(match.Groups[3].Value), int.Parse(match.Groups[2].Value)));
-                    }
-                    Console.WriteLine("[Bash Quotes] Got {0} new quotes.", Quotes2.Count);
-                }
-            } catch (Exception ex) {
-                this.FailureMessage = "\u00034Failed to download the quotes page: " + ex.Message;
-                this.LogError("GetQuotes", ex);
-            }
-        }
-         */
 
         private async Task GetQuotes() {
             try {
-                SortedDictionary<int, Quote> result = await source2.GetQuotes();
+                SortedDictionary<int, Quote> result = await source.GetQuotes();
                 if (result == null || result.Count == 0) {
                     ++this.FailureCount;
                     if (this.FailureCount == 3) {
@@ -289,6 +172,7 @@ namespace BashQuotes
                 } else {
                     this.FailureCount = 0;
                     this.Quotes2 = result;
+                    this.QuoteTimer.Interval = 60e+3;
                 }
             } catch (Exception ex) {
                 this.FailureMessage = "\u00034Failed to download the quotes page: " + ex.Message;
