@@ -684,8 +684,9 @@ namespace IRC {
             if (user.Nickname.Equals(client.Me.Nickname, StringComparison.OrdinalIgnoreCase)) {
                 client.Channels.Remove(line.Parameters[0]);
             }
-            if (client.Channels[line.Parameters[0]].Users.Contains(user.Nickname))
-                client.Channels[line.Parameters[0]].Users.Remove(user.Nickname);
+            IRCChannel channel;
+            if (client.Channels.TryGetValue(line.Parameters[0], out channel) && channel.Users.Contains(user.Nickname))
+                channel.Users.Remove(user.Nickname);
         }
 
         [IRCMessageHandler("PING")]

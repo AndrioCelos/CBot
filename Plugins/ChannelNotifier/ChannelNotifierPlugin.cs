@@ -153,7 +153,7 @@ namespace ChannelNotifier
                 message = match.Groups[1].Value;
             else
                 message = e.Message;
-            if (!Bot.GetCommandPrefixes((IRCClient) sender, e.Sender.Nickname).Contains(message[0].ToString()))
+            if (message.Length == 0 || !Bot.GetCommandPrefixes((IRCClient) sender, e.Sender.Nickname).Contains(message[0].ToString()))
                 this.SendCheck(string.Format("\u000315[\u000312PM\u000315] {0}{1}\u000F: {2}", IRC.Colours.NicknameColour(e.Sender.Nickname), e.Sender.Nickname, e.Message), (IRCClient) sender, e.Sender.Nickname);
             
             return false;

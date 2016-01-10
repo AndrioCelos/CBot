@@ -2477,8 +2477,13 @@ namespace CBot {
                 case Replies.RPL_WHOSPCRPL:
                     if (e.Line.Parameters.Length == 4 && e.Line.Parameters[1] == "1") {  // This identifies our WHOX request.
                         IRCUser user;
-                        if (client.Users.TryGetValue(e.Line.Parameters[2], out user))
-                            user.Account = e.Line.Parameters[3];
+                        if (client.Users.TryGetValue(e.Line.Parameters[2], out user)) {
+                            if (e.Line.Parameters[3] == "0")
+                                user.Account = null;
+                            else
+                                user.Account = e.Line.Parameters[3];
+
+                        }
                     }
                     break;
                 case Replies.RPL_NOWON:

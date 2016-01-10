@@ -197,7 +197,10 @@ namespace CBot {
 
             // Run the command.
             // TODO: Run it on a separate thread.
+            var entry = Bot.GetClientEntry(Connection);
             try {
+                entry.CurrentProcedurePlugin = this;
+                entry.CurrentProcedure = method;
                 CommandEventArgs e = new CommandEventArgs(Connection, Channel, Sender, fields);
                 method.Invoke(this, new object[] { this, e });
             } catch (Exception ex) {
@@ -205,6 +208,8 @@ namespace CBot {
                 while (ex is TargetInvocationException || ex is AggregateException) ex = ex.InnerException;
                 Bot.Say(Connection, Channel, "\u00034The command failed. This incident has been logged. ({0})", ex.Message.Replace('\n', ' '));
             }
+            entry.CurrentProcedurePlugin = null;
+            entry.CurrentProcedure = null;
             return true;
         }
 
@@ -281,13 +286,18 @@ namespace CBot {
 
             // Run the command.
             // TODO: Run it on a separate thread.
+            var entry = Bot.GetClientEntry(Connection);
             try {
+                entry.CurrentProcedurePlugin = this;
+                entry.CurrentProcedure = method;
                 method.Invoke(this, parameters);
             } catch (Exception ex) {
                 Bot.LogError(this.Key, method.Name, ex);
                 while (ex is TargetInvocationException || ex is AggregateException) ex = ex.InnerException;
                 Bot.Say(Connection, Channel, "\u00034The command failed. This incident has been logged. ({0})", ex.Message);
             }
+            entry.CurrentProcedurePlugin = null;
+            entry.CurrentProcedure = null;
             return true;
         }
 

@@ -140,5 +140,34 @@ namespace PluginManager
             }
         }
 
+        [Command("threadstate", 1, 1, "threadstate <network>", "Shows what command an IRC read thread is currently doing.",
+            "me.debug", CommandScope.Channel | CommandScope.PM | CommandScope.Global)]
+        public void CommandThreadState(object sender, CommandEventArgs e) {
+            IRCClient client = null;
+
+            foreach (ClientEntry clientEntry in Bot.Clients) {
+                IRCClient _client = clientEntry.Client;
+                if (_client.Address.Equals(e.Parameters[0], StringComparison.OrdinalIgnoreCase) || (_client.Extensions.NetworkName ?? "").Equals(e.Parameters[0], StringComparison.OrdinalIgnoreCase)) {
+                    client = _client;
+                    break;
+                }
+            }
+            if (client == null) {
+                Bot.Say(e.Client, e.Channel, string.Format("I'm not connected to \u0002{0}\u0002.", e.Parameters[0]));
+                return;
+            }
+
+            var method = Bot.GetClientEntry(client).CurrentProcedure;
+            if (method == null) {
+                Bot.Say(e.Client, e.Channel, string.Format("\u0002{0}\u0002's read thread is \u0002standing by\u0002.", e.Parameters[0]));
+            } else {
+                var attribute = method.GetCustomAttributes<CommandAttribute>().FirstOrDefault();
+                if (attribute != null) {
+                    Bot.Say(e.Client, e.Channel, string.Format("\u0002{0}\u0002's read thread is in \u0002{1}\u0002 – !\u0002{2}\u0002.", e.Parameters[0], Bot.GetClientEntry(client).CurrentProcedurePlugin.Key, attribute.Names[0]));
+                } else {
+                    Bot.Say(e.Client, e.Channel, string.Format("\u0002{0}\u0002's read thread is in \u0002{1}\u0002 – !\u0002{2}\u0002.", e.Parameters[0], Bot.GetClientEntry(client).CurrentProcedurePlugin.Key, method.Name));
+                }
+            }
+        }
     }
 }
