@@ -10,6 +10,8 @@ using System.Timers;
 using CBot;
 using IRC;
 
+using Demot.RandomOrgApi;
+
 using Timer = System.Timers.Timer;
 
 namespace UNO {
@@ -43,6 +45,9 @@ namespace UNO {
 
         public LeaderboardMode JSONLeaderboard;
 
+        public int GameCount { get; set; }
+        internal RandomOrgApiClient randomClient;
+
         // Game rules
         public bool AIEnabled;
         public int OutLimit;
@@ -64,6 +69,10 @@ namespace UNO {
         public int QuitPenalty;
 
         public string GuideURL;
+        public string RandomOrgAPIKey;
+        public string UserAgent;
+        public bool RecordRandomData;
+        public string RandomDataURL;
 
         public static readonly Regex CardParseExpression = new Regex(@"
             (?# Colour) ^(?:(r(?:ed)?)|(y(?:ellow)?)|(g(?:reen)?)|(b(?:lue)?))\ *
@@ -172,7 +181,14 @@ namespace UNO {
 
             int version;
             this.LoadConfig(this.Key, out version);
-            this.LoadStats(this.Key + "-stats.dat");
+            this.LoadData();
+            this.LoadStats();
+
+            if (this.RandomOrgAPIKey != null) {
+                this.randomClient = new RandomOrgApiClient(this.RandomOrgAPIKey, this.UserAgent) {
+                    MaxBlockingTime = 10000
+                };
+            }
 
             if (version < 4) {
                 foreach (KeyValuePair<string, PlayerSettings> player in this.PlayerSettings) {
@@ -184,7 +200,8 @@ namespace UNO {
 
         public override void OnSave() {
             this.SaveConfig();
-            this.SaveStats(this.Key + "-stats.dat");
+            this.SaveData();
+            this.SaveStats();
             if (this.JSONLeaderboard != LeaderboardMode.None)
                 this.GenerateJSONScoreboard();
         }
@@ -195,7 +212,7 @@ namespace UNO {
             base.OnUnload();
         }
 
-#region Filing
+        #region Filing
         public void LoadConfig(string key, out int version) {
             version = 0;
             string filename = Path.Combine("Config", key + ".ini");
@@ -286,6 +303,23 @@ namespace UNO {
                                                 ConsoleUtils.WriteLine("[{0}] Problem loading the configuration (line {1}): the value is invalid (expected 'off', 'unsorted', 'sortedbyname', 'sortedbyscore', 'sortedbyplays', 'sortedbywins' or 'sortedbychallenge').", this.Key, lineNumber);
                                                 break;
                                         }
+                                        break;
+                                    case "GAMECOUNT":
+                                        if (int.TryParse(value, out value3) && value3 >= 0) this.GameCount = value3;
+                                        else ConsoleUtils.WriteLine("[{0}] Problem loading the configuration (line {1}): the value is invalid (expected a non-negative integer).", this.Key, lineNumber);
+                                        break;
+                                    case "RANDOMORGAPIKEY":
+                                        this.RandomOrgAPIKey = value;
+                                        break;
+                                    case "USERAGENT":
+                                        this.UserAgent = value;
+                                        break;
+                                    case "RECORDRANDOMDATA":
+                                        if (Bot.TryParseBoolean(value, out value2)) this.RecordRandomData = value2;
+                                        else ConsoleUtils.WriteLine("[{0}] Problem loading the configuration (line {1}): the value is invalid (expected 'yes' or 'no').", this.Key, lineNumber);
+                                        break;
+                                    case "RANDOMDATAURL":
+                                        this.RandomDataURL = value;
                                         break;
                                     case "GUIDEURL":
                                         this.GuideURL = value;
@@ -475,6 +509,13 @@ namespace UNO {
             reader.Close();
         }
 
+        public void LoadData() {
+            if (File.Exists(Path.Combine("data", this.Key, "gamecount.txt"))) {
+                var text = File.ReadAllText(Path.Combine("data", this.Key, "gamecount.txt"));
+                this.GameCount = int.Parse(text);
+            }
+        }
+
         public void SaveConfig() {
             if (!Directory.Exists("Config"))
                 Directory.CreateDirectory("Config");
@@ -484,6 +525,11 @@ namespace UNO {
             writer.WriteLine();
             writer.WriteLine("[Config]");
             writer.WriteLine("JSONLeaderboard={0}", this.JSONLeaderboard.ToString());
+            writer.WriteLine("GameCount={0}", this.GameCount);
+            if (this.RandomOrgAPIKey != null) writer.WriteLine("RandomOrgAPIKey={0}", this.RandomOrgAPIKey);
+            if (this.UserAgent != null) writer.WriteLine("UserAgent={0}", this.UserAgent);
+            writer.WriteLine("RecordRandomData={0}", this.RecordRandomData ? "Yes" : "No");
+            if (this.RandomDataURL != null) writer.WriteLine("RandomDataURL={0}", this.RandomDataURL);
             if (this.GuideURL != null) writer.WriteLine("GuideURL={0}", this.GuideURL);
             writer.WriteLine();
             writer.WriteLine("[Game]");
@@ -542,7 +588,15 @@ namespace UNO {
             writer.Close();
         }
 
-        public void LoadStats(string filename) {
+        public void SaveData() {
+            Directory.CreateDirectory(Path.Combine("data", this.Key));
+            File.WriteAllText(Path.Combine("data", this.Key, "gamecount.txt"), this.GameCount.ToString());
+        }
+
+        public void LoadStats() {
+            var filename = Path.Combine("data", this.Key, "stats.dat");
+            if (!File.Exists(filename)) filename = this.Key + "-stats.dat";
+
             if (File.Exists(filename)) {
                 using (BinaryReader reader = new BinaryReader(File.Open(filename, FileMode.Open, FileAccess.Read))) {
                     short version = reader.ReadInt16();
@@ -719,8 +773,9 @@ namespace UNO {
             this.StatsPeriodEnd = DateTime.FromBinary(reader.ReadInt64());
         }
 
-        public void SaveStats(string filename) {
-            BinaryWriter writer = new BinaryWriter(File.Open(filename, FileMode.Create));
+        public void SaveStats() {
+            Directory.CreateDirectory(Path.Combine("data", this.Key));
+            BinaryWriter writer = new BinaryWriter(File.Open(Path.Combine("data", this.Key, "stats.dat"), FileMode.Create));
 
             // Version number
             writer.Write((short) 4);
@@ -791,7 +846,7 @@ namespace UNO {
             writer.Write(this.StatsPeriodEnd.ToBinary());
             writer.Close();
         }
-#endregion
+        #endregion
 
         [Command(new string[] { "set", "uset" }, 1, 2, "set <property> <value>", "Changes settings for this plugin.")]
         public void CommandSet(object sender, CommandEventArgs e) {
@@ -1181,7 +1236,7 @@ namespace UNO {
                             else
                                 Bot.Say(e.Client, e.Channel, "\u0002{0}\u0002,  your cards will be sorted \u00039by colour\u000F.", e.Sender.Nickname);
                         } else
-                                Bot.Say(e.Client, e.Channel, "\u0002{0}\u0002,  your cards will be sorted \u00039by colour\u000F.", e.Sender.Nickname);
+                            Bot.Say(e.Client, e.Channel, "\u0002{0}\u0002,  your cards will be sorted \u00039by colour\u000F.", e.Sender.Nickname);
                     } else {
                         if (!this.PlayerSettings.TryGetValue(e.Sender.Nickname, out player))
                             this.PlayerSettings.Add(e.Sender.Nickname, player = new PlayerSettings());
@@ -1267,7 +1322,7 @@ namespace UNO {
             Bot.Say(e.Client, e.Sender.Nickname, "For help with this UNO game, see " + (this.GuideURL ?? "http://questers-rest.andriocelos.ml/irc/uno/guide"));
         }
 
-#region Preparation
+        #region Preparation
         [Regex("^jo$")]
         public void RegexJoin(object sender, RegexEventArgs e) {
             Game game;
@@ -1682,7 +1737,10 @@ namespace UNO {
                 // Start the game.
                 game.IsOpen = false;
                 game.PlayersOut = new List<int>(game.Players.Count);
-                game.RNG = new Random();
+
+                // Wait for the shuffle to finish.
+                lock (Game.LockShuffle) { }
+
                 for (int i = 0; i < game.Players.Count; i++) {
                     this.GetStats(this.ScoreboardCurrent, game.Connection, game.Channel, game.Players[i].Name, true).Plays++;
                     this.GetStats(this.ScoreboardAllTime, game.Connection, game.Channel, game.Players[i].Name, true).Plays++;
@@ -1746,6 +1804,7 @@ namespace UNO {
                 game.IdleTurn = game.Turn;
                 this.ShowHand(game, game.Turn);
                 game.StartTime = DateTime.Now;
+                game.record.time = DateTime.UtcNow;
                 this.StartGameTimer(game);
             }
             this.AICheck(game);
@@ -1762,14 +1821,16 @@ namespace UNO {
                 lock (game.Lock) {
                     game.GameTimer.Stop();
                     game.Ended = true;
+                    game.record.duration = DateTime.UtcNow - game.record.time;
+                    if (this.RecordRandomData) game.WriteRecord();
                     this.Games.Remove(key);
                     Bot.Say(e.Client, e.Channel, "\u000313The game has been cancelled.");
                 }
             }
         }
-#endregion
+        #endregion
 
-#region Gameplay
+        #region Gameplay
         public byte[] DealCards(Game game, int playerIndex, int number, bool initialDraw = false, bool showMessage = true) {
             byte[] cards = this.DrawCards(game, number);
 
@@ -1856,29 +1917,23 @@ namespace UNO {
             bool deckEmptyMessage = false;
             for (int i = 0; i < number; i++) {
                 // First, make sure that there are cards left.
-                if (game.Deck.Count == 0) {
+                if (game.EndOfDeck) {
+                    if (game.Discards.Count <= 1) {
+                        // There are no cards left to draw!
+                        Bot.Say(game.Connection, game.Channel, "\u000312There are \u0002still\u0002 no cards left!");
+                        Thread.Sleep(600);
+                        for (; i < number; i++)
+                            cards[i] = 128;
+                        return cards;
+                    }
                     if (!deckEmptyMessage) {
                         Bot.Say(game.Connection, game.Channel, "\u000312There are no cards left. Let's shuffle the discards back into the deck...");
                         Thread.Sleep(600);
                         deckEmptyMessage = true;
                     }
-                    byte upCard = game.Discards[game.Discards.Count - 1];
-                    game.Discards.RemoveAt(game.Discards.Count - 1);
-                    game.Deck = game.Discards;
-                    game.Discards = new List<byte>(108);
-                    game.Discards.Add(upCard);
+                    game.Shuffle();
                 }
-                if (game.Deck.Count == 0) {
-                    // There are no cards left to draw!
-                    Bot.Say(game.Connection, game.Channel, "\u000312There are \u0002still\u0002 no cards left!");
-                    Thread.Sleep(600);
-                    for (; i < number; i++)
-                        cards[i] = 128;
-                    return cards;
-                }
-                int index = game.RNG.Next(game.Deck.Count);
-                cards[i] = game.Deck[index];
-                game.Deck.RemoveAt(index);
+                cards[i] = game.DrawCard();
             }
             return cards;
         }
@@ -2548,7 +2603,7 @@ namespace UNO {
                         game.Connection.Send("NOTICE " + game.Players[game.HintRecipient].Name + " :\u00032[\u000312?\u00032]\u000F " + UNOPlugin.Hints[game.Hint]);
                     else
                         game.Connection.Send("NOTICE " + game.Players[game.HintRecipient].Name + " :\u00032[\u000312?\u00032]\u000F " + string.Format(UNOPlugin.Hints[game.Hint], game.HintParameters));
-                    
+
                     if (game.Hint <= 2) game.Hint = 0;
                     player.HintsSeen[game.Hint] = true;
                 }
@@ -2556,7 +2611,7 @@ namespace UNO {
             }
             ConsoleUtils.WriteLine("%cRED[{0}] Error: a game hint timer triggered, and I can't find which game it belongs to!", this.Key);
         }
-        
+
         public void ShowHint(Game game, int recipient, int index, int delay, params object[] parameters) {
             game.HintRecipient = recipient;
             game.Hint = index;
@@ -2808,8 +2863,6 @@ namespace UNO {
                     Bot.Say(game.Connection, game.Channel, "\u000312\u0002{0}\u0002 draws four cards.", game.Players[game.Turn].Name);
                     Thread.Sleep(600);
                     this.DealCards(game, game.Turn, 4, false);
-                    game.DrawFourChallenger = -1;
-                    game.DrawFourUser = -1;
                 } else if (game.DrawnCard != 255)
                     game.DrawnCard = 255;
                 else if ((game.WildColour & 64) != 0)
@@ -2905,6 +2958,8 @@ namespace UNO {
             // Calculate the duration.
             TimeSpan time; string timeMessage; string minutes = null; string seconds = null;
             time = DateTime.Now - game.StartTime;
+            game.record.duration = time;
+            if (this.RecordRandomData) game.WriteRecord();
 
             int winnerCount = game.PlayersOut.Count;
             int playerCount = game.Players.Count(player => player.Presence != PlayerPresence.Left);
@@ -3029,6 +3084,9 @@ namespace UNO {
                 }
             }
 
+            if (this.RandomDataURL != null)
+                Bot.Say(game.Connection, game.Channel, "\u000312Random number data for this game may be found here: " + this.RandomDataURL, game.index);
+
             // Remove the game and save the scores.
             game.GameTimer.Dispose();
             this.Games.Remove(game.Connection.NetworkName + "/" + game.Channel);
@@ -3063,9 +3121,9 @@ namespace UNO {
                 this.AICheck(game);
             }
         }
-#endregion
+        #endregion
 
-#region Reminder commands
+        #region Reminder commands
         [Regex(@"^tu(?!\S)", null, CommandScope.Channel)]
         public void RegexTurn(object sender, RegexEventArgs e) {
             this.CommandTurn(sender, new CommandEventArgs(e.Client, e.Channel, e.Sender,
@@ -3179,9 +3237,9 @@ namespace UNO {
             if (!this.Games.TryGetValue(key, out game)) {
                 if (e.Parameters.Length == 0 || e.Parameters[0] != null)
                     Bot.Say(e.Client, e.Sender.Nickname, "There's no game going on at the moment.");
-            //} else if (game.IsOpen) {
-            //    if (e.Parameters.Length == 0 || e.Parameters[0] != null)
-            //        Bot.Say(e.Connection, e.Sender.Nickname, "The game hasn't started yet!");
+                //} else if (game.IsOpen) {
+                //    if (e.Parameters.Length == 0 || e.Parameters[0] != null)
+                //        Bot.Say(e.Connection, e.Sender.Nickname, "The game hasn't started yet!");
             } else {
                 lock (game.Lock) {
                     this.CheckTimerReset(game);
@@ -3270,9 +3328,9 @@ namespace UNO {
                 game.GameTimer.Start();
             }
         }
-#endregion
+        #endregion
 
-#region Cheats
+        #region Cheats
 #if (DEBUG)
         [Command(new string[] { "gimme", "ugimme" }, 0, 1, "ugimme [card]", "Gives you any card. If you're not a developer, you shouldn't be seeing this...")]
         public void CommandCheatGive(object sender, CommandEventArgs e) {
@@ -3314,9 +3372,9 @@ namespace UNO {
             }
         }
 #endif
-#endregion
+        #endregion
 
-#region Statistics
+        #region Statistics
         public PlayerStats GetStats(Dictionary<string, PlayerStats> list, IRCClient connection, string channel, string nickname, bool add = false) {
             string name = nickname;  // TODO: Add some sort of authentication to this.
             PlayerStats stats;
@@ -3950,7 +4008,7 @@ namespace UNO {
             bool firstEntry = true;
             List<PlayerStats> top = UNOPlugin.SortLeaderboard(list, sortKey);
             foreach (PlayerStats entry in top) {
-                if (firstEntry) 
+                if (firstEntry)
                     firstEntry = false;
                 else
                     writer.Write(",");
@@ -3987,7 +4045,7 @@ namespace UNO {
             writer.Write("\"");
         }
 
-#endregion
+        #endregion
 
 
     }
