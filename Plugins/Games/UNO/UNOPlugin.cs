@@ -10,27 +10,27 @@ using System.Timers;
 using CBot;
 using IRC;
 
-namespace UNO
-{
+using Timer = System.Timers.Timer;
+
+namespace UNO {
     [APIVersion(3, 2)]
-    public class UNOPlugin : Plugin
-    {
+    public class UNOPlugin : Plugin {
         public static readonly string[] Hints = new string[] {
-            "It's your turn. Enter \u0002!play \u001Fcard\u000F to play a card from your hand with a matching colour, number or symbol. Here, you can play a {0} card, a {1} or a Wild card. If you have none, enter \u0002!draw\u0002.",
-            "It's your turn. Enter \u0002!play \u001Fcard\u000F to play a card from your hand with a matching colour, number or symbol. Here, you can play a {0} card or a Wild card. If you have none, enter \u0002!draw\u0002.",
-            "It's your turn. Enter \u0002!play \u001Fcard\u000F to play a card from your hand with a matching colour, number or symbol. Here, no colour was chosen for the Wild card, so you may play anything. If you have none, enter \u0002!draw\u0002.",
-            "If the card you just drew is playable, you may play it now. Otherwise, enter \u0002!pass\u0002.",
-            "Your goal is to go out, by playing all of your cards, before the other players do. There are special action cards that, when played, can hinder the next player from doing this.",
-            "If you lose track of the game, try using these commands: \u0002!hand !upcard !count !turn !time",
-            "Reverse cards act like Skips with two players. Go again!",
-            "In UNO, you must call 'UNO!' when you're down to one card. I don't enforce this rule here, though.",
-            "Keep in mind that I enforce a time limit. If you time out twice in a row, you'll be presumed gone.",
-            "I'm afraid you've timed out. It's still your turn, and you may still play if {0} doesn't jump in first.",
-            "Remember, you're not allowed to play a Wild Draw Four if you hold a card whose colour matches the up-card. You may \u0002!challenge\u0002 this Wild Draw Four if you think it's illegal; otherwise, \u0002!draw\u0002.",
-            "If you want to stop seeing these hints, enter \u0002!uset hints off\u0002. If you would like them reset, enter \u0002!uset hints reset\u0002.",
-            "At the end of the game, those who go out are awarded points based on the cards their opponents still have. You can check the leaderboard with \u0002!utop\u0002.",
-            "Welcome to UNO! A guide to the game can be found at http://andriocelos.ml/irc/uno/guide/\u000F.",
-            "If you want to leave the game, you may do so using \u0002!uquit\u0002."
+            /*  0 */ "It's your turn. Enter \u0002!play \u001Fcard\u000F to play a card from your hand with a matching colour, number or symbol. Here, you can play a {0} card, a {1} or a Wild card. If you have none, enter \u0002!draw\u0002.",
+            /*  1 */ "It's your turn. Enter \u0002!play \u001Fcard\u000F to play a card from your hand with a matching colour, number or symbol. Here, you can play a {0} card or a Wild card. If you have none, enter \u0002!draw\u0002.",
+            /*  2 */ "It's your turn. Enter \u0002!play \u001Fcard\u000F to play a card from your hand with a matching colour, number or symbol. Here, no colour was chosen for the Wild card, so you may play anything. If you have none, enter \u0002!draw\u0002.",
+            /*  3 */ "If the card you just drew is playable, you may play it now. Otherwise, enter \u0002!pass\u0002.",
+            /*  4 */ "Your goal is to go out, by playing all of your cards, before the other players do. There are special action cards that, when played, can hinder the next player from doing this.",
+            /*  5 */ "If you lose track of the game, try using these commands: \u0002!hand !upcard !count !turn !time",
+            /*  6 */ "Reverse cards act like Skips with two players. Go again!",
+            /*  7 */ "In UNO, you must call 'UNO!' when you're down to one card. I don't enforce this rule here, though.",
+            /*  8 */ "Keep in mind that I enforce a time limit. If you time out twice in a row, you'll be presumed gone.",
+            /*  9 */ "I'm afraid you've timed out. It's still your turn, and you may still play if {0} doesn't jump in first.",
+            /* 10 */ "Remember, you're not allowed to play a Wild Draw Four if you hold a card whose colour matches the up-card. You may \u0002!challenge\u0002 this Wild Draw Four if you think it's illegal; otherwise, \u0002!draw\u0002.",
+            /* 11 */ "If you want to stop seeing these hints, enter \u0002!uset hints off\u0002. If you would like them reset, enter \u0002!uset hints reset\u0002.",
+            /* 12 */ "At the end of the game, those who go out are awarded points based on the cards their opponents still have. You can check the leaderboard with \u0002!utop\u0002.",
+            /* 13 */ "Welcome to UNO! A guide to the game can be found at {0}.",
+            /* 14 */ "If you want to leave the game, you may do so using \u0002!uquit\u0002.",
         };
 
         public Dictionary<string, Game> Games;
@@ -39,7 +39,7 @@ namespace UNO
         public Dictionary<string, PlayerStats> ScoreboardLast;
         public Dictionary<string, PlayerStats> ScoreboardAllTime;
         public DateTime StatsPeriodEnd;
-        public System.Timers.Timer StatsResetTimer;
+        public Timer StatsResetTimer;
 
         public LeaderboardMode JSONLeaderboard;
 
@@ -62,6 +62,8 @@ namespace UNO
         public bool HandBonus;
         public int ParticipationBonus;
         public int QuitPenalty;
+
+        public string GuideURL;
 
         public static readonly Regex CardParseExpression = new Regex(@"
             (?# Colour) ^(?:(r(?:ed)?)|(y(?:ellow)?)|(g(?:reen)?)|(b(?:lue)?))\ *
@@ -144,13 +146,13 @@ namespace UNO
             }
         }
 
-        public UNOPlugin(string key) {
+        public override void Initialize() {
             this.Games = new Dictionary<string, Game>(StringComparer.InvariantCultureIgnoreCase);
             this.PlayerSettings = new Dictionary<string, PlayerSettings>(StringComparer.InvariantCultureIgnoreCase);
             this.ScoreboardCurrent = new Dictionary<string, PlayerStats>(StringComparer.InvariantCultureIgnoreCase);
             this.ScoreboardLast = new Dictionary<string, PlayerStats>(StringComparer.InvariantCultureIgnoreCase);
             this.ScoreboardAllTime = new Dictionary<string, PlayerStats>(StringComparer.InvariantCultureIgnoreCase);
-            this.StatsResetTimer = new System.Timers.Timer(3600e+3) { AutoReset = false };  // 1 hour
+            this.StatsResetTimer = new Timer(3600e+3) { AutoReset = false };  // 1 hour
             this.StatsResetTimer.Elapsed += this.StatsResetTimer_Elapsed;
 
             // Load the default settings.
@@ -169,8 +171,8 @@ namespace UNO
             this.HandBonus = true;
 
             int version;
-            this.LoadConfig(key, out version);
-            this.LoadStats(key + "-stats.dat");
+            this.LoadConfig(this.Key, out version);
+            this.LoadStats(this.Key + "-stats.dat");
 
             if (version < 4) {
                 foreach (KeyValuePair<string, PlayerSettings> player in this.PlayerSettings) {
@@ -284,6 +286,9 @@ namespace UNO
                                                 ConsoleUtils.WriteLine("[{0}] Problem loading the configuration (line {1}): the value is invalid (expected 'off', 'unsorted', 'sortedbyname', 'sortedbyscore', 'sortedbyplays', 'sortedbywins' or 'sortedbychallenge').", this.Key, lineNumber);
                                                 break;
                                         }
+                                        break;
+                                    case "GUIDEURL":
+                                        this.GuideURL = value;
                                         break;
                                     default:
                                         if (!string.IsNullOrWhiteSpace(field)) ConsoleUtils.WriteLine("[{0}] Problem loading the configuration (line {1}): the field name is unknown.", this.Key, lineNumber);
@@ -479,6 +484,7 @@ namespace UNO
             writer.WriteLine();
             writer.WriteLine("[Config]");
             writer.WriteLine("JSONLeaderboard={0}", this.JSONLeaderboard.ToString());
+            if (this.GuideURL != null) writer.WriteLine("GuideURL={0}", this.GuideURL);
             writer.WriteLine();
             writer.WriteLine("[Game]");
             writer.WriteLine("AI={0}", this.AIEnabled ? "On" : "Off");
@@ -549,7 +555,7 @@ namespace UNO
                 this.ScoreboardCurrent = new Dictionary<string, PlayerStats>(StringComparer.InvariantCultureIgnoreCase);
                 this.ScoreboardLast = new Dictionary<string, PlayerStats>(StringComparer.InvariantCultureIgnoreCase);
                 this.ScoreboardAllTime = new Dictionary<string, PlayerStats>(StringComparer.InvariantCultureIgnoreCase);
-                this.StatsResetTimer = new System.Timers.Timer(3600e+3) { AutoReset = false };  // 1 hour
+                this.StatsResetTimer = new Timer(3600e+3) { AutoReset = false };  // 1 hour
             }
         }
 
@@ -951,7 +957,7 @@ namespace UNO
                                 Bot.Say(e.Client, e.Channel, "The turn time limit is now \u0002{0}\u0002 seconds.", this.TurnTime);
                             // Reset the existing turn timers.
                             foreach (Game game in this.Games.Values)
-                                game.GameTimer.Interval = this.TurnTime == 0 ? 60e+3 : (this.TurnTime * 1e+3);
+                                if (!game.IsOpen) game.GameTimer.Interval = this.TurnTime == 0 ? 60e+3 : (this.TurnTime * 1e+3);
                         } else
                             Bot.Say(e.Client, e.Sender.Nickname, "The number cannot be negative.", value);
                     } else
@@ -1258,7 +1264,7 @@ namespace UNO
 
         [Command(new string[] { "uhelp" }, 0, 1, "uhelp", "Gives information about the UNO game.")]
         public void CommandHelp(object sender, CommandEventArgs e) {
-            Bot.Say(e.Client, e.Sender.Nickname, "For help with this UNO game, see http://andriocelos.ml/irc/uno/guide/");
+            Bot.Say(e.Client, e.Sender.Nickname, "For help with this UNO game, see " + (this.GuideURL ?? "http://questers-rest.andriocelos.ml/irc/uno/guide"));
         }
 
 #region Preparation
@@ -1277,7 +1283,7 @@ namespace UNO
                 this.EntryCommand(game, e.Sender.Nickname);
             else {
                 // Start a new game.
-                game = new Game(e.Client, e.Channel, this.EntryTime) { IsOpen = true };
+                game = new Game(this, e.Client, e.Channel, this.EntryTime) { IsOpen = true };
                 lock (game.Lock) {
                     this.Games.Add(key, game);
                     game.Players.Add(new Player(e.Sender.Nickname));
@@ -1370,7 +1376,6 @@ namespace UNO
                         return;
                     }
                     game.GameTimer.Stop();
-                    // TODO: Add a !uwait command, like in Werewolf.
                     this.GameClose(game);
                 }
             }
@@ -1444,11 +1449,11 @@ namespace UNO
                 this.PlayerSettings.Add(nickname, playerSettings = new PlayerSettings());
             else if (!playerSettings.Hints) return;
             if (!playerSettings.HintsSeen[13])
-                this.ShowHint(game, game.Players.Count - 1, 13, 3, null);
+                this.ShowHint(game, game.Players.Count - 1, 13, 3, this.GuideURL ?? "http://questers-rest.andriocelos.ml/irc/uno/guide");
             else if (!playerSettings.HintsSeen[14])
-                this.ShowHint(game, game.Players.Count - 1, 14, 3, null);
+                this.ShowHint(game, game.Players.Count - 1, 14, 3);
             else if (playerSettings.HintsSeen[0] && !playerSettings.HintsSeen[11])
-                this.ShowHint(game, game.Players.Count - 1, 11, 3, null);
+                this.ShowHint(game, game.Players.Count - 1, 11, 3);
         }
 
         [Command(new string[] { "quit", "uquit", "leave", "uleave", "part", "upart" }, 0, 0, "uquit", "Removes you from the game of UNO.",
@@ -1695,15 +1700,15 @@ namespace UNO
                 do {
                     Thread.Sleep(600);
                     game.Discards.Add(card = this.DrawCards(game, 1)[0]);
-                    string message1 = "\u000312The first up-card is: " + UNOPlugin.ShowCard(card);
+                    string message1 = "\u000312The first up-card is " + UNOPlugin.ShowCard(card) + "\u000312.";
                     string message2;
                     bool draw = false;
 
                     switch (card) {
                         case 65:
-                            // Wild Draw Four: put it back.
+                            // Wild Draw Four; put it back.
                             game.Deck.Add(card);
-                            game.Discards.RemoveAt(game.Discards.Count - 1);
+                            game.Discards.RemoveAt(0);
                             continue;
                         case 10: case 26: case 42: case 58:
                             // Reverse card
@@ -2045,7 +2050,7 @@ namespace UNO
 
             byte upCard = game.Discards[game.Discards.Count - 1];
             byte currentColour;
-            if ((game.Discards[game.Discards.Count - 1] & 64) != 0)
+            if ((upCard & 64) != 0)
                 currentColour = (byte) game.WildColour;
             else
                 currentColour = (byte) (game.Discards[game.Discards.Count - 1] & 48);
@@ -2080,6 +2085,7 @@ namespace UNO
             game.GameTimer.Stop();
             game.WildColour = 128;
             this.IdleSkip(game, playerIndex);
+            if (game.Ended) return;
 
             // Check the Wild Draw Four colour.
             if (card == 65)
@@ -2253,7 +2259,6 @@ namespace UNO
             if (goneOut)
                 this.AwardPoints(game, playerIndex);
             if (endOfGame) {
-                game.GameEnded = true;
                 this.EndGame(game);
             } else {
                 if (goneOut) {
@@ -2306,6 +2311,7 @@ namespace UNO
                 Bot.Say(game.Connection, game.Players[playerIndex].Name, "You've already drawn a card this turn. Say \u0002!pass\u0002 to end your turn.");
             } else {
                 this.IdleSkip(game, playerIndex);
+                if (game.Ended) return;
 
                 if (game.DrawFourChallenger == playerIndex) {
                     // The victim of a Wild Draw Four may enter the draw command if they don't want to challenge it.
@@ -2332,7 +2338,7 @@ namespace UNO
                         this.PlayerSettings.Add(game.Players[playerIndex].Name, player = new PlayerSettings());
                     else if (!player.Hints) return;
                     if (!player.HintsSeen[5])
-                        this.ShowHint(game, game.Turn, 5, 15, null);
+                        this.ShowHint(game, game.Turn, 5, 15);
                 }
             }
         }
@@ -2369,6 +2375,7 @@ namespace UNO
             } else {
                 game.GameTimer.Stop();
                 this.IdleSkip(game, playerIndex);
+                if (game.Ended) return;
                 game.Advance();
                 Bot.Say(game.Connection, game.Channel, "\u000312\u0002{0}\u0002 passes to \u0002{1}\u0002.", game.Players[playerIndex].Name, game.Players[game.Turn].Name);
                 Thread.Sleep(600);
@@ -2455,6 +2462,7 @@ namespace UNO
                     }
                 } else {
                     this.IdleSkip(game, playerIndex);
+                    if (game.Ended) return;
                     game.WildColour = colour;
                     Bot.Say(game.Connection, game.Channel, "\u000312\u0002{0}\u0002 chooses {1}\u000312.", game.Players[playerIndex].Name, colourMessage);
                 }
@@ -2482,6 +2490,7 @@ namespace UNO
             // Challenging a Wild Draw Four.
             game.GameTimer.Stop();
             this.IdleSkip(game, playerIndex);
+            if (game.Ended) return;
 
             if (this.ShowHandOnChallenge && game.Players[game.DrawFourChallenger].Name != game.Connection.Me.Nickname) {
                 StringBuilder messageBuilder = new StringBuilder();
@@ -2548,7 +2557,7 @@ namespace UNO
             ConsoleUtils.WriteLine("%cRED[{0}] Error: a game hint timer triggered, and I can't find which game it belongs to!", this.Key);
         }
         
-        public void ShowHint(Game game, int recipient, int index, int delay, object[] parameters) {
+        public void ShowHint(Game game, int recipient, int index, int delay, params object[] parameters) {
             game.HintRecipient = recipient;
             game.Hint = index;
             game.HintTimer.Interval = delay * 1000;
@@ -2573,7 +2582,7 @@ namespace UNO
                 if (game.IdleTurn == game.Turn) {
                     if (game.DrawFourChallenger == game.Turn) {
                         if (!player.HintsSeen[10])
-                            this.ShowHint(game, game.Turn, 10, 15, null);
+                            this.ShowHint(game, game.Turn, 10, 15);
                     } else {
                         if (!player.HintsSeen[0]) {
                             byte card = game.Discards[game.Discards.Count - 1];
@@ -2615,18 +2624,18 @@ namespace UNO
                                     rank = "\u00034unknown rank\u000F";
                                 }
                             }
-                            this.ShowHint(game, game.Turn, index, 15, new object[] { colour, rank });
+                            this.ShowHint(game, game.Turn, index, 15, colour, rank);
                         } else if (!player.HintsSeen[4]) {
-                            this.ShowHint(game, game.Turn, 4, 15, null);
+                            this.ShowHint(game, game.Turn, 4, 15);
                         } else if (!player.HintsSeen[5]) {
-                            this.ShowHint(game, game.Turn, 5, 30, null);
-                        } else if (!player.HintsSeen[6]) {
-                            this.ShowHint(game, game.Turn, 6, this.TurnTime * 2 / 3, null);
+                            this.ShowHint(game, game.Turn, 5, 30);
+                        } else if (!player.HintsSeen[8] && this.TurnTime != 0) {
+                            this.ShowHint(game, game.Turn, 8, this.TurnTime * 2 / 3);
                         }
                     }
                 } else {
                     if (!player.HintsSeen[9])
-                        this.ShowHint(game, game.Turn, 9, 5, new object[] { game.Players[game.IdleTurn].Name });
+                        this.ShowHint(game, game.Turn, 9, 5, game.Players[game.IdleTurn].Name);
                 }
             }
         }

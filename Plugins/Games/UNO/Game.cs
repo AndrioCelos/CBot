@@ -1,15 +1,14 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.Linq;
-using System.Text;
 using System.Timers;
 
 using IRC;
 
 namespace UNO {
     public class Game {
-        public IRCClient Connection { get; }
-        public string Channel { get; }
+        public UNOPlugin Plugin { get; }
+        public IRCClient Connection { get; internal set; }
+        public string Channel { get; internal set; }
 
         public bool IsOpen;
         public bool Ended;
@@ -37,7 +36,6 @@ namespace UNO {
         public byte DrawFourBadColour;
         public int DrawFourUser;
         public int DrawFourChallenger;
-        public bool GameEnded;
 
         public short CardsPlayed;
         public short TurnNumber;
@@ -46,10 +44,11 @@ namespace UNO {
         internal List<byte> Discards;
         internal byte WildColour;
 
-        internal Random RNG;
-        internal object Lock;
+        internal Random RNG = new Random();
+        internal object Lock = new object();
 
-        public Game(IRCClient connection, string channel, int entryTime) {
+        public Game(UNOPlugin plugin, IRCClient connection, string channel, int entryTime) {
+            this.Plugin = plugin;
             this.Players = new List<Player>(10);
             this.DrawnCard = 255;
             this.DrawFourBadColour = (byte) Colour.None;
@@ -57,7 +56,6 @@ namespace UNO {
             this.Discards = new List<byte>(108);
             this.WildColour = (byte) Colour.None;
             this.RecordBreakers = new List<string>(4);
-            this.Lock = new object();
             this.DrawFourChallenger = -1;
             this.DrawFourUser = -1;
             this.DrawFourBadColour = 128;
