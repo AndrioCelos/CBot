@@ -19,7 +19,7 @@ namespace UNO {
         public bool IsOpen;
         public bool Ended;
         public DateTime StartTime;
-
+        
         public Timer GameTimer;
         public DateTime TurnStartTime;
         public int WaitTime;
@@ -42,6 +42,7 @@ namespace UNO {
         public byte DrawFourBadColour;
         public int DrawFourUser;
         public int DrawFourChallenger;
+        public int DrawCount;
 
         public short CardsPlayed;
         public short TurnNumber;

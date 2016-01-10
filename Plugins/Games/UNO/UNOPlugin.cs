@@ -33,6 +33,7 @@ namespace UNO {
             /* 12 */ "At the end of the game, those who go out are awarded points based on the cards their opponents still have. You can check the leaderboard with \u0002!utop\u0002.",
             /* 13 */ "Welcome to UNO! A guide to the game can be found at {0}.",
             /* 14 */ "If you want to leave the game, you may do so using \u0002!uquit\u0002.",
+            /* 15 */ "Progressive UNO is enabled. You can play your own Draw card of the same type on top of this one to pass it on, or \u0002!draw\u0002 to take the attack."
         };
 
         public Dictionary<string, Game> Games;
@@ -58,6 +59,8 @@ namespace UNO {
         public int TurnWaitLimit;
         public WildDrawFourRule WildDrawFour;
         public bool ShowHandOnChallenge;
+        public bool Progressive;
+        public int ProgressiveCap;
 
         // Scoring
         public bool VictoryBonus;
@@ -175,6 +178,8 @@ namespace UNO {
             this.WildDrawFour = WildDrawFourRule.AllowBluffing;
             this.ShowHandOnChallenge = true;
 
+            this.ProgressiveCap = 8;
+
             this.VictoryBonus = true;
             this.VictoryBonusValue = new int[] { 30, 10, 5 };
             this.HandBonus = true;
@@ -212,7 +217,7 @@ namespace UNO {
             base.OnUnload();
         }
 
-        #region Filing
+#region Filing
         public void LoadConfig(string key, out int version) {
             version = 0;
             string filename = Path.Combine("Config", key + ".ini");
@@ -436,6 +441,14 @@ namespace UNO {
                                         if (Bot.TryParseBoolean(value, out value2)) this.ShowHandOnChallenge = value2;
                                         else ConsoleUtils.WriteLine("[{0}] Problem loading the configuration (line {1}): the value is invalid (expected 'yes' or 'no').", this.Key, lineNumber);
                                         break;
+                                    case "PROGRESSIVE":
+                                        if (Bot.TryParseBoolean(value, out value2)) this.Progressive = value2;
+                                        else ConsoleUtils.WriteLine("[{0}] Problem loading the configuration (line {1}): the value is invalid (expected 'yes' or 'no').", this.Key, lineNumber);
+                                        break;
+                                    case "PROGRESSIVECAP":
+                                        if (int.TryParse(value, out value3) && value3 >= 0) this.ProgressiveCap = value3;
+                                        else ConsoleUtils.WriteLine("[{0}] Problem loading the configuration (line {1}): the value is invalid (expected a non-negative integer).", this.Key, lineNumber);
+                                        break;
                                     default:
                                         if (!string.IsNullOrWhiteSpace(field)) ConsoleUtils.WriteLine("[{0}] Problem loading the configuration (line {1}): the field name is unknown.", this.Key, lineNumber);
                                         break;
@@ -549,6 +562,8 @@ namespace UNO {
             else if (this.WildDrawFour == WildDrawFourRule.Free)
                 writer.WriteLine("WildDrawFour=Free");
             writer.WriteLine("ShowHandOnChallenge={0}", this.ShowHandOnChallenge ? "On" : "Off");
+            writer.WriteLine("Progressive={0}", this.Progressive ? "On" : "Off");
+            writer.WriteLine("ProgressiveCap={0}", this.ProgressiveCap);
             writer.WriteLine();
             writer.WriteLine("[Scoring]");
             writer.WriteLine("VictoryBonus={0}", this.VictoryBonus ? "On" : "Off");
@@ -846,7 +861,7 @@ namespace UNO {
             writer.Write(this.StatsPeriodEnd.ToBinary());
             writer.Close();
         }
-        #endregion
+#endregion
 
         [Command(new string[] { "set", "uset" }, 1, 2, "set <property> <value>", "Changes settings for this plugin.")]
         public void CommandSet(object sender, CommandEventArgs e) {
@@ -1194,6 +1209,39 @@ namespace UNO {
                     } else
                         Bot.Say(e.Client, e.Sender.Nickname, string.Format("I don't recognise '{0}' as a Boolean value. Please enter 'on' or 'off'.", value));
                     break;
+                case "PROGRESSIVE":
+                case "STACKING":
+                    if (!SetPermissionCheck(e)) return;
+                    if (value == null) {
+                        if (this.Progressive)
+                            Bot.Say(e.Client, e.Channel, "Progressive rules are \u00039enabled\u000F.");
+                        else
+                            Bot.Say(e.Client, e.Channel, "Progressive rules are \u00034disabled\u000F.");
+                    } else if (Bot.TryParseBoolean(value, out value3)) {
+                        if (this.Progressive = value3)
+                            Bot.Say(e.Client, e.Channel, "Progressive rules are now \u00039enabled\u000F.");
+                        else
+                            Bot.Say(e.Client, e.Channel, "Progressive rules are now\u00034disabled\u000F.");
+                    } else
+                        Bot.Say(e.Client, e.Sender.Nickname, string.Format("I don't recognise '{0}' as a Boolean value. Please enter 'on' or 'off'.", value));
+                    break;
+                case "PROGRESSIVECAP":
+                case "STACKINGCAP":
+                    if (!SetPermissionCheck(e)) return;
+                    if (value == null) {
+                        if (this.ProgressiveCap == int.MaxValue)
+                            Bot.Say(e.Client, e.Channel, "There is no stack cap.", this.ProgressiveCap);
+                        else
+                            Bot.Say(e.Client, e.Channel, "The stack cap is \u0002{0}\u0002 cards.", this.ProgressiveCap);
+                    } else if (int.TryParse(value, out value2)) {
+                        this.ProgressiveCap = value2;
+                        if (value2 == int.MaxValue)
+                            Bot.Say(e.Client, e.Channel, "The stack cap is now disabled.", this.ProgressiveCap);
+                        else
+                            Bot.Say(e.Client, e.Channel, "The stack cap is now \u0002{0}\u0002 cards.", this.ProgressiveCap);
+                    } else
+                        Bot.Say(e.Client, e.Sender.Nickname, string.Format("That isn't a valid integer.", value));
+                    break;
 
                 case "HIGHLIGHT":
                 case "PING":
@@ -1236,7 +1284,7 @@ namespace UNO {
                             else
                                 Bot.Say(e.Client, e.Channel, "\u0002{0}\u0002,  your cards will be sorted \u00039by colour\u000F.", e.Sender.Nickname);
                         } else
-                            Bot.Say(e.Client, e.Channel, "\u0002{0}\u0002,  your cards will be sorted \u00039by colour\u000F.", e.Sender.Nickname);
+                                Bot.Say(e.Client, e.Channel, "\u0002{0}\u0002,  your cards will be sorted \u00039by colour\u000F.", e.Sender.Nickname);
                     } else {
                         if (!this.PlayerSettings.TryGetValue(e.Sender.Nickname, out player))
                             this.PlayerSettings.Add(e.Sender.Nickname, player = new PlayerSettings());
@@ -1322,7 +1370,7 @@ namespace UNO {
             Bot.Say(e.Client, e.Sender.Nickname, "For help with this UNO game, see " + (this.GuideURL ?? "http://questers-rest.andriocelos.ml/irc/uno/guide"));
         }
 
-        #region Preparation
+#region Preparation
         [Regex("^jo$")]
         public void RegexJoin(object sender, RegexEventArgs e) {
             Game game;
@@ -1781,9 +1829,15 @@ namespace UNO {
                             break;
                         case 12: case 28: case 44: case 60:
                             // Draw Two card
-                            game.Turn = 1;
-                            message2 = string.Format("\u000312\u0002{0}\u0002 takes two cards; play will begin with \u0002{1}\u0002.", game.Players[0].Name, game.Players[game.Turn].Name);
-                            draw = true;
+                            if (Progressive) {
+                                game.Turn = 0;
+                                game.DrawCount = 2;
+                                message2 = string.Format("\u000312Now waiting on \u0002{0}\u0002's response.", game.Players[game.Turn].Name);
+                            } else {
+                                game.Turn = 1;
+                                message2 = string.Format("\u000312\u0002{0}\u0002 takes two cards; play will begin with \u0002{1}\u0002.", game.Players[0].Name, game.Players[game.Turn].Name);
+                                draw = true;
+                            }
                             break;
                         case 64:
                             // Wild card
@@ -1828,9 +1882,9 @@ namespace UNO {
                 }
             }
         }
-        #endregion
+#endregion
 
-        #region Gameplay
+#region Gameplay
         public byte[] DealCards(Game game, int playerIndex, int number, bool initialDraw = false, bool showMessage = true) {
             byte[] cards = this.DrawCards(game, number);
 
@@ -1949,8 +2003,12 @@ namespace UNO {
                       game.Players.Where(player => player.Presence == PlayerPresence.Playing).Skip(2).Any())) {
                     // In a two-player game, you can play a card right on top of your own Wild Draw Four.
                     Bot.Say(e.Client, e.Sender.Nickname, "Please choose a colour for your wild card. Say \u0002red\u0002, \u0002yellow\u0002, \u0002green\u0002 or \u0002blue\u0002.");
-                } else if (game.DrawFourChallenger == index) {
+                } else if (game.DrawFourChallenger == index && (!Progressive || card != 65)) {
                     Bot.Say(e.Client, e.Sender.Nickname, "That's a wild draw four. You must either \u0002!challenge\u0002 it, or say \u0002!draw\u0002 to take the four cards. Enter \u0002!uhelp drawfour\u0002 for more info.");
+                } else if (Progressive && index == game.Turn && (game.DrawCount > 0 && (card & 15) != (game.Discards[game.Discards.Count - 1] & 15))) {
+                    Bot.Say(e.Client, e.Sender.Nickname, "A Draw card has been played against you. You must either stack your own card of the same type, or say \u0002!draw\u0002 to take the penalty.");
+                } else if (Progressive && game.DrawCount >= ProgressiveCap) {
+                    Bot.Say(e.Client, e.Sender.Nickname, "You cannot stack any more.");
                 } else if (card == 128) {
                     Bot.Say(e.Client, e.Sender.Nickname, "Oops! That's not a valid card. Enter \u0002!uhelp commands\u0002 if you're stuck.");
                 } else {
@@ -1969,8 +2027,12 @@ namespace UNO {
                       game.Players.Where(player => player.Presence == PlayerPresence.Playing).Skip(2).Any())) {
                     // In a two-player game, you can play a card right on top of your own Wild Draw Four.
                     Bot.Say(e.Client, e.Sender.Nickname, "Please choose a colour for your wild card. Say \u0002red\u0002, \u0002yellow\u0002, \u0002green\u0002 or \u0002blue\u0002.");
-                } else if (game.DrawFourChallenger == index) {
+                } else if (game.DrawFourChallenger == index && (!Progressive || card != 65)) {
                     Bot.Say(e.Client, e.Sender.Nickname, "That's a wild draw four. You must either \u0002!challenge\u0002 it, or say \u0002!draw\u0002 to take the four cards. Enter \u0002!uhelp drawfour\u0002 for more info.");
+                } else if (Progressive && index == game.Turn && (game.DrawCount > 0 && (card & 15) != (game.Discards[game.Discards.Count - 1] & 15))) {
+                    Bot.Say(e.Client, e.Sender.Nickname, "A Draw card has been played against you. You must either stack your own card of the same type, or say \u0002!draw\u0002 to take the penalty.");
+                } else if (Progressive && game.DrawCount >= ProgressiveCap) {
+                    Bot.Say(e.Client, e.Sender.Nickname, "You cannot stack any more.");
                 } else if (card == 128) {
                     Bot.Say(e.Client, e.Sender.Nickname, "Oops! That's not a valid card. Enter \u0002!uhelp commands\u0002 if you're stuck.");
                 } else {
@@ -2152,39 +2214,41 @@ namespace UNO {
             // Did they go out?
             bool goneOut = (game.Players[playerIndex].Hand.Count == 0);
             bool hasUNO = (game.Players[playerIndex].Hand.Count == 1);
-            bool endOfGame;
+            bool stackEnded = false, endOfGame = false;
 
+            if ((card & 15) == (byte) Rank.DrawTwo) {
+                game.DrawCount += 2;
+            } else if (card == 65) {
+                game.DrawCount += 4;
+            }
+
+            // Check whether anyone has gone out.
             if (goneOut) {
-                game.Players[playerIndex].Presence = PlayerPresence.Out;
-                // Count the remaining players.
-                int inCount = 0; int outCount = 0;
-                foreach (Player player in game.Players) {
-                    if (player.Presence == PlayerPresence.Playing) ++inCount;
-                    else if (player.Presence == PlayerPresence.Out) ++outCount;
+                // They aren't yet out for certain if their play can be stacked onto.
+                if (!Progressive || game.DrawCount == 0 || game.DrawCount >= ProgressiveCap) {
+                    game.Players[playerIndex].Presence = PlayerPresence.Out;
+                    // Count the remaining players.
+                    int inCount = 0; int outCount = 0;
+                    foreach (Player player in game.Players) {
+                        if (player.Presence == PlayerPresence.Playing) ++inCount;
+                        else if (player.Presence == PlayerPresence.Out) ++outCount;
+                    }
+                    if (inCount < 2) endOfGame = true;
+                    else endOfGame = (outCount >= this.OutLimit);
                 }
-                if (inCount < 2) endOfGame = true;
-                else endOfGame = (this.OutLimit != int.MaxValue && outCount >= this.OutLimit);
-            } else
-                endOfGame = false;
+            }
 
             if (endOfGame) {
                 Bot.Say(game.Connection, game.Channel, "\u000312\u0002{0}\u0002 plays {1} \u000312and \u0002goes out\u0002!", game.Players[playerIndex].Name, UNOPlugin.ShowCard(card));
                 // If it's a Draw card, deal the cards.
-                if (card == 65) {
-                    int victim = game.NextPlayer();
+                if (game.DrawCount != 0) {
                     Thread.Sleep(600);
-                    Bot.Say(game.Connection, game.Channel, "\u000312\u0002{0}\u0002 draws four cards.", game.Players[victim].Name);
+                    Bot.Say(game.Connection, game.Channel, "\u000312\u0002{0}\u0002 draws {1} cards.", game.Players[game.NextPlayer()].Name, game.DrawCount);
+                    // DrawCount will never be one, so the singular isn't needed.
                     Thread.Sleep(600);
-                    this.DealCards(game, victim, 4, false);
-                } else if ((card & 15) == 12) {
-                    int victim = game.NextPlayer();
-                    Thread.Sleep(600);
-                    Bot.Say(game.Connection, game.Channel, "\u000312\u0002{0}\u0002 draws two cards.", game.Players[victim].Name);
-                    Thread.Sleep(600);
-                    this.DealCards(game, victim, 2, false);
+                    stackEnded = true;
                 }
             } else if ((card & 64) != 0) {
-                // Wild card
                 string colourMessage = "\u00035???";
                 if (colour == (byte) Colour.Red)
                     colourMessage = "\u00034red";
@@ -2195,13 +2259,62 @@ namespace UNO {
                 else if (colour == (byte) Colour.Blue)
                     colourMessage = "\u000312blue";
 
-                if (card == 64) {
+                if (card == 65) {
+                    // Wild Draw Four
+                    string message1, message2 = "", message3;
+                    bool draw = false; int victim = game.NextPlayer();
+
+                    if (!goneOut && this.WildDrawFour == WildDrawFourRule.AllowBluffing && (currentColour & 128) == 0) {
+                        // It can be challenged.
+                        game.DrawFourUser = playerIndex;
+                        game.DrawFourChallenger = game.NextPlayer();
+                        message3 = "\u000312Now waiting on \u0002{3}\u0002's response.";
+                        if (goneOut && Progressive && game.DrawCount < ProgressiveCap) goneOut = false;
+                    } else if (Progressive && game.DrawCount < ProgressiveCap) {
+                        // It can be stacked on.
+                        if (goneOut) goneOut = false;
+                        message3 = "\u000312Now waiting on \u0002{3}\u0002's response.";
+                    } else {
+                        // Deal the four-card punishment!
+                        message2 = "\u000312\u0002{3}\u0002 draws {4} cards. ";
+                        draw = true;
+                        message3 = "\u000312Play continues with \u0002{5}\u0002.";
+                    }
+
+                    if (colour == (byte) Colour.Pending) {
+                        game.WildColour = 192;
+                        message1 = "\u000312\u0002{0}\u0002 plays {1}\u000312";
+                    } else {
+                        game.WildColour = colour;
+                        if (goneOut) message1 = "\u000312\u0002{0}\u0002 plays {1}\u000312, chooses {2}";
+                        else message1 = "\u000312\u0002{0}\u0002 plays {1}\u000312 and chooses {2}";
+                    }
+
+                    if (goneOut) message1 += " and \u0002goes out\u0002!";
+                    else if (game.Players[game.Turn].Hand.Count == 0) message1 += " to \u0002go out\u0002!";  // It's not over yet; it can be stacked onto.
+                    else message1 += ".";
+
+                    if (colour != (byte) Colour.Pending) game.Advance();
+                    else message3 = "\u000312Choose a colour, \u0002{0}\u0002.";
+
+                    Bot.Say(game.Connection, game.Channel, message1, game.Players[playerIndex].Name, ShowCard(card), colourMessage, game.Players[victim].Name, game.DrawCount, game.Players[game.Turn].Name);
+                    Thread.Sleep(600);
+                    Bot.Say(game.Connection, game.Channel, message2 + message3, game.Players[playerIndex].Name, ShowCard(card), colourMessage, game.Players[victim].Name, game.DrawCount, game.Players[game.Turn].Name);
+                    Thread.Sleep(600);
+                    if (draw) {
+                        DealCards(game, victim, game.DrawCount);
+                        game.DrawCount = 0;
+                        stackEnded = true;
+                        game.Advance();
+                    }
+                } else {
+                    // Wild
                     if (colour == (byte) Colour.Pending) {
                         game.WildColour = 192;
                         if (goneOut)
                             Bot.Say(game.Connection, game.Channel, "\u000312\u0002{0}\u0002 plays {1} \u000312and \u0002goes out\u0002! Choose a colour, {0}.", game.Players[playerIndex].Name, UNOPlugin.ShowCard(card));
                         else
-                            Bot.Say(game.Connection, game.Channel, "\u000312\u0002{0}\u0002 plays {1} \u000312Choose a colour for the wild card, {0}.", game.Players[playerIndex].Name, UNOPlugin.ShowCard(card));
+                            Bot.Say(game.Connection, game.Channel, "\u000312\u0002{0}\u0002 plays {1} \u000312Choose a colour, {0}.", game.Players[playerIndex].Name, UNOPlugin.ShowCard(card));
                     } else {
                         game.WildColour = colour;
                         game.Advance();
@@ -2212,66 +2325,30 @@ namespace UNO {
                         } else
                             Bot.Say(game.Connection, game.Channel, "\u000312\u0002{0}\u0002 plays {1} \u000312to \u0002{3}\u0002 and chooses {2}\u000312.", game.Players[playerIndex].Name, UNOPlugin.ShowCard(card), colourMessage, game.Players[game.Turn].Name);
                     }
-                } else {
-                    // Wild Draw Four card
-                    int victim = game.NextPlayer();
-                    if (colour == (byte) Colour.Pending) {
-                        game.WildColour = 192;
-                        if (goneOut) {
-                            Bot.Say(game.Connection, game.Channel, "\u000312\u0002{0}\u0002 plays {1} \u000312and \u0002goes out\u0002!", game.Players[playerIndex].Name, UNOPlugin.ShowCard(card), game.Players[victim].Name);
-                            Thread.Sleep(600);
-                            Bot.Say(game.Connection, game.Channel, "\u000312\u0002{2}\u0002 draws four cards. \u0002{0}\u0002, please choose a colour.", game.Players[playerIndex].Name, UNOPlugin.ShowCard(card), game.Players[victim].Name);
-                            Thread.Sleep(600);
-                            this.DealCards(game, victim, 4, false);
-                        } else if (this.WildDrawFour == WildDrawFourRule.AllowBluffing && (currentColour & 128) == 0) {
-                            game.DrawFourUser = playerIndex;
-                            game.DrawFourChallenger = victim;
-                            Bot.Say(game.Connection, game.Channel, "\u000312\u0002{0}\u0002 plays {1} \u000312Choose a colour for the wild card, {0}.", game.Players[playerIndex].Name, UNOPlugin.ShowCard(card));
-                        } else {
-                            // Deal the four-card punishment!
-                            Bot.Say(game.Connection, game.Channel, "\u000312\u0002{0}\u0002 plays {1} \u000312\u0002{2}\u0002 draws four cards. \u0002{0}\u0002, please choose a colour.", game.Players[playerIndex].Name, UNOPlugin.ShowCard(card), game.Players[victim].Name);
-                            Thread.Sleep(600);
-                            this.DealCards(game, victim, 4, false);
-                        }
-                    } else {
-                        game.Advance();
-                        int nextPlayer = game.NextPlayer();
-                        if (goneOut) {
-                            Bot.Say(game.Connection, game.Channel, "\u000312\u0002{0}\u0002 plays {1}\u000312, chooses {2}\u000312 and \u0002goes out\u0002!", game.Players[playerIndex].Name, UNOPlugin.ShowCard(card), colourMessage, game.Players[victim].Name);
-                            Thread.Sleep(600);
-                            Bot.Say(game.Connection, game.Channel, "\u000312\u0002{3}\u0002 draws four cards; play continues with \u0002{4}\u0002.", game.Players[playerIndex].Name, UNOPlugin.ShowCard(card), colourMessage, game.Players[victim].Name, game.Players[nextPlayer].Name);
-                            Thread.Sleep(600);
-                            this.DealCards(game, victim, 4, false);
-                            game.Advance();
-                        } else if (this.WildDrawFour == WildDrawFourRule.AllowBluffing && (currentColour & 128) == 0) {
-                            game.DrawFourUser = playerIndex;
-                            game.DrawFourChallenger = victim;
-                            Bot.Say(game.Connection, game.Channel, "\u000312\u0002{0}\u0002 plays {1} \u000312to \u0002{3}\u0002 and chooses {2}\u000312. Now waiting on \u0002{3}\u0002's response.", game.Players[playerIndex].Name, UNOPlugin.ShowCard(card), colourMessage, game.Players[victim].Name);
-                        } else {
-                            // Deal the four-card punishment!
-                            Bot.Say(game.Connection, game.Channel, "\u000312\u0002{0}\u0002 plays {1} \u000312and chooses {2}\u000312. \u0002{3}\u0002 draws four cards; play continues with \u0002{4}\u0002.", game.Players[playerIndex].Name, UNOPlugin.ShowCard(card), colourMessage, game.Players[victim].Name, game.Players[nextPlayer].Name);
-                            Thread.Sleep(600);
-                            this.DealCards(game, victim, 4, false);
-                            game.Advance();
-                        }
-                        game.WildColour = colour;
-                    }
                 }
             } else if ((card & 15) == (byte) Rank.DrawTwo) {
-                // Draw Two card
                 game.Advance();
-                int nextPlayer = game.NextPlayer();
-                if (goneOut) {
-                    Bot.Say(game.Connection, game.Channel, "\u000312\u0002{0}\u0002 plays {1}\u000312 and \u0002goes out\u0002!", game.Players[playerIndex].Name, UNOPlugin.ShowCard(card), game.Players[game.Turn].Name);
-                    Thread.Sleep(600);
-                    Bot.Say(game.Connection, game.Channel, "\u000312\u0002{2}\u0002 draws two cards; play continues with \u0002{3}\u0002.", game.Players[playerIndex].Name, UNOPlugin.ShowCard(card), game.Players[game.Turn].Name, game.Players[nextPlayer].Name);
-                    Thread.Sleep(600);
-                    this.DealCards(game, game.Turn, 2, false);
-                    game.Advance();
+                if (Progressive && game.DrawCount < ProgressiveCap) {
+                    // It can be stacked onto.
+                    if (goneOut) {
+                        goneOut = false;
+                        Bot.Say(game.Connection, game.Channel, "\u000312\u0002{0}\u0002 plays {1}\u000312 to \u0002go out\u0002!", game.Players[playerIndex].Name, UNOPlugin.ShowCard(card));
+                        Thread.Sleep(600);
+                        Bot.Say(game.Connection, game.Channel, "\u000312Now waiting on \u0002{0}\u0002's response.", game.Players[game.Turn].Name);
+                    } else
+                        Bot.Say(game.Connection, game.Channel, "\u000312\u0002{0}\u0002 plays {1}\u000312. Now waiting on \u0002{2}\u0002's response.", game.Players[playerIndex].Name, UNOPlugin.ShowCard(card), game.Players[game.Turn].Name);
                 } else {
-                    Bot.Say(game.Connection, game.Channel, "\u000312\u0002{0}\u0002 plays {1}\u000312 \u0002{2}\u0002 draws two cards; play continues with \u0002{3}\u0002.", game.Players[playerIndex].Name, UNOPlugin.ShowCard(card), game.Players[game.Turn].Name, game.Players[nextPlayer].Name);
+                    if (goneOut) {
+                        Bot.Say(game.Connection, game.Channel, "\u000312\u0002{0}\u0002 plays {1}\u000312 and \u0002goes out\u0002!", game.Players[playerIndex].Name, UNOPlugin.ShowCard(card), game.Players[game.Turn].Name);
+                        Thread.Sleep(600);
+                        Bot.Say(game.Connection, game.Channel, "\u000312\u0002{0}\u0002 draws {1} cards; play continues with \u0002{2}\u0002.", game.Players[game.Turn].Name, game.DrawCount, game.Players[game.NextPlayer()].Name);
+                    } else {
+                        Bot.Say(game.Connection, game.Channel, "\u000312\u0002{0}\u0002 plays {1}\u000312 \u0002{2}\u0002 draws two cards; play continues with \u0002{3}\u0002.", game.Players[playerIndex].Name, UNOPlugin.ShowCard(card), game.Players[game.Turn].Name, game.Players[game.NextPlayer()].Name);
+                    }
                     Thread.Sleep(600);
-                    this.DealCards(game, game.Turn, 2, false);
+                    this.DealCards(game, game.Turn, game.DrawCount, false);
+                    game.DrawCount = 0;
+                    stackEnded = true;
                     game.Advance();
                 }
             } else if ((card & 15) == (byte) Rank.Reverse && (goneOut || game.Players.Where(player => player.Presence == PlayerPresence.Playing).Skip(2).Any())) {
@@ -2311,8 +2388,10 @@ namespace UNO {
             }
 
             game.DrawnCard = 255;
-            if (goneOut)
+            if (goneOut) {
+                game.Players[playerIndex].Presence = PlayerPresence.Out;
                 this.AwardPoints(game, playerIndex);
+            }
             if (endOfGame) {
                 this.EndGame(game);
             } else {
@@ -2328,12 +2407,53 @@ namespace UNO {
                     Thread.Sleep(600);
                     Bot.Say(game.Connection, game.Channel, "\u000313\u0002{0}\u0002 has UNO!", game.Players[playerIndex].Name);
                 }
-                if ((game.WildColour & (byte) Colour.Pending) == 0 && game.DrawFourChallenger == -1) {
-                    Thread.Sleep(600);
-                    this.ShowHand(game, game.Turn);
+
+                if (stackEnded) EndStack(game);
+                if (!game.Ended) {
+                    if ((game.WildColour & (byte) Colour.Pending) == 0 && game.DrawFourChallenger == -1) {
+                        Thread.Sleep(600);
+                        this.ShowHand(game, game.Turn);
+                    }
+                    this.StartGameTimer(game);
+                    this.AICheck(game);
                 }
-                this.StartGameTimer(game);
-                this.AICheck(game);
+            }
+        }
+
+        public void EndStack(Game game) {
+            // This handles the case of someone going out with a Draw card.
+            bool endOfGame; var newlyOut = new List<int>();
+
+            // Count the remaining players.
+            int inCount = 0; int outCount = 0;
+            for (int i = 0; i < game.Players.Count; ++i) {
+                var player = game.Players[i];
+
+                if (player.Presence == PlayerPresence.Playing && player.Hand.Count == 0) {
+                    player.Presence = PlayerPresence.Out;
+                    newlyOut.Add(i);
+                    this.AwardPoints(game, i);
+                }
+
+                if (player.Presence == PlayerPresence.Playing) ++inCount;
+                else if (player.Presence == PlayerPresence.Out) ++outCount;
+            }
+            if (inCount < 2) endOfGame = true;
+            else endOfGame = (this.OutLimit != int.MaxValue && outCount >= this.OutLimit);
+
+            if (endOfGame) {
+                this.EndGame(game);
+            } else {
+                // Tell players their score.
+                foreach (int i in newlyOut) {
+                    int totalPoints = game.Players[i].BasePoints + game.Players[i].HandPoints;
+                    if (totalPoints > 0 && game.Players[i].Name != game.Connection.Me.Nickname) {
+                        if (totalPoints == 1)
+                            Bot.Say(game.Connection, game.Players[i].Name, "Congratulations: you won \u0002{0}\u0002 point.", totalPoints);
+                        else
+                            Bot.Say(game.Connection, game.Players[i].Name, "Congratulations: you won \u0002{0}\u0002 points.", totalPoints);
+                    }
+                }
             }
         }
 
@@ -2368,32 +2488,40 @@ namespace UNO {
                 this.IdleSkip(game, playerIndex);
                 if (game.Ended) return;
 
-                if (game.DrawFourChallenger == playerIndex) {
-                    // The victim of a Wild Draw Four may enter the draw command if they don't want to challenge it.
-                    // We deal the four cards here.
-                    game.GameTimer.Stop();
-                    game.Advance();
-                    Bot.Say(game.Connection, game.Channel, "\u000312\u0002{0}\u0002 draws four cards. Play continues with \u0002{1}\u0002.", game.Players[playerIndex].Name, game.Players[game.Turn].Name);
-                    Thread.Sleep(600);
-                    this.DealCards(game, playerIndex, 4, false);
+                if (!game.Ended) {
+                    if (game.DrawCount > 0) {
+                        // The victim of a Wild Draw Four may enter the draw command if they don't want to challenge it.
+                        // We deal the four cards here.
+                        game.GameTimer.Stop();
+                        Bot.Say(game.Connection, game.Channel, "\u000312\u0002{0}\u0002 draws {1} cards.", game.Players[playerIndex].Name, game.DrawCount);
+                        Thread.Sleep(600);
+                        this.DealCards(game, playerIndex, game.DrawCount, false);
 
-                    game.DrawFourChallenger = -1;
-                    game.DrawFourUser = -1;
-                    this.ShowHand(game, game.Turn);
-                    this.StartGameTimer(game);
-                    this.AICheck(game);
-                } else {
-                    Bot.Say(game.Connection, game.Channel, "\u000312\u0002{0}\u0002 draws a card.", game.Players[playerIndex].Name);
-                    Thread.Sleep(600);
-                    game.DrawnCard = this.DealCards(game, playerIndex, 1, false)[0];
-                    this.AICheck(game);
+                        game.DrawCount = 0;
+                        game.DrawFourChallenger = -1;
+                        game.DrawFourUser = -1;
+                        EndStack(game);
 
-                    PlayerSettings player;
-                    if (!this.PlayerSettings.TryGetValue(game.Players[playerIndex].Name, out player))
-                        this.PlayerSettings.Add(game.Players[playerIndex].Name, player = new PlayerSettings());
-                    else if (!player.Hints) return;
-                    if (!player.HintsSeen[5])
-                        this.ShowHint(game, game.Turn, 5, 15);
+                        if (!game.Ended) {
+                            game.Advance();
+                            Bot.Say(game.Connection, game.Channel, "\u000312Play continues with \u0002{0}\u0002.", game.Players[game.Turn].Name);
+                            this.ShowHand(game, game.Turn);
+                            this.StartGameTimer(game);
+                            this.AICheck(game);
+                        }
+                    } else {
+                        Bot.Say(game.Connection, game.Channel, "\u000312\u0002{0}\u0002 draws a card.", game.Players[playerIndex].Name);
+                        Thread.Sleep(600);
+                        game.DrawnCard = this.DealCards(game, playerIndex, 1, false)[0];
+                        this.AICheck(game);
+
+                        PlayerSettings player;
+                        if (!this.PlayerSettings.TryGetValue(game.Players[playerIndex].Name, out player))
+                            this.PlayerSettings.Add(game.Players[playerIndex].Name, player = new PlayerSettings());
+                        else if (!player.Hints) return;
+                        if (!player.HintsSeen[5])
+                            this.ShowHint(game, game.Turn, 5, 15);
+                    }
                 }
             }
         }
@@ -2504,11 +2632,11 @@ namespace UNO {
                 game.GameTimer.Stop();
                 if ((game.WildColour & 64) != 0 && game.Turn == playerIndex) {
                     game.WildColour = colour;
-                    if (game.Discards[game.Discards.Count - 1] == 65 && game.DrawFourChallenger == -1)
+                    if (game.Discards[game.Discards.Count - 1] == 65 && game.DrawCount == 0)
                         game.Advance();
                     game.Advance();
 
-                    if (game.DrawFourChallenger != -1)
+                    if (game.DrawCount > 0)
                         Bot.Say(game.Connection, game.Channel, "\u000312\u0002{0}\u0002 chooses {1}\u000312. Now waiting on \u0002{2}\u0002's response.", game.Players[playerIndex].Name, colourMessage, game.Players[game.Turn].Name);
                     else {
                         Bot.Say(game.Connection, game.Channel, "\u000312\u0002{0}\u0002 chooses {1}\u000312. Play continues with \u0002{2}\u0002.", game.Players[playerIndex].Name, colourMessage, game.Players[game.Turn].Name);
@@ -2571,19 +2699,21 @@ namespace UNO {
                 Bot.Say(game.Connection, game.Channel, "\u000313The challenge succeeds.");
                 Thread.Sleep(600);
                 if (game.Players[game.DrawFourUser].Presence == PlayerPresence.Playing) {
-                    Bot.Say(game.Connection, game.Channel, "\u000312\u0002{0}\u0002 draws four cards; play continues with \u0002{1}\u0002.", game.Players[game.DrawFourUser].Name, game.Players[playerIndex].Name);
-                    this.DealCards(game, game.DrawFourUser, 4, false);
+                    Bot.Say(game.Connection, game.Channel, "\u000312\u0002{0}\u0002 draws {2} cards; play continues with \u0002{1}\u0002.", game.Players[game.DrawFourUser].Name, game.Players[playerIndex].Name, game.DrawCount);
+                    this.DealCards(game, game.DrawFourUser, game.DrawCount, false);
+                    // That's right: you cop the entire accumulated penalty.
                 } else {
                     Bot.Say(game.Connection, game.Channel, "\u000312Play continues with \u0002{0}\u0002.", game.Players[playerIndex].Name);
-                    this.DealCards(game, game.DrawFourUser, 4, false, false);
+                    this.DealCards(game, game.DrawFourUser, game.DrawCount, false, false);
                 }
             } else {
                 Bot.Say(game.Connection, game.Channel, "\u000313The challenge fails.");
                 Thread.Sleep(600);
                 game.Advance();
-                Bot.Say(game.Connection, game.Channel, "\u000312\u0002{0}\u0002 draws six cards; play continues with \u0002{1}\u0002.", game.Players[playerIndex].Name, game.Players[game.Turn].Name);
-                this.DealCards(game, playerIndex, 6, false);
+                Bot.Say(game.Connection, game.Channel, "\u000312\u0002{0}\u0002 draws {2} cards; play continues with \u0002{1}\u0002.", game.Players[playerIndex].Name, game.Players[game.Turn].Name, game.DrawCount + 2);
+                this.DealCards(game, playerIndex, game.DrawCount + 2, false);
             }
+            game.DrawCount = 0;
             game.DrawFourChallenger = -1;
             game.DrawFourUser = -1;
             this.ShowHand(game, game.Turn);
@@ -2603,7 +2733,7 @@ namespace UNO {
                         game.Connection.Send("NOTICE " + game.Players[game.HintRecipient].Name + " :\u00032[\u000312?\u00032]\u000F " + UNOPlugin.Hints[game.Hint]);
                     else
                         game.Connection.Send("NOTICE " + game.Players[game.HintRecipient].Name + " :\u00032[\u000312?\u00032]\u000F " + string.Format(UNOPlugin.Hints[game.Hint], game.HintParameters));
-
+                    
                     if (game.Hint <= 2) game.Hint = 0;
                     player.HintsSeen[game.Hint] = true;
                 }
@@ -2611,7 +2741,7 @@ namespace UNO {
             }
             ConsoleUtils.WriteLine("%cRED[{0}] Error: a game hint timer triggered, and I can't find which game it belongs to!", this.Key);
         }
-
+        
         public void ShowHint(Game game, int recipient, int index, int delay, params object[] parameters) {
             game.HintRecipient = recipient;
             game.Hint = index;
@@ -2639,7 +2769,9 @@ namespace UNO {
                         if (!player.HintsSeen[10])
                             this.ShowHint(game, game.Turn, 10, 15);
                     } else {
-                        if (!player.HintsSeen[0]) {
+                        if (!player.HintsSeen[15] && Progressive && game.DrawCount > 0)
+                            this.ShowHint(game, game.Turn, 15, 15);
+                        else if (!player.HintsSeen[0]) {
                             byte card = game.Discards[game.Discards.Count - 1];
                             string colour = ""; string rank = ""; int index = 0;
                             if (card >= 64) {
@@ -2707,7 +2839,33 @@ namespace UNO {
                     else
                         currentColour = (byte) (game.Discards[game.Discards.Count - 1] & 48);
 
-                    if (playerIndex == game.Turn && (game.WildColour & 64) != 0) {
+                    byte drawStack = 255;
+                    if (game.DrawCount > 0) {
+                        // Someone has played a Draw card on the bot.
+                        byte upCard = game.Discards[game.Discards.Count - 1];
+                        foreach (byte card in game.Players[playerIndex].Hand) {
+                            if (upCard != 65 && (card & 15) == (byte) Rank.DrawTwo) {
+                                drawStack = card;
+                                break;
+                            } else if (upCard == 65 && card == 65) {
+                                // Check the legality of the Wild Draw Four.
+                                foreach (byte card2 in game.Players[playerIndex].Hand) {
+                                    if ((card2 & 64) == 0 && (card2 & 48) == currentColour) {
+                                        continue;
+                                    }
+                                }
+                                drawStack = card;
+                                break;
+                            }
+                        }
+                    }
+                    if (drawStack != 255) {
+                        // Stack a Draw card.
+                        if ((drawStack & 64) != 0)
+                            PlayCheck(game, playerIndex, drawStack, this.AIChooseColour(game, playerIndex));
+                        else
+                            PlayCheck(game, playerIndex, drawStack, 128);
+                    } else if (playerIndex == game.Turn && (game.WildColour & 64) != 0) {
                         // We need to choose a colour for a wild card.
                         this.ColourCheck(game, playerIndex, this.AIChooseColour(game, playerIndex));
                     } else if (game.DrawFourChallenger == playerIndex) {
@@ -2722,6 +2880,8 @@ namespace UNO {
                             this.DrawFourChallenge(game, playerIndex);
                         } else
                             this.DrawCheck(game, playerIndex);
+                    } else if (game.DrawCount > 0) {
+                        this.DrawCheck(game, playerIndex);
                     } else if (playerIndex == game.Turn && game.DrawnCard != 255) {
                         // We've already drawn a card this turn.
                         // Check that it is valid.
@@ -2859,10 +3019,14 @@ namespace UNO {
 
         public void IdleSkip(Game game, int skipTo) {
             while (game.Turn != skipTo) {
-                if (game.DrawFourChallenger == game.Turn) {
-                    Bot.Say(game.Connection, game.Channel, "\u000312\u0002{0}\u0002 draws four cards.", game.Players[game.Turn].Name);
+                if (game.DrawCount > 0) {
+                    Bot.Say(game.Connection, game.Channel, "\u000312\u0002{0}\u0002 draws {1} cards.", game.Players[game.Turn].Name, game.DrawCount);
                     Thread.Sleep(600);
-                    this.DealCards(game, game.Turn, 4, false);
+                    this.DealCards(game, game.Turn, game.DrawCount, false);
+                    game.DrawCount = 0;
+                    game.DrawFourChallenger = -1;
+                    game.DrawFourUser = -1;
+                    EndStack(game);
                 } else if (game.DrawnCard != 255)
                     game.DrawnCard = 255;
                 else if ((game.WildColour & 64) != 0)
@@ -3121,9 +3285,9 @@ namespace UNO {
                 this.AICheck(game);
             }
         }
-        #endregion
+#endregion
 
-        #region Reminder commands
+#region Reminder commands
         [Regex(@"^tu(?!\S)", null, CommandScope.Channel)]
         public void RegexTurn(object sender, RegexEventArgs e) {
             this.CommandTurn(sender, new CommandEventArgs(e.Client, e.Channel, e.Sender,
@@ -3191,6 +3355,8 @@ namespace UNO {
                             Bot.Say(e.Client, e.Channel, "The colour chosen is {0}\u000F.", colourMessage);
                         }
                     }
+                    if (game.DrawCount > 0)
+                        Bot.Say(e.Client, e.Channel, "The draw stack is at \u0002{0}\u0002.", game.DrawCount);
                 }
             }
         }
@@ -3237,9 +3403,9 @@ namespace UNO {
             if (!this.Games.TryGetValue(key, out game)) {
                 if (e.Parameters.Length == 0 || e.Parameters[0] != null)
                     Bot.Say(e.Client, e.Sender.Nickname, "There's no game going on at the moment.");
-                //} else if (game.IsOpen) {
-                //    if (e.Parameters.Length == 0 || e.Parameters[0] != null)
-                //        Bot.Say(e.Connection, e.Sender.Nickname, "The game hasn't started yet!");
+            //} else if (game.IsOpen) {
+            //    if (e.Parameters.Length == 0 || e.Parameters[0] != null)
+            //        Bot.Say(e.Connection, e.Sender.Nickname, "The game hasn't started yet!");
             } else {
                 lock (game.Lock) {
                     this.CheckTimerReset(game);
@@ -3328,9 +3494,9 @@ namespace UNO {
                 game.GameTimer.Start();
             }
         }
-        #endregion
+#endregion
 
-        #region Cheats
+#region Cheats
 #if (DEBUG)
         [Command(new string[] { "gimme", "ugimme" }, 0, 1, "ugimme [card]", "Gives you any card. If you're not a developer, you shouldn't be seeing this...")]
         public void CommandCheatGive(object sender, CommandEventArgs e) {
@@ -3372,9 +3538,9 @@ namespace UNO {
             }
         }
 #endif
-        #endregion
+#endregion
 
-        #region Statistics
+#region Statistics
         public PlayerStats GetStats(Dictionary<string, PlayerStats> list, IRCClient connection, string channel, string nickname, bool add = false) {
             string name = nickname;  // TODO: Add some sort of authentication to this.
             PlayerStats stats;
@@ -4008,7 +4174,7 @@ namespace UNO {
             bool firstEntry = true;
             List<PlayerStats> top = UNOPlugin.SortLeaderboard(list, sortKey);
             foreach (PlayerStats entry in top) {
-                if (firstEntry)
+                if (firstEntry) 
                     firstEntry = false;
                 else
                     writer.Write(",");
@@ -4045,7 +4211,7 @@ namespace UNO {
             writer.Write("\"");
         }
 
-        #endregion
+#endregion
 
 
     }
