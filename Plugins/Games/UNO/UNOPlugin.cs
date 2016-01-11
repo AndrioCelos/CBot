@@ -1221,7 +1221,7 @@ namespace UNO {
                         if (this.Progressive = value3)
                             Bot.Say(e.Client, e.Channel, "Progressive rules are now \u00039enabled\u000F.");
                         else
-                            Bot.Say(e.Client, e.Channel, "Progressive rules are now\u00034disabled\u000F.");
+                            Bot.Say(e.Client, e.Channel, "Progressive rules are now \u00034disabled\u000F.");
                     } else
                         Bot.Say(e.Client, e.Sender.Nickname, string.Format("I don't recognise '{0}' as a Boolean value. Please enter 'on' or 'off'.", value));
                     break;
@@ -2242,10 +2242,12 @@ namespace UNO {
                 Bot.Say(game.Connection, game.Channel, "\u000312\u0002{0}\u0002 plays {1} \u000312and \u0002goes out\u0002!", game.Players[playerIndex].Name, UNOPlugin.ShowCard(card));
                 // If it's a Draw card, deal the cards.
                 if (game.DrawCount != 0) {
+                    int victim = game.NextPlayer();
                     Thread.Sleep(600);
-                    Bot.Say(game.Connection, game.Channel, "\u000312\u0002{0}\u0002 draws {1} cards.", game.Players[game.NextPlayer()].Name, game.DrawCount);
+                    Bot.Say(game.Connection, game.Channel, "\u000312\u0002{0}\u0002 draws {1} cards.", game.Players[victim].Name, game.DrawCount);
                     // DrawCount will never be one, so the singular isn't needed.
                     Thread.Sleep(600);
+                    this.DealCards(game, victim, game.DrawCount, false);
                     stackEnded = true;
                 }
             } else if ((card & 64) != 0) {
