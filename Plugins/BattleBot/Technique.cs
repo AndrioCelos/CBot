@@ -1,10 +1,4 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
-
-namespace BattleBot {
+﻿namespace BattleBot {
     public class Technique {
         public string Name;
         public string Description;

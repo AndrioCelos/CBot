@@ -1,11 +1,7 @@
 using System;
-using System.IO;
-using System.Linq;
-using System.Threading;
 
-namespace CBot
-{
-	public static class ConsoleUtils
+namespace CBot {
+    public static class ConsoleUtils
 	{
         private static object writeLock = new object();
         private static string[] colours = new string[] { "BLACK"    , "DKBLUE"   , "DKGREEN"  , "DKCYAN"   , "DKRED"    , "DKMAGENTA", "DKYELLOW" , "GRAY"       ,

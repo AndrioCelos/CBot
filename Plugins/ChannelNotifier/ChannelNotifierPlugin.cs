@@ -2,15 +2,12 @@
 using System.Collections.Generic;
 using System.Linq;
 using System.IO;
-using System.Text;
 using System.Text.RegularExpressions;
-using System.Threading.Tasks;
 
 using CBot;
 using IRC;
 
-namespace ChannelNotifier
-{
+namespace ChannelNotifier {
     [APIVersion(3, 2)]
     public class ChannelNotifierPlugin : Plugin
     {

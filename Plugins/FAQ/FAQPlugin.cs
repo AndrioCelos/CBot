@@ -4,13 +4,11 @@ using System.IO;
 using System.Linq;
 using System.Text;
 using System.Text.RegularExpressions;
-using System.Threading.Tasks;
 
 using CBot;
 using IRC;
 
-namespace FAQ
-{
+namespace FAQ {
     [APIVersion(3, 2)]
     public class FAQPlugin : Plugin
     {

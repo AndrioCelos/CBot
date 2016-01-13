@@ -1,16 +1,13 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.IO;
-using System.Linq;
-using System.Text;
 using System.Text.RegularExpressions;
 using System.Timers;
 
 using CBot;
 using IRC;
 
-namespace Gender
-{
+namespace Gender {
     [APIVersion(3, 2)]
     public class GenderPlugin : Plugin
     {

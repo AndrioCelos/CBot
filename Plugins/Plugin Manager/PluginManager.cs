@@ -3,14 +3,11 @@ using System.Collections.Generic;
 using System.Linq;
 using System.IO;
 using System.Reflection;
-using System.Text;
-using System.Threading.Tasks;
 
 using CBot;
 using IRC;
 
-namespace PluginManager
-{
+namespace PluginManager {
     [APIVersion(3, 2)]
     public class PluginManagerPlugin : Plugin
     {

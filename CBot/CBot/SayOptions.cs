@@ -1,7 +1,4 @@
 ﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
 
 namespace CBot {
     /// <summary>Specifies how a message should be sent by Bot.Say.</summary>

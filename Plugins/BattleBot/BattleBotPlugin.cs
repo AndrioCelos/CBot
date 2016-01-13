@@ -5,14 +5,12 @@ using System.Linq;
 using System.Text;
 using System.Text.RegularExpressions;
 using System.Threading;
-using System.Threading.Tasks;
 using System.Timers;
 
 using CBot;
 using IRC;
 
-namespace BattleBot
-{
+namespace BattleBot {
     [APIVersion(3, 2)]
     public class BattleBotPlugin : Plugin
     {
