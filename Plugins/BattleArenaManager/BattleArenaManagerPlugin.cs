@@ -424,10 +424,9 @@ namespace BattleArenaManager {
                 // Download the file.
                 ConsoleUtils.WriteLine("Downloading data...");
                 try {
-                    string URL = await this.client.Repository.Content.GetArchiveLink(this.RepositoryOwner, this.RepositoryName, ArchiveFormat.Zipball);
+                    byte[] archive = await this.client.Repository.Content.GetArchive(this.RepositoryOwner, this.RepositoryName, ArchiveFormat.Zipball);
                     file = Path.Combine(Path.GetTempPath(), "BattleArena.zip");
-                    WebClient client = new WebClient();
-                    client.DownloadFile(URL, file);
+                    File.WriteAllBytes(file, archive);
                     ConsoleUtils.WriteLine("Saved to " + file);
                 } catch (WebException ex) {
                     ConsoleUtils.WriteLine("Download failed: " + ex.ToString());
