@@ -564,7 +564,8 @@ namespace IRC {
         private int _PingTimeout;
         private bool Pinged;
         private System.Timers.Timer PingTimer;
-        private object Lock;
+        private object ReceiveLock = new object();
+        private object Lock = new object();
 
         private IRCClientState state;
         private DisconnectReason disconnectReason;
@@ -604,7 +605,6 @@ namespace IRC {
             this.Users = new IRCUserCollection(this);
             this.TrustedCertificates = new List<string>();
             this.Encoding = encoding;
-            this.Lock = new object();
 
             if (localUser.Client != null && localUser.Client != this) throw new ArgumentException("The IRCLocalUser object is already bound to another IRCClient.", "localUser");
             Me = localUser;
@@ -828,7 +828,7 @@ namespace IRC {
         /// <summary>Handles or simulates a message received from the IRC server.</summary>
         /// <param name="data">The message received or to simulate.</param>
         public virtual void ReceivedLine(string data) {
-            lock (this.Lock) {
+            lock (this.ReceiveLock) {
                 var line = IRCLine.Parse(data);
                 this.OnRawLineReceived(new IRCLineEventArgs(data, line));
 
