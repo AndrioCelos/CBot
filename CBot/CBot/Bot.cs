@@ -1,5 +1,6 @@
 /* General to-do list:
  *   TODO: Spam proof commands.
+ *   TODO: Implement JSON configuration.
  */
 
 using System;
@@ -14,7 +15,6 @@ using System.Threading;
 
 using IRC;
 
-
 namespace CBot {
     /// <summary>
     /// The main class of CBot.
@@ -27,8 +27,12 @@ namespace CBot {
 
         /// <summary>The list of IRC connections the bot has.</summary>
         public static List<ClientEntry> Clients = new List<ClientEntry>();
+        /// <summary>Acts as a staging area to compare the configuration file with the currently loaded configuration.</summary>
+        internal static List<ClientEntry> NewClients;
         /// <summary>The list of loaded plugins.</summary>
         public static Dictionary<string, PluginEntry> Plugins = new Dictionary<string, PluginEntry>(StringComparer.OrdinalIgnoreCase);
+        /// <summary>Acts as a staging area to compare the plugin configuration file with the currently loaded plugins.</summary>
+        internal static Dictionary<string, PluginEntry> NewPlugins;
         /// <summary>The list of users who are identified.</summary>
         public static Dictionary<string, Identification> Identifications = new Dictionary<string, Identification>(StringComparer.OrdinalIgnoreCase);
         /// <summary>The list of user accounts that are known to the bot.</summary>
@@ -58,6 +62,7 @@ namespace CBot {
         /// <summary>The minimum compatible plugin API version with this version of CBot.</summary>
         public static readonly Version MinPluginVersion = new Version(3, 2);
 
+        /// <summary>Indicates whether there are any NickServ-based permissions.</summary>
         internal static bool commandCallbackNeeded;
 
         private static readonly Regex commandMaskRegex  = new Regex("^((?:PASS|AUTHENTICATE|OPER|DIE|RESTART) *:?).*", RegexOptions.Compiled | RegexOptions.IgnoreCase);
@@ -96,25 +101,20 @@ namespace CBot {
             }
         }
 
-        /// <summary>
-        /// Creates and adds a new IRCClient object, but does not connect to any IRC networks.
-        /// </summary>
-        /// <param name="name">The IRC network name.</param>
-        /// <param name="address">The address to connect to.</param>
-        /// <param name="port">The remote port number to connect on.</param>
-        /// <param name="nicknames">A list of nicknames to use on IRC, in order of preference.</param>
-        /// <param name="username">The identd username to use on IRC.</param>
-        /// <param name="fullName">The full name to use on IRC.</param>
-        /// <returns>The new ClientEntry object.</returns>
-        public static ClientEntry NewClient(string name, string address, int port, string[] nicknames, string username, string fullName) {
-            IRCClient newClient = new IRCClient(new IRCLocalUser(nicknames[0], username, fullName), name);
-            ClientEntry newEntry = new ClientEntry(name, address, port, newClient);
-
-            Bot.SetUpClientEvents(newClient);
-            Bot.Clients.Add(newEntry);
-            return newEntry;
+        /// <summary>Sets up an IRC network configuration and adds it to the list of loaded networks.</summary>
+        public static void AddNetwork(ClientEntry network) {
+            SetUpNetwork(network);
+            Clients.Add(network);
         }
 
+        /// <summary>Sets up an IRC network configuration, including adding CBot's event handlers.</summary>
+        public static void SetUpNetwork(ClientEntry network) {
+            IRCClient newClient = new IRCClient(new IRCLocalUser(network.Nicknames[0], network.Ident, network.FullName), network.Name);
+            SetUpClientEvents(newClient);
+            network.Client = newClient;
+        }
+
+        /// <summary>Gets the IRC network a given <see cref="IRCClient"/> belongs to, or null if it is not known.</summary>
         public static ClientEntry GetClientEntry(IRCClient client) {
             return Clients.FirstOrDefault(c => c.Client == client);
         }
@@ -247,16 +247,22 @@ namespace CBot {
 
             Console.ForegroundColor = ConsoleColor.Gray;
 
-            // Add the console client.
-            ConsoleConnection consoleClient = new ConsoleConnection();
-            Bot.Clients.Add(new ClientEntry("!Console", "!Console", 0, consoleClient) { SaveToConfig = false });
-            SetUpClientEvents(consoleClient);
-
             Console.Write("Loading configuration file...");
             if (File.Exists("CBotConfig.ini")) {
                 Bot.ConfigFileFound = true;
                 try {
-                    Bot.LoadConfig();
+                    Bot.LoadConfig(false);
+
+                    // Add the console client. (Default identity settings must be loaded before doing this.)
+                    ConsoleConnection consoleClient = new ConsoleConnection();
+                    Bot.Clients.Add(new ClientEntry("!Console", "!Console", 0, consoleClient) { SaveToConfig = false });
+                    SetUpClientEvents(consoleClient);
+
+                    foreach (var network in NewClients) {
+                        AddNetwork(network);
+                    }
+
+                    NewClients = null;
                     Console.WriteLine(" OK");
                 } catch (Exception ex) {
                     ConsoleUtils.WriteLine(" %cREDFailed%r");
@@ -264,7 +270,6 @@ namespace CBot {
                     ConsoleUtils.WriteLine("%cWHITEPress Escape to exit, or any other key to continue . . .");
                     if (Console.ReadKey(true).Key == ConsoleKey.Escape) Environment.Exit(2);
                 }
-                Bot.Clients[0].Client.Me.Nickname = dNicknames[0];
             } else {
                 ConsoleUtils.WriteLine(" %cBLUEFile CBotConfig.ini is missing.%r");
             }
@@ -289,11 +294,10 @@ namespace CBot {
             if (File.Exists("CBotPlugins.ini")) {
                 Bot.PluginsFileFound = true;
                 Console.WriteLine();
-                try {
-                    Bot.LoadPlugins();
-                } catch (Exception ex) {
+                bool success = Bot.LoadPlugins();
+                if (!success) {
                     Console.WriteLine();
-                    ConsoleUtils.WriteLine("%cREDI couldn't load the plugins: " + ex.Message + "%r");
+                    ConsoleUtils.WriteLine("Some plugins failed to load.");
                     ConsoleUtils.WriteLine("%cWHITEPress Escape to exit, or any other key to continue . . .");
                     if (Console.ReadKey(true).Key == ConsoleKey.Escape) Environment.Exit(2);
                 }
@@ -305,12 +309,11 @@ namespace CBot {
 
             foreach (ClientEntry client in Bot.Clients) {
                 try {
-                    if (client.Nicknames == null) client.Nicknames = Bot.dNicknames;
                     if (client.Name != "!Console")
-                        ConsoleUtils.WriteLine("Connecting to {0} ({1}) on port {2}.", client.Client.NetworkName, client.Address, client.Port);
-                    client.Client.Connect(client.Address, client.Port);
+                        ConsoleUtils.WriteLine("Connecting to {0} ({1}) on port {2}.", client.Name, client.Address, client.Port);
+                    client.Connect();
                 } catch (Exception ex) {
-                    ConsoleUtils.WriteLine("%cREDConnection to {0} failed: {1}%r", client.Client.NetworkName, ex.Message);
+                    ConsoleUtils.WriteLine("%cREDConnection to {0} failed: {1}%r", client.Name, ex.Message);
                     client.StartReconnect();
                 }
             }
@@ -322,6 +325,12 @@ namespace CBot {
 
                 try {
                     switch (fields[0].ToUpper()) {
+                        case "RELOAD":
+                            if (fields.Length == 1) LoadConfig();
+                            else if (fields[1] == "config") LoadConfig();
+                            else if (fields[1] == "plugins") LoadPlugins();
+                            else if (fields[1] == "users") LoadUsers();
+                            break;
                         case "LOAD":
                             // TODO: Fix this after fixing LoadPlugin.
                             break;
@@ -329,18 +338,21 @@ namespace CBot {
                             Bot.Clients[int.Parse(fields[1])].Client.Send(string.Join(" ", fields.Skip(2)));
                             break;
                         case "CONNECT":
-                            ClientEntry client = Bot.NewClient(fields[1], fields[1],
-                                fields.Length >= 3 ? int.Parse((fields[2].StartsWith("+") ? fields[2].Substring(1) : fields[2])) : 6667,
-                                fields.Length >= 4 ? new string[] { fields[3] } : dNicknames,
-                                fields.Length >= 5 ? fields[4] : dUsername,
-                                fields.Length >= 6 ? string.Join(" ", fields.Skip(5)) : dFullName);
-                            if (fields.Length >= 3 && fields[2].StartsWith("+")) client.Client.SSL = true;
+                            var network = new ClientEntry(fields[1]) {
+                                Address   = fields[1],
+                                Port      = fields.Length >= 3 ? int.Parse((fields[2].StartsWith("+") ? fields[2].Substring(1) : fields[2])) : 6667,
+                                Nicknames = fields.Length >= 4 ? new[] { fields[3] } : dNicknames,
+                                Ident     = fields.Length >= 5 ? fields[4] : dUsername,
+                                FullName  = fields.Length >= 6 ? string.Join(" ", fields.Skip(5)) : dFullName,
+                                TLS       = fields.Length >= 3 && fields[2].StartsWith("+")
+                            };
+                            Bot.AddNetwork(network);
                             try {
-                                ConsoleUtils.WriteLine("Connecting to {0} ({1}) on port {2}.", client.Client.NetworkName, client.Address, client.Port);
-                                client.Client.Connect(client.Address, client.Port);
+                                ConsoleUtils.WriteLine("Connecting to {0} ({1}) on port {2}.", network.Name, network.Address, network.Port);
+                                network.Connect();
                             } catch (Exception ex) {
-                                ConsoleUtils.WriteLine("%cREDConnection to {0} failed: {1}%r", client.Client.NetworkName, ex.Message);
-                                client.StartReconnect();
+                                ConsoleUtils.WriteLine("%cREDConnection to {0} failed: {1}%r", network.Name, ex.Message);
+                                network.StartReconnect();
                             }
                             break;
                         case "DIE":
@@ -358,7 +370,7 @@ namespace CBot {
                         case "ENTER":
                             foreach (ClientEntry _client in Bot.Clients) {
                                 if (_client.Client is ConsoleConnection)
-                                    ((ConsoleConnection) _client.Client).Put(string.Join(" ", fields.Skip(1)));
+                                    ((ConsoleConnection) _client.Client).Put(input.Substring(6).TrimStart());
                             }
                             break;
                         default:
@@ -533,12 +545,16 @@ namespace CBot {
                 Console.Write("What channels (comma- or space-separated) should I join upon connecting? ");
                 autoJoinChannels = Console.ReadLine().Split(new char[] { ',', ' ' }, StringSplitOptions.RemoveEmptyEntries).Select(c => new AutoJoinChannel(c));
 
-                ClientEntry client = Bot.NewClient(networkName, address, port, Bot.dNicknames, Bot.dUsername, Bot.dFullName);
-                client.Client.Password = password;
-                client.Client.SSL = tls;
-                client.Client.AllowInvalidCertificate = acceptInvalidCertificate;
-                client.NickServ = nickServ;
-                client.AutoJoin.AddRange(autoJoinChannels);
+                var network = new ClientEntry(networkName) {
+                    Address = address,
+                    Port = port,
+                    Password = password,
+                    TLS = tls,
+                    AcceptInvalidTlsCertificate = acceptInvalidCertificate,
+                    NickServ = nickServ
+                };
+                network.AutoJoin.AddRange(autoJoinChannels);
+                AddNetwork(network);
             }
 
             Bot.SaveConfig();
@@ -724,26 +740,32 @@ namespace CBot {
                     // Look for a plugin class.
                     bool found = false;
                     string message = null;
-                    var assembly = Assembly.LoadFrom(file);
 
-                    foreach (Type type in assembly.GetTypes()) {
-                        if (typeof(Plugin).IsAssignableFrom(type)) {
-                            // Check the version attribute.
-                            var attribute = type.GetCustomAttribute<APIVersionAttribute>(false);
+                    try {
+                        var assembly = Assembly.LoadFrom(file);
+                        foreach (Type type in assembly.GetTypes()) {
+                            if (typeof(Plugin).IsAssignableFrom(type)) {
+                                // Check the version attribute.
+                                var attribute = type.GetCustomAttribute<APIVersionAttribute>(false);
 
-                            if (attribute == null) {
-                                message = "Outdated plugin – no API version is specified.";
-                            } else if (attribute.Version < Bot.MinPluginVersion) {
-                                message = string.Format("Outdated plugin – built for version {0}.{1}.", attribute.Version.Major, attribute.Version.Minor);
-                            } else if (attribute.Version > Bot.Version) {
-                                message = string.Format("Outdated bot – the plugin is built for version {0}.{1}.", attribute.Version.Major, attribute.Version.Minor);
-                            } else {
-                                found = true;
-                                pluginFiles.Add(Path.Combine(Bot.PluginsPath, Path.GetFileName(file)));
-                                pluginList.Add(new Tuple<string, string, ConsoleColor>(pluginFiles.Count.ToString().PadLeft(2), ": " + Path.GetFileName(file), ConsoleColor.Gray));
-                                break;
+                                if (attribute == null) {
+                                    message = "Outdated plugin – no API version is specified.";
+                                } else if (attribute.Version < Bot.MinPluginVersion) {
+                                    message = string.Format("Outdated plugin – built for version {0}.{1}.", attribute.Version.Major, attribute.Version.Minor);
+                                } else if (attribute.Version > Bot.Version) {
+                                    message = string.Format("Outdated bot – the plugin is built for version {0}.{1}.", attribute.Version.Major, attribute.Version.Minor);
+                                } else {
+                                    found = true;
+                                    pluginFiles.Add(Path.Combine(Bot.PluginsPath, Path.GetFileName(file)));
+                                    pluginList.Add(new Tuple<string, string, ConsoleColor>(pluginFiles.Count.ToString().PadLeft(2), ": " + Path.GetFileName(file), ConsoleColor.Gray));
+                                    break;
+                                }
                             }
                         }
+                    } catch (ReflectionTypeLoadException ex) {
+                        message = "Reflection failed: " + string.Join(", ", ex.LoaderExceptions.Select(ex2 => ex2.Message));
+                    } catch (Exception ex) {
+                        message = "Reflection failed: " + ex.Message;
                     }
 
                     if (!found) {
@@ -907,25 +929,27 @@ namespace CBot {
         }
 
         /// <summary>Loads a plugin and adds it to CBot's list of active plugins.</summary>
-        /// <param name="Key">A key to identify the newly loaded plugin.</param>
-        /// <param name="Filename">The file to load.</param>
-        /// <param name="Channels">A list of channels in which this plugin should be active.</param>
-        /// <exception cref="System.ArgumentException">A plugin with the specified key is already loaded.</exception>
-        /// <exception cref="CBot.InvalidPluginException">The plugin could not be constructed.</exception>
-        public static void LoadPlugin(string Key, string Filename, params string[] Channels) {
+        /// <param name="key">A key to identify the newly loaded plugin.</param>
+        /// <param name="filename">The file to load.</param>
+        /// <param name="channels">A list of channels in which this plugin should be active.</param>
+        /// <exception cref="ArgumentException">A plugin with the specified key is already loaded.</exception>
+        /// <exception cref="InvalidPluginException">The plugin could not be constructed.</exception>
+        public static void LoadPlugin(string key, string filename, params string[] channels)
+            => LoadPlugin(new PluginEntry() { Key = key, Filename = filename, Channels = channels });
+        public static void LoadPlugin(PluginEntry entry) {
             Assembly assembly;
             AssemblyName assemblyName;
             Type pluginType = null;
             string errorMessage = null;
 
-            if (Bot.Plugins.ContainsKey(Key)) throw new ArgumentException(string.Format("A plugin with key {0} is already loaded.", Key), "key");
+            if (Plugins.ContainsKey(entry.Key)) throw new ArgumentException(string.Format("A plugin with key {0} is already loaded.", entry.Key), "key");
 
-            ConsoleUtils.Write("  Loading plugin %cWHITE" + Key + "%r...");
+            ConsoleUtils.Write("  Loading plugin %cWHITE" + entry.Key + "%r...");
             int x = Console.CursorLeft; int y = Console.CursorTop; int x2; int y2;
             Console.WriteLine();
 
             try {
-                assembly = Assembly.LoadFrom(Filename);
+                assembly = Assembly.LoadFrom(entry.Filename);
                 assemblyName = assembly.GetName();
 
                 foreach (Type type in assembly.GetTypes()) {
@@ -936,7 +960,7 @@ namespace CBot {
                 }
                 if (pluginType == null) {
                     errorMessage = "Invalid – no valid plugin class.";
-                    throw new InvalidPluginException(Filename, string.Format("The file '{0}' does not contain a class that inherits from the base plugin class.", Filename));
+                    throw new InvalidPluginException(entry.Filename, string.Format("The file '{0}' does not contain a class that inherits from the base plugin class.", entry.Filename));
                 }
 
                 Version pluginVersion = null;
@@ -946,13 +970,13 @@ namespace CBot {
                 }
                 if (pluginVersion == null) {
                     errorMessage = "Outdated plugin – no API version is specified.";
-                    throw new InvalidPluginException(Filename, string.Format("The class '{0}' in '{1}' does not specify the version of CBot for which it was built.", pluginType.Name, Filename));
+                    throw new InvalidPluginException(entry.Filename, string.Format("The class '{0}' in '{1}' does not specify the version of CBot for which it was built.", pluginType.Name, entry.Filename));
                 } else if (pluginVersion < Bot.MinPluginVersion) {
                     errorMessage = string.Format("Outdated plugin – built for version {0}.{1}.", pluginVersion.Major, pluginVersion.Minor);
-                    throw new InvalidPluginException(Filename, string.Format("The class '{0}' in '{1}' was built for older version {2}.{3}.", pluginType.Name, Filename, pluginVersion.Major, pluginVersion.Minor));
+                    throw new InvalidPluginException(entry.Filename, string.Format("The class '{0}' in '{1}' was built for older version {2}.{3}.", pluginType.Name, entry.Filename, pluginVersion.Major, pluginVersion.Minor));
                 } else if (pluginVersion > Bot.Version) {
                     errorMessage = string.Format("Outdated bot – the plugin is built for version {0}.{1}.", pluginVersion.Major, pluginVersion.Minor);
-                    throw new InvalidPluginException(Filename, string.Format("The class '{0}' in '{1}' was built for newer version {2}.{3}.", pluginType.Name, Filename, pluginVersion.Major, pluginVersion.Minor));
+                    throw new InvalidPluginException(entry.Filename, string.Format("The class '{0}' in '{1}' was built for newer version {2}.{3}.", pluginType.Name, entry.Filename, pluginVersion.Major, pluginVersion.Minor));
                 }
 
                 int constructorType = -1;
@@ -972,18 +996,18 @@ namespace CBot {
                 if (constructorType == 0)
                     plugin = (Plugin) Activator.CreateInstance(pluginType);
                 else if (constructorType == 1)
-                    plugin = (Plugin) Activator.CreateInstance(pluginType, new object[] { Key });
+                    plugin = (Plugin) Activator.CreateInstance(pluginType, new object[] { entry.Key });
                 else if (constructorType == 2)
-                    plugin = (Plugin) Activator.CreateInstance(pluginType, new object[] { Key, Channels });
+                    plugin = (Plugin) Activator.CreateInstance(pluginType, new object[] { entry.Key, entry.Channels });
                 else {
                     errorMessage = "Invalid – no valid constructor on the plugin class.";
-                    throw new InvalidPluginException(Filename, string.Format("The class '{0}' in '{1}' does not contain a supported constructor.\n" +
-                                                                             "It should be defined as 'public SamplePlugin()'", pluginType.Name, Filename));
+                    throw new InvalidPluginException(entry.Filename, string.Format("The class '{0}' in '{1}' does not contain a supported constructor.\n" +
+                                                                                   "It should be defined as 'public SamplePlugin()'", pluginType.Name, entry.Filename));
                 }
 
-                plugin.Key = Key;
-                plugin.Channels = Channels ?? new string[0];
-                Bot.Plugins.Add(Key, new PluginEntry() { Filename = Filename, Obj = plugin });
+                plugin.Key = entry.Key;
+                plugin.Channels = entry.Channels ?? new string[0];
+                Plugins.Add(entry.Key, new PluginEntry() { Filename = entry.Filename, Obj = plugin });
                 plugin.LoadLanguage();
                 plugin.Initialize();
 
@@ -998,454 +1022,153 @@ namespace CBot {
                 ConsoleUtils.Write(errorMessage ?? "Failed");
                 ConsoleUtils.WriteLine("%r");
                 Console.SetCursorPosition(x2, y2);
-                Bot.LogError(Key, "Loading", ex);
+                LogError(entry.Key, "Loading", ex);
 
                 throw ex;
             }
         }
 
         /// <summary>Loads configuration data from the file CBotConfig.ini if it is present.</summary>
-        public static void LoadConfig() {
-            if (File.Exists("CBotConfig.ini")) {
-                try {
-                    StreamReader Reader = new StreamReader("CBotConfig.ini");
-                    string Section = ""; string Field; string Value;
-                    bool GotNicknames = false; ClientEntry client = null;
+        public static void LoadConfig() => LoadConfig(true);
+        private static void LoadConfig(bool update) {
+            if (File.Exists("CBotConfig.ini")) IniConfig.LoadConfig();
 
-                    while (!Reader.EndOfStream) {
-                        string s = Reader.ReadLine();
-                        if (!Regex.IsMatch(s, @"^(?>\s*);")) {  // Comment check
-                            Match Match = Regex.Match(s, @"^\s*\[(.*?)\]?\s*$");
-                            if (Match.Success) {
-                                Section = Match.Groups[1].Value;
-                                if (!Section.Equals("Me", StringComparison.OrdinalIgnoreCase) && !Section.Equals("Prefixes", StringComparison.OrdinalIgnoreCase)) {
-                                    string[] ss = Section.Split(new char[] { ':' }, 2);
-                                    if (ss.Length > 1) {
-                                        ushort port;
-                                        if (ushort.TryParse(ss[1], out port) && port != 0)
-                                            client = Bot.NewClient(ss[0], ss[0], port, Bot.dNicknames, Bot.dUsername, Bot.dFullName);
-                                        else
-                                            ConsoleUtils.WriteLine("%cREDPort number for " + ss[0] + " is invalid.");
-                                    } else
-                                        client = Bot.NewClient(Section, Section, 6667, Bot.dNicknames, Bot.dUsername, Bot.dFullName);
-                                }
-                                GotNicknames = false;
-                            } else {
-                                Match = Regex.Match(s, @"^\s*((?>[^=]*))=(.*)$");
-                                if (Match.Success) {
-                                    Field = Match.Groups[1].Value;
-                                    Value = Match.Groups[2].Value;
-                                    if (Section.Equals("me", StringComparison.OrdinalIgnoreCase)) {
-                                        switch (Field.ToUpper()) {
-                                            case "NICKNAME":
-                                            case "NICKNAMES":
-                                            case "NAME":
-                                            case "NAMES":
-                                            case "NICK":
-                                            case "NICKS":
-                                                if (GotNicknames)
-                                                    Bot.dNicknames = Bot.dNicknames.Concat(Value.Split(new char[] { ',', ' ' }, StringSplitOptions.RemoveEmptyEntries)).ToArray();
-                                                else {
-                                                    Bot.dNicknames = Value.Split(new char[] { ',', ' ' }, StringSplitOptions.RemoveEmptyEntries);
-                                                    GotNicknames = true;
-                                                }
-                                                break;
-                                            case "USERNAME":
-                                            case "USER":
-                                            case "IDENTNAME":
-                                            case "IDENT":
-                                                Bot.dUsername = Value;
-                                                break;
-                                            case "FULLNAME":
-                                            case "REALNAME":
-                                            case "GECOS":
-                                            case "FULL":
-                                                Bot.dFullName = Value;
-                                                break;
-                                            case "USERINFO":
-                                            case "CTCPINFO":
-                                            case "INFO":
-                                                Bot.dUserInfo = Value;
-                                                break;
-                                            case "AVATAR":
-                                            case "AVATARURL":
-                                            case "AVATAR-URL":
-                                                dAvatar = Value;
-                                                break;
-                                        }
-                                    } else if (Section.Equals("prefixes", StringComparison.OrdinalIgnoreCase)) {
-                                        if (Field.Equals("Default", StringComparison.CurrentCultureIgnoreCase))
-                                            DefaultCommandPrefixes = Value.Split(new char[] { ' ' }, StringSplitOptions.RemoveEmptyEntries);
-                                        else
-                                            ChannelCommandPrefixes.Add(Field, Value.Split(new char[] { ' ' }, StringSplitOptions.RemoveEmptyEntries));
-                                    } else {
-                                        if (client.NickServ == null && (
-                                            Field.StartsWith("NickServ", StringComparison.OrdinalIgnoreCase) ||
-                                            Field.StartsWith("NS", StringComparison.OrdinalIgnoreCase))) {
-                                            client.NickServ = new NickServSettings();
-                                        }
-                                        switch (Field.ToUpper()) {
-                                            case "ADDRESS":
-                                                string[] ss = Value.Split(new char[] { ':' }, 2);
-                                                client.Address = ss[0];
-                                                client.Client.Address = ss[0];
-                                                if (ss.Length > 1) {
-                                                    ushort port;
-                                                    if (ushort.TryParse(ss[1], out port) && port != 0) {
-                                                        client.Port = port;
-                                                        client.Client.Port = port;
-                                                    } else
-                                                        ConsoleUtils.WriteLine("%cREDPort number for " + ss[0] + " is invalid.");
-                                                } else {
-                                                    client.Client.Port = 6667;
-                                                    client.Port = 6667;
-                                                }
-                                                break;
-                                            case "PASSWORD":
-                                            case "PASS":
-                                                client.Client.Password = Value;
-                                                break;
-                                            case "NICKNAME":
-                                            case "NICKNAMES":
-                                            case "NAME":
-                                            case "NAMES":
-                                            case "NICK":
-                                            case "NICKS":
-                                                if (GotNicknames)
-                                                    client.Nicknames = client.Nicknames.Concat(Value.Split(new char[] { ',', ' ' }, StringSplitOptions.RemoveEmptyEntries)).ToArray();
-                                                else {
-                                                    client.Nicknames = Value.Split(new char[] { ',', ' ' }, StringSplitOptions.RemoveEmptyEntries);
-                                                    GotNicknames = true;
-                                                }
-                                                break;
-                                            case "USERNAME":
-                                            case "USER":
-                                            case "IDENTNAME":
-                                            case "IDENT":
-                                                client.Client.Me.Ident = Value;
-                                                break;
-                                            case "FULLNAME":
-                                            case "REALNAME":
-                                            case "GECOS":
-                                            case "FULL":
-                                                client.Client.Me.FullName = Value;
-                                                break;
-                                            case "AUTOJOIN":
-                                                client.AutoJoin.AddRange(Value.Split(new char[] { ',', ' ' }, StringSplitOptions.RemoveEmptyEntries).Select(c => new AutoJoinChannel(c)));
-                                                break;
-                                            case "SSL":
-                                            case "USESSL":
-                                                if (Value.Equals("Yes", StringComparison.OrdinalIgnoreCase) ||
-                                                    Value.Equals("True", StringComparison.OrdinalIgnoreCase) ||
-                                                    Value.Equals("On", StringComparison.OrdinalIgnoreCase)) {
-                                                    client.Client.SSL = true;
-                                                } else if (Value.Equals("No", StringComparison.OrdinalIgnoreCase) ||
-                                                           Value.Equals("False", StringComparison.OrdinalIgnoreCase) ||
-                                                           Value.Equals("Off", StringComparison.OrdinalIgnoreCase)) {
-                                                    client.Client.SSL = false;
-                                                }
-                                                break;
-                                            case "ALLOWINVALIDCERTIFICATE":
-                                                if (Value.Equals("Yes", StringComparison.OrdinalIgnoreCase) ||
-                                                    Value.Equals("True", StringComparison.OrdinalIgnoreCase) ||
-                                                    Value.Equals("On", StringComparison.OrdinalIgnoreCase)) {
-                                                    client.Client.AllowInvalidCertificate = true;
-                                                } else if (Value.Equals("No", StringComparison.OrdinalIgnoreCase) ||
-                                                           Value.Equals("False", StringComparison.OrdinalIgnoreCase) ||
-                                                           Value.Equals("Off", StringComparison.OrdinalIgnoreCase)) {
-                                                    client.Client.AllowInvalidCertificate = false;
-                                                }
-                                                break;
-                                            case "SASL-USERNAME":
-                                                client.Client.SASLUsername = Value;
-                                                break;
-                                            case "SASL-PASSWORD":
-                                                client.Client.SASLPassword = Value;
-                                                break;
-                                            case "NICKSERV-NICKNAMES":
-                                            case "NS-NICKNAMES":
-                                                client.NickServ.RegisteredNicknames = Value.Split(new char[] { ',', ' ' }, StringSplitOptions.RemoveEmptyEntries);
-                                                break;
-                                            case "NICKSERV-PASSWORD":
-                                            case "NS-PASSWORD":
-                                                client.NickServ.Password = Value;
-                                                break;
-                                            case "NICKSERV-ANYNICKNAME":
-                                            case "NS-ANYNICKNAME:":
-                                                if (Value.Equals("Yes", StringComparison.OrdinalIgnoreCase) ||
-                                                    Value.Equals("True", StringComparison.OrdinalIgnoreCase) ||
-                                                    Value.Equals("On", StringComparison.OrdinalIgnoreCase)) {
-                                                    client.NickServ.AnyNickname = true;
-                                                } else if (Value.Equals("No", StringComparison.OrdinalIgnoreCase) ||
-                                                           Value.Equals("False", StringComparison.OrdinalIgnoreCase) ||
-                                                           Value.Equals("Off", StringComparison.OrdinalIgnoreCase)) {
-                                                    client.NickServ.AnyNickname = false;
-                                                }
-                                                break;
-                                            case "NICKSERV-USEGHOSTCOMMAND":
-                                            case "NS-USEGHOSTCOMMAND":
-                                                if (Value.Equals("Yes", StringComparison.OrdinalIgnoreCase) ||
-                                                    Value.Equals("True", StringComparison.OrdinalIgnoreCase) ||
-                                                    Value.Equals("On", StringComparison.OrdinalIgnoreCase)) {
-                                                    client.NickServ.UseGhostCommand = true;
-                                                } else if (Value.Equals("No", StringComparison.OrdinalIgnoreCase) ||
-                                                           Value.Equals("False", StringComparison.OrdinalIgnoreCase) ||
-                                                           Value.Equals("Off", StringComparison.OrdinalIgnoreCase)) {
-                                                    client.NickServ.UseGhostCommand = false;
-                                                }
-                                                break;
-                                            case "NICKSERV-IDENTIFYCOMMAND":
-                                            case "NS-IDENTIFYCOMMAND":
-                                                client.NickServ.IdentifyCommand = Value;
-                                                break;
-                                            case "NICKSERV-GHOSTCOMMAND":
-                                            case "NS-GHOSTCOMMAND":
-                                                client.NickServ.GhostCommand = Value;
-                                                break;
-                                            case "NICKSERV-HOSTMASK":
-                                            case "NS-HOSTMASK":
-                                                client.NickServ.Hostmask = Value;
-                                                break;
-                                            case "NICKSERV-REQUESTMASK":
-                                            case "NS-REQUESTMASK":
-                                                client.NickServ.RequestMask = Value;
-                                                break;
-                                        }
+            if (update) UpdateNetworks();
+        }
+        /// <summary>Compares and applies changes in IRC network configuration.</summary>
+        public static void UpdateNetworks() {
+            if (NewClients == null) return;  // Nothing to do.
 
-                                    }
-                                }
-                            }
+            Dictionary<string, int> oldNetworks = new Dictionary<string, int>(StringComparer.InvariantCultureIgnoreCase);
+            List<ClientEntry> reconnectNeeded = new List<ClientEntry>();
+
+            for (int i = 0; i < Clients.Count; ++i)
+                oldNetworks[Clients[i].Name] = i;
+
+            foreach (var network in NewClients) {
+                ClientEntry oldNetwork; int index;
+                if (oldNetworks.TryGetValue(network.Name, out index)) {
+                    oldNetwork = Clients[index];
+                    oldNetworks.Remove(network.Name);
+
+                    network.Client = oldNetwork.Client;
+                    Clients[index] = network;
+
+                    // Reconnect if the address was changed.
+                    if (network.Address != oldNetwork.Address ||
+                        network.Port != oldNetwork.Port ||
+                        network.TLS != oldNetwork.TLS) {
+                        ConsoleUtils.WriteLine("Address of {0} has changed.", network.Name);
+                        if (network.Client.State != IRCClientState.Disconnected) {
+                            oldNetwork.Client.Send("QUIT :Changing server.");
+                            oldNetwork.Client.Disconnect();
                         }
+                        reconnectNeeded.Add(network);
                     }
 
-                    Reader.Close();
-                } catch (Exception ex) {
-                    ConsoleUtils.WriteLine("%cGRAY[%cREDERROR%cGRAY] %cWHITEI was unable to retrieve config data from the file: %cRED" + ex.Message + "%r");
+                } else {
+                    AddNetwork(network);
+                    reconnectNeeded.Add(network);
                 }
+            }
+
+            NewClients = null;
+
+            foreach (var index in oldNetworks.Values) {
+                var network = Clients[index];
+                if (network.SaveToConfig) {
+                    ConsoleUtils.WriteLine("{0} was removed.", network.Name);
+                    network.Client.Send("QUIT :Network dropped from configuration.");
+                    network.Client.Disconnect();
+
+                    Clients.RemoveAt(index);
+                }
+            }
+
+            // Reconnect to networks.
+            foreach (var network in reconnectNeeded) {
+                ConsoleUtils.WriteLine("Connecting to {0} on port {1}.", network.Address, network.Port);
+                network.Connect();
             }
         }
 
         /// <summary>Loads user data from the file CBotUsers.ini if it is present.</summary>
-        public static void LoadUsers() {
-            commandCallbackNeeded = false;
-            if (File.Exists("CBotUsers.ini")) {
-                try {
-                    StreamReader Reader = new StreamReader("CBotUsers.ini");
-                    string Section = null;
-                    Account newUser = null;
+        public static void LoadUsers() => LoadUsers(true);
+        public static void LoadUsers(bool update) {
+            if (File.Exists("CBotUsers.ini")) IniConfig.LoadUsers();
 
-                    while (!Reader.EndOfStream) {
-                        string s = Reader.ReadLine();
-                        if (Regex.IsMatch(s, @"^(?>\s*);")) continue;  // Comment check
+            if (update) {
+                // Remove links to deleted accounts.
+                var idsToRemove = new List<string>();
 
-                        Match Match = Regex.Match(s, @"^\s*\[(?<Section>.*?)\]?\s*$");
-                        if (Match.Success) {
-                            if (Section != null) Bot.Accounts.Add(Section, newUser);
-                            Section = Match.Groups["Section"].Value;
-                            if (!Bot.Accounts.ContainsKey(Section)) {
-                                newUser = new Account { Permissions = new string[0] };
-                                if (Section.StartsWith("$a")) commandCallbackNeeded = true;
-                            }
-                        } else {
-                            if (Section != null) {
-                                Match = Regex.Match(s, @"^\s*((?>[^=]*))=(.*)$");
-                                if (Match.Success) {
-                                    string Field = Match.Groups[1].Value;
-                                    string Value = Match.Groups[2].Value;
-                                    switch (Field.ToUpper()) {
-                                        case "PASSWORD":
-                                        case "PASS":
-                                            newUser.Password = Value;
-                                            if (newUser.HashType == HashType.None && newUser.Password != null)
-                                                // Old format
-                                                newUser.HashType = (newUser.Password.Length == 128 ? HashType.SHA256Salted : HashType.PlainText);
-                                            break;
-                                        case "HASHTYPE":
-                                            newUser.HashType = (HashType) Enum.Parse(typeof(HashType), Value, true);
-                                            break;
-                                    }
-                                } else if (s.Trim() != "") {
-                                    string[] array = newUser.Permissions;
-                                    newUser.Permissions = new string[array.Length + 1];
-                                    Array.Copy(array, newUser.Permissions, array.Length);
-                                    newUser.Permissions[array.Length] = s.Trim();
-                                }
-                            }
-                        }
-                    }
-
-                    Bot.Accounts.Add(Section, newUser);
-                    Reader.Close();
-                } catch (Exception ex) {
-                    ConsoleUtils.WriteLine("%cGRAY[%cREDERROR%cGRAY] %cWHITEI was unable to retrieve user data from the file: $k04" + ex.Message + "%r");
+                foreach (var user in Identifications) {
+                    if (!Accounts.ContainsKey(user.Value.AccountName))
+                        idsToRemove.Add(user.Key);
                 }
+                foreach (var user in idsToRemove)
+                    Identifications.Remove(user);
             }
         }
 
         /// <summary>Loads active plugin data from the file CBotPlugins.ini if it is present.</summary>
-        public static void LoadPlugins() {
-            bool error = false;
-            if (File.Exists("CBotPlugins.ini")) {
-                try {
-                    StreamReader Reader = new StreamReader("CBotPlugins.ini");
+        public static bool LoadPlugins() => LoadPlugins(true);
+        public static bool LoadPlugins(bool update) {
+            if (File.Exists("CBotPlugins.ini")) IniConfig.LoadPlugins();
 
-                    string Section = "";
+            if (update) return UpdatePlugins();
+            return true;
+        }
+        /// <summary>Compares and applies changes in plugin configuration.</summary>
+        public static bool UpdatePlugins() {
+            if (NewPlugins == null) return true;  // Nothing to do.
 
-                    string Filename = null;
-                    string[] Channels = null;
-                    string[] MinorChannels = null;
-                    string Label = null;
+            bool success = true;
+            HashSet<string> oldPlugins = new HashSet<string>(StringComparer.InvariantCultureIgnoreCase);
+            List<PluginEntry> reloadNeeded = new List<PluginEntry>();
 
-                    while (!Reader.EndOfStream) {
-                        string s = Reader.ReadLine();
-                        if (Regex.IsMatch(s, @"^(?>\s*);")) continue;  // Comment check
+            foreach (var plugin in Plugins) oldPlugins.Add(plugin.Key);
 
-                        Match Match = Regex.Match(s, @"^\s*\[(?<Section>.*?)\]?\s*$");
-                        if (Match.Success) {
-                            if (Filename != null) {
-                                try {
-                                    Bot.LoadPlugin(Section, Filename, Channels);
-                                } catch (Exception) {
-                                    // LoadPlugin already reports the exception.
-                                    error = true;
-                                }
-                            }
-                            Section = Match.Groups["Section"].Value;
-                        } else {
-                            if (Section != "") {
-                                Match = Regex.Match(s, @"^\s*((?>[^=]*))=(.*)$");
-                                if (Match.Success) {
-                                    string Field = Match.Groups[1].Value;
-                                    string Value = Match.Groups[2].Value;
-
-                                    switch (Field.ToUpper()) {
-                                        case "FILENAME":
-                                        case "FILE":
-                                            Filename = Value;
-                                            break;
-                                        case "CHANNELS":
-                                        case "MAJOR":
-                                            Channels = Value.Split(new char[] { ',', ' ' }, StringSplitOptions.RemoveEmptyEntries);
-                                            break;
-                                        case "MINORCHANNELS":
-                                        case "MINOR":
-                                            MinorChannels = Value.Split(new char[] { ',', ' ' }, StringSplitOptions.RemoveEmptyEntries);
-                                            break;
-                                        case "LABEL":
-                                        case "MINORLABEL":
-                                            Label = Value;
-                                            break;
-                                    }
-                                }
-                            }
-                        }
-                    }
-                    if (Filename != null) {
-                        try {
-                            Bot.LoadPlugin(Section, Filename, Channels);
-                        } catch (Exception) {
-                            error = true;
-                        }
-                    }
-                    Reader.Close();
-                } catch (Exception ex) {
-                    ConsoleUtils.WriteLine("%cGRAY[%cREDERROR%cGRAY] %cWHITEI was unable to retrieve plugin data from the file: %cRED" + ex.Message + "%r");
-                    error = true;
+            foreach (var plugin in NewPlugins) {
+                PluginEntry oldPlugin; int index;
+                if (Plugins.TryGetValue(plugin.Key, out oldPlugin) && plugin.Value.Filename == oldPlugin.Filename) {
+                    oldPlugins.Remove(plugin.Key);
+                    oldPlugin.Channels = plugin.Value.Channels;
+                } else {
+                    reloadNeeded.Add(plugin.Value);
                 }
             }
 
-            if (error) {
-                ConsoleUtils.WriteLine("%cREDSome plugins failed to load.%r");
-                ConsoleUtils.WriteLine("%cWHITEPress Escape to exit, or any other key to continue . . .");
-                if (Console.ReadKey(true).Key == ConsoleKey.Escape) Environment.Exit(2);
+            NewPlugins = null;
+
+            foreach (var key in oldPlugins) {
+                Plugins[key]?.Obj?.OnUnload();
+                Plugins.Remove(key);
+                ConsoleUtils.WriteLine("Dropped plugin {0}.", key);
             }
+
+            // Load new plugins.
+            foreach (var plugin in reloadNeeded) {
+                try {
+                    LoadPlugin(plugin);
+                } catch (Exception) {
+                    success = false;
+                }
+            }
+
+            return success;
         }
 
         /// <summary>Writes configuration data to the file CBotConfig.ini.</summary>
-        public static void SaveConfig() {
-            StreamWriter Writer = new StreamWriter("CBotConfig.ini", false);
-            Writer.WriteLine("[Me]");
-            Writer.WriteLine("Nicknames=" + string.Join(",", Bot.dNicknames));
-            Writer.WriteLine("Username=" + Bot.dUsername);
-            Writer.WriteLine("FullName=" + Bot.dFullName);
-            Writer.WriteLine("UserInfo=" + Bot.dUserInfo);
-            if (Bot.dAvatar != null) {
-                Writer.WriteLine("Avatar=" + Bot.dAvatar);
-            }
-            foreach (ClientEntry client in Bot.Clients) {
-                if (client.SaveToConfig) {
-                    Writer.WriteLine();
-                    Writer.WriteLine("[" + client.Name + "]");
-                    Writer.WriteLine("Address=" + client.Address + ":" + client.Port);
-                    if (client.Client.Password != null)
-                        Writer.WriteLine("Password=" + client.Client.Password);
-                    if (client.Nicknames != null)
-                        Writer.WriteLine("Nicknames=" + string.Join(",", client.Nicknames));
-                    Writer.WriteLine("Username=" + client.Client.Me.Ident);
-                    Writer.WriteLine("FullName=" + client.Client.Me.FullName);
-                    if (client.AutoJoin.Count != 0) {
-                        Writer.WriteLine("Autojoin=" + string.Join(",", client.AutoJoin.Select(c => c.Channel)));
-                    }
-                    Writer.WriteLine("SSL=" + (client.Client.SSL ? "Yes" : "No"));
-                    if (client.Client.SASLUsername != null && client.Client.SASLPassword != null) {
-                        Writer.WriteLine("SASL-Username=" + client.Client.SASLUsername);
-                        Writer.WriteLine("SASL-Password=" + client.Client.SASLPassword);
-                    }
-                    Writer.WriteLine("AllowInvalidCertificate=" + (client.Client.AllowInvalidCertificate ? "Yes" : "No"));
-                    if (client.NickServ != null) {
-                        Writer.WriteLine("NickServ-Nicknames=" + string.Join(",", client.NickServ.RegisteredNicknames));
-                        Writer.WriteLine("NickServ-Password=" + client.NickServ.Password);
-                        Writer.WriteLine("NickServ-AnyNickname=" + (client.NickServ.AnyNickname ? "Yes" : "No"));
-                        Writer.WriteLine("NickServ-UseGhostCommand=" + (client.NickServ.UseGhostCommand ? "Yes" : "No"));
-                        Writer.WriteLine("NickServ-GhostCommand=" + client.NickServ.GhostCommand);
-                        Writer.WriteLine("NickServ-IdentifyCommand=" + client.NickServ.IdentifyCommand);
-                        Writer.WriteLine("NickServ-Hostmask=" + client.NickServ.Hostmask);
-                        Writer.WriteLine("NickServ-RequestMask=" + client.NickServ.RequestMask);
-                    }
-                }
-            }
-            Writer.WriteLine();
-            Writer.WriteLine("[Prefixes]");
-            Writer.WriteLine("Default=" + string.Join(" ", DefaultCommandPrefixes));
-            foreach (KeyValuePair<string, string[]> Connection2 in Bot.ChannelCommandPrefixes) {
-                Writer.WriteLine(Connection2.Key + "=" + string.Join(" ", Connection2.Value));
-            }
-            Writer.Close();
-        }
+        public static void SaveConfig() => IniConfig.SaveConfig();
 
         /// <summary>Writes user data to the file CBotUsers.ini.</summary>
-        public static void SaveUsers() {
-            StreamWriter Writer = new StreamWriter("CBotUsers.ini", false);
-            foreach (KeyValuePair<string, Account> User in Bot.Accounts) {
-                Writer.WriteLine("[" + User.Key + "]");
-                if (User.Value.HashType != HashType.None) {
-                    Writer.WriteLine("HashType=" + User.Value.HashType);
-                    Writer.WriteLine("Password=" + User.Value.Password);
-                }
-                string[] permissions = User.Value.Permissions;
-                for (int i = 0; i < permissions.Length; ++i) {
-                    string Permission = permissions[i];
-                    Writer.WriteLine(Permission);
-                }
-                Writer.WriteLine();
-            }
-            Writer.Close();
-        }
+        public static void SaveUsers() => IniConfig.SaveUsers();
 
         /// <summary>Writes active plugin data to the file CBotPlugins.ini.</summary>
         public static void SavePlugins() {
-            StreamWriter Writer = new StreamWriter("CBotPlugins.ini", false);
-            foreach (KeyValuePair<string, PluginEntry> Plugin in Bot.Plugins) {
-                Writer.WriteLine("[" + Plugin.Key + "]");
-                Writer.WriteLine("Filename=" + Plugin.Value.Filename);
-                bool flag = Plugin.Value.Obj.Channels != null;
-                if (flag) {
-                    Writer.WriteLine("Channels=" + string.Join(",", Plugin.Value.Obj.Channels));
-                }
-                Writer.WriteLine();
-                Plugin.Value.Obj.OnSave();
-            }
-            Writer.Close();
+            foreach (var plugin in Plugins.Values)
+                plugin.Obj.OnSave();
+            IniConfig.SavePlugins();
         }
 
         /// <summary>Handles a message from an IRC user. This includes checking for commands.</summary>
@@ -1728,7 +1451,7 @@ namespace CBot {
                         // Find the network.
                         if (fields2[0] != null) {
                             foreach (ClientEntry _client in Bot.Clients) {
-                                if ((_client.NetworkName ?? "").Equals(fields2[0], StringComparison.OrdinalIgnoreCase)) {
+                                if (_client.Name.Equals(fields2[0], StringComparison.OrdinalIgnoreCase)) {
                                     client = _client.Client;
                                     break;
                                 }

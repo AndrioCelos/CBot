@@ -4,16 +4,20 @@ using System.Reflection;
 using System.Timers;
 
 using IRC;
+using Newtonsoft.Json;
 
 namespace CBot {
     /// <summary>
     /// Stores data about an IRC connection and handles automatic reconnection.
     /// </summary>
+    // TODO: Rename this to IrcNetwork?
     public class ClientEntry {
         /// <summary>The name of the IRC network.</summary>
-        public string Name;
+        public string Name { get; set; }
+
         private bool _ReconnectEnabled;
         /// <summary>Returns or sets a value specifying whether CBot will automatically reconnect to this network.</summary>
+        [JsonIgnore]
         public bool ReconnectEnabled {
             get { return this._ReconnectEnabled; }
             set {
@@ -28,18 +32,25 @@ namespace CBot {
         /// <summary>Returns the IRCClient object for this connection.</summary>
         public IRCClient Client { get; internal set; }
 
-        public string[] Nicknames { get; internal set; }
-        public string[] Ident { get; internal set; }
-        public string[] FullName { get; internal set; }
+        public string[] Nicknames { get; set; } = Bot.dNicknames;
+        public string Ident { get; set; } = Bot.dUsername;
+        public string FullName { get; set; } = Bot.dFullName;
 
-        public string NetworkName { get; internal set; }
         public string Address { get; set; }
-        public int Port { get; set; }
+        public int Port { get; set; } = 6667;
+        public bool TLS { get; set; }
+        public bool AcceptInvalidTlsCertificate { get; set; }
+        public string Password { get; set; }
 
-        public bool SaveToConfig { get; set; } = true;
+        public string SaslUsername { get; set; }
+        public string SaslPassword { get; set; }
+
+        /// <summary>Indicates whether this network is defined in CBot's config file.</summary>
+        [JsonIgnore]
+        public bool SaveToConfig { get; set; }
 
         /// <summary>The list of channels to automatically join upon connecting.</summary>
-        public List<AutoJoinChannel> AutoJoin;
+        public List<AutoJoinChannel> AutoJoin = new List<AutoJoinChannel>();
         /// <summary>Contains the data used to deal with nickname services.</summary>
         public NickServSettings NickServ;
 
@@ -49,6 +60,13 @@ namespace CBot {
         // Diagnostic information.
         public Plugin CurrentProcedurePlugin { get; internal set; }
         public MethodInfo CurrentProcedure { get; internal set; }
+
+        public ClientEntry(string name) {
+            this.Name = name;
+            if (name.Contains(".")) this.Address = name;
+            this.ReconnectTimer = new Timer(30000) { AutoReset = false };
+            this.ReconnectTimer.Elapsed += ReconnectTimer_Elapsed;
+        }
 
         /// <summary>
         /// Creates a new ClientEntry object with the specified network name, IRCClient object and reconnect delay.
@@ -66,15 +84,35 @@ namespace CBot {
             this.ReconnectEnabled = true;
             this.ReconnectTimer = new Timer(reconnectDelay) { AutoReset = false };
             this.ReconnectTimer.Elapsed += ReconnectTimer_Elapsed;
-            this.AutoJoin = new List<AutoJoinChannel>();
+        }
+
+        internal void UpdateSettings() {
+            this.Client.Address = this.Address;
+            this.Client.Port = this.Port;
+            this.Client.Password = this.Password;
+            this.Client.SSL = this.TLS;
+            this.Client.AllowInvalidCertificate = this.AcceptInvalidTlsCertificate;
+            this.Client.SASLUsername = this.SaslUsername;
+            this.Client.SASLPassword = this.SaslPassword;
+            this.Client.Me.Nickname = this.Nicknames[0];
+            this.Client.Me.Ident = this.Ident;
+            this.Client.Me.FullName = this.FullName;
+        }
+
+        public void Connect() {
+            this.UpdateSettings();
+            this.ReconnectTimer.Stop();
+            this.Client.Connect(this.Address, this.Port);
         }
 
         internal void ReconnectTimer_Elapsed(object sender, ElapsedEventArgs e) {
+            if (this.Client.State != IRCClientState.Disconnected) return;
             try {
-                ConsoleUtils.WriteLine("Connecting to {0} on port {1}.", (object) this.Client.IP ?? (object) this.Client.Address, this.Client.Port);
+                ConsoleUtils.WriteLine("Connecting to {0} ({1}) on port {2}.", this.Name, this.Address, this.Port);
+                this.UpdateSettings();
                 this.Client.Connect(this.Address, this.Port);
             } catch (Exception ex) {
-                ConsoleUtils.WriteLine("%cREDConnection to {0} failed: {1}%r", this.Client.Address, ex.Message);
+                ConsoleUtils.WriteLine("%cREDConnection to {0} failed: {1}%r", this.Name, ex.Message);
                 this.StartReconnect();
             }
         }

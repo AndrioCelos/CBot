@@ -9,5 +9,14 @@ namespace CBot {
         public string Filename { get; internal set; }
         /// <summary>The plugin object itself.</summary>
         public Plugin Obj { get; internal set; }
+
+        private string[] channels;
+        public string[] Channels {
+            get { return this.Obj?.Channels ?? this.channels;  }
+            set {
+                if (this.Obj == null) this.channels = value;
+                else this.Obj.Channels = value;
+            }
+        }
     }
 }
