@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Reflection;
 using System.Text;
 using System.Text.RegularExpressions;
 using System.Threading;
@@ -12,8 +13,9 @@ using IRC;
 
 namespace BattleBot {
     [APIVersion(3, 2)]
-    public class BattleBotPlugin : Plugin
-    {
+    public class BattleBotPlugin : Plugin {
+        private List<ArenaTrigger> arenaTriggers = new List<ArenaTrigger>();
+
         public string LoggedIn;
         public ArenaVersion Version;
         public bool IsBattleDungeon;
@@ -112,6 +114,17 @@ namespace BattleBot {
         public event EventHandler eBattleStart;
         public event EventHandler eBattleEnd;
 
+        public BattleBotPlugin() {
+            // Register commands and triggers.
+            foreach (var method in this.GetType().GetMethods(BindingFlags.InvokeMethod | BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic)) {
+                foreach (var attribute in method.GetCustomAttributes()) {
+                    if (attribute is ArenaRegexAttribute) {
+                        arenaTriggers.Add(new ArenaTrigger((ArenaRegexAttribute) attribute, (PluginTriggerHandler) method.CreateDelegate(typeof(PluginTriggerHandler), this)));
+                    }
+                }
+            }
+        }
+
         public override string Name {
             get {
                 return "Battlebot";
@@ -139,8 +152,8 @@ namespace BattleBot {
                     if (client.Address == "!Console") continue;
                     if (client is DCCClient) continue;
                     if (fields[0] == null || fields[0] == "*" ||
-                        client.Address.Equals(fields[0], StringComparison.OrdinalIgnoreCase) ||
-                        (client.Extensions.NetworkName != null && client.Extensions.NetworkName.Equals(fields[0], StringComparison.OrdinalIgnoreCase))) {
+                        fields[0].Equals(clientEntry.Name, StringComparison.InvariantCultureIgnoreCase) ||
+                        fields[0].Equals(clientEntry.Address, StringComparison.InvariantCultureIgnoreCase)) {
                             if (client.Channels.Contains(fields[1])) {
                                 this.ArenaConnection = client;
                                 this.ArenaChannel = fields[1];
@@ -281,18 +294,16 @@ namespace BattleBot {
         }
 
         public bool RunArenaRegex(IRCClient connection, string channel, IRCUser sender, string message) {
-            foreach (System.Reflection.MethodInfo method in this.GetType().GetMethods(System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.NonPublic)) {
-                foreach (Attribute attribute in method.GetCustomAttributes(typeof(ArenaRegexAttribute), false)) {
-                    foreach (string expression in ((ArenaRegexAttribute) attribute).Expressions) {
-                        Match match = Regex.Match(message, expression);
-                        if (match.Success) {
-                            try {
-                                method.Invoke(this, new object[] { this, new RegexEventArgs(connection, channel, sender, match) });
-                            } catch (Exception ex) {
-                                this.LogError(method.Name, ex);
-                            }
-                            return true;
+            foreach (var trigger in arenaTriggers) {
+                foreach (string expression in trigger.Attribute.Expressions) {
+                    Match match = Regex.Match(message, expression);
+                    if (match.Success) {
+                        try {
+                            trigger.Handler.Invoke(this, new RegexEventArgs(connection, channel, sender, match));
+                        } catch (Exception ex) {
+                            this.LogError(trigger.Handler.GetMethodInfo().Name, ex);
                         }
+                        return true;
                     }
                 }
             }
@@ -1762,7 +1773,7 @@ namespace BattleBot {
                 }
             }
 
-            if (!this.Weapons.ContainsKey(me.EquippedWeapon) || (me.EquippedWeapon2 != null && !this.Weapons.ContainsKey(me.EquippedWeapon2))) {
+            if ((me.EquippedWeapon == null || !this.Weapons.ContainsKey(me.EquippedWeapon)) || (me.EquippedWeapon2 == null || !this.Weapons.ContainsKey(me.EquippedWeapon2))) {
                 this.WriteLine(2, 4, "My equipped weapon is unknown!");
                 this.BattleAction(true, "!equip Fists");
                 for (int j = 0; j < 120; ++j) {
@@ -4498,7 +4509,7 @@ namespace BattleBot {
         }
 
 #region Battle conclusion
-        [ArenaRegex(new string[] { @"^\x034The Battle is Over!",
+        [ArenaRegex(new string[] { @"^\x034The Battle is Over ?!",
             @"^\x034There were no players to meet the monsters on the battlefield! \x02The battle is over\x02."})]
         internal void OnBattleEnd(object sender, RegexEventArgs e) {
             this.WriteLine(1, 8, "The battle has ended.");

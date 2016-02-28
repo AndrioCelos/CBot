@@ -1,14 +1,18 @@
 using System;
 using System.Collections.Generic;
+using System.Collections.ObjectModel;
 using System.IO;
 using System.Linq;
 using System.Reflection;
 using System.Text;
 using System.Text.RegularExpressions;
-
+using System.Threading.Tasks;
 using IRC;
 
 namespace CBot {
+    public delegate void PluginCommandHandler(object sender, CommandEventArgs e);
+    public delegate void PluginTriggerHandler(object sender, RegexEventArgs e);
+
     /// <summary>Provides a base class for CBot plugin main classes.</summary>
     public abstract class Plugin {
         private static Regex languageEscapeRegex = new Regex(@"\\(?:(n)|(r)|(t)|(\\)|(u)([0-9a-f]{4})?|($))", RegexOptions.Compiled | RegexOptions.IgnoreCase);
@@ -51,6 +55,12 @@ namespace CBot {
             }
         }
 
+        private Dictionary<string, Command> commands = new Dictionary<string, Command>(StringComparer.CurrentCultureIgnoreCase);
+        private List<Trigger> triggers = new List<Trigger>();
+
+        public ReadOnlyDictionary<string, Command> Commands;
+        public ReadOnlyCollection<Trigger> Triggers;
+
         /// <summary>
         /// Contains the message formats currently in use by this plugin.
         /// </summary>
@@ -73,7 +83,22 @@ namespace CBot {
         /// <summary>
         /// Creates a new instance of the Plugin class.
         /// </summary>
-        protected Plugin() { }
+        protected Plugin() {
+            // Register commands and triggers.
+            foreach (var method in this.GetType().GetMethods()) {
+                foreach (var attribute in method.GetCustomAttributes()) {
+                    if (attribute is CommandAttribute) {
+                        foreach (var alias in ((CommandAttribute) attribute).Names)
+                            this.commands.Add(alias, new Command((CommandAttribute) attribute, (PluginCommandHandler) method.CreateDelegate(typeof(PluginCommandHandler), this)));
+                    } else if (attribute is RegexAttribute) {
+                        this.triggers.Add(new Trigger((RegexAttribute) attribute, (PluginTriggerHandler) method.CreateDelegate(typeof(PluginTriggerHandler), this)));
+                    }
+                }
+            }
+
+            this.Commands = new ReadOnlyDictionary<string, Command>(this.commands);
+            this.Triggers = new ReadOnlyCollection<Trigger>(this.triggers);
+        }
 
         /// <summary>
         /// When overridden, returns help text on a specific user-specified topic, if it is available and relevant to this plugin; otherwise, null.
@@ -142,34 +167,22 @@ namespace CBot {
         /// <param name="globalCommand">True if the global command syntax was used; false otherwise.</param>
         /// <returns>True if a command was matched (even if it was denied); false otherwise.</returns>
         public bool RunCommand(IRCClient Connection, IRCUser Sender, string Channel, string InputLine, bool globalCommand = false) {
-            string command = InputLine.Split(new char[] { ' ' })[0];
-
-            MethodInfo method = null; CommandAttribute attribute = null;
-
-            foreach (MethodInfo _method in this.GetType().GetMethods()) {
-                foreach (CommandAttribute _attribute in _method.GetCustomAttributes(typeof(CommandAttribute), true)) {
-                    if (_attribute.Names.Contains(command, StringComparer.OrdinalIgnoreCase)) {
-                        method = _method;
-                        attribute = _attribute;
-                        break;
-                    }
-                }
-                if (method != null) break;
-            }
-            if (method == null) return false;
+            string alias = InputLine.Split(new char[] { ' ' })[0];
+            Command command;
+            if (!this.commands.TryGetValue(alias, out command)) return false;
 
             // Check the scope.
-            if ((attribute.Scope & CommandScope.PM) == 0 && !Connection.IsChannel(Channel)) return false;
-            if ((attribute.Scope & CommandScope.Channel) == 0 && Connection.IsChannel(Channel)) return false;
+            if ((command.Attribute.Scope & CommandScope.PM) == 0 && !Connection.IsChannel(Channel)) return false;
+            if ((command.Attribute.Scope & CommandScope.Channel) == 0 && Connection.IsChannel(Channel)) return false;
 
             // Check for permissions.
             string permission;
-            if (attribute.Permission == null)
+            if (command.Attribute.Permission == null)
                 permission = null;
-            else if (attribute.Permission != "" && attribute.Permission.StartsWith("."))
-                permission = this.Key + attribute.Permission;
+            else if (command.Attribute.Permission != "" && command.Attribute.Permission.StartsWith("."))
+                permission = this.Key + command.Attribute.Permission;
             else
-                permission = attribute.Permission;
+                permission = command.Attribute.Permission;
 
             if (permission != null && !Bot.UserHasPermission(Connection, Channel, Sender, permission)) {
                 // If the user's account name is unknown, they might actually have permission.
@@ -177,21 +190,21 @@ namespace CBot {
                 if (Bot.commandCallbackNeeded && Sender.Account == null) {
                     Bot.GetClientEntry(Connection).commandCallbacks[Sender.Nickname] = new CommandRequest() {
                         Regex = false, Plugin = this, Sender = Sender, Channel = Channel, InputLine = InputLine, GlobalCommand = globalCommand,
-                        FailureMessage = attribute.NoPermissionsMessage
+                        FailureMessage = command.Attribute.NoPermissionsMessage
                     };
                     Connection.Send("WHOIS " + Sender.Nickname);
                     return true;
                 }
 
-                if (attribute.NoPermissionsMessage != null) Bot.Say(Connection, Sender.Nickname, attribute.NoPermissionsMessage);
+                if (command.Attribute.NoPermissionsMessage != null) Bot.Say(Connection, Sender.Nickname, command.Attribute.NoPermissionsMessage);
                 return true;
             }
 
             // Parse the parameters.
-            string[] fields = InputLine.Split(new char[] { ' ' }, attribute.MaxArgumentCount + 1, StringSplitOptions.RemoveEmptyEntries).Skip(1).ToArray();
-            if (fields.Length < attribute.MinArgumentCount) {
+            string[] fields = InputLine.Split(new char[] { ' ' }, command.Attribute.MaxArgumentCount + 1, StringSplitOptions.RemoveEmptyEntries).Skip(1).ToArray();
+            if (fields.Length < command.Attribute.MinArgumentCount) {
                 Bot.Say(Connection, Sender.Nickname, "Not enough parameters.");
-                Bot.Say(Connection, Sender.Nickname, string.Format("The correct syntax is \u000312{0}\u000F.", attribute.Syntax.ReplaceCommands(Connection, Channel)));
+                Bot.Say(Connection, Sender.Nickname, string.Format("The correct syntax is \u000312{0}\u000F.", command.Attribute.Syntax.ReplaceCommands(Connection, Channel)));
                 return true;
             }
 
@@ -200,11 +213,11 @@ namespace CBot {
             var entry = Bot.GetClientEntry(Connection);
             try {
                 entry.CurrentProcedurePlugin = this;
-                entry.CurrentProcedure = method;
+                entry.CurrentProcedure = command.Handler.GetMethodInfo();
                 CommandEventArgs e = new CommandEventArgs(Connection, Channel, Sender, fields);
-                method.Invoke(this, new object[] { this, e });
+                command.Handler.Invoke(this, e);
             } catch (Exception ex) {
-                Bot.LogError(this.Key, method.Name, ex);
+                Bot.LogError(this.Key, command.Handler.GetMethodInfo().Name, ex);
                 while (ex is TargetInvocationException || ex is AggregateException) ex = ex.InnerException;
                 Bot.Say(Connection, Channel, "\u00034The command failed. This incident has been logged. ({0})", ex.Message.Replace('\n', ' '));
             }
@@ -223,35 +236,31 @@ namespace CBot {
         /// <param name="UsedMyNickname">True if the message was prefixed with the bot's nickname; false otherwise.</param>
         /// <returns>True if a command was matched (even if it was denied); false otherwise.</returns>
         public bool RunRegex(IRCClient Connection, IRCUser Sender, string Channel, string InputLine, bool UsedMyNickname) {
-            MethodInfo method = null; RegexAttribute attribute = null; Match match = null;
+            Match match = null; Trigger trigger = null;
 
-            foreach (MethodInfo _method in this.GetType().GetMethods()) {
-                foreach (RegexAttribute _attribute in _method.GetCustomAttributes(typeof(RegexAttribute), true)) {
-                    foreach (string pattern in _attribute.Expressions) {
-                        match = Regex.Match(InputLine, pattern, RegexOptions.IgnoreCase);
-                        if (match.Success) {
-                            method = _method;
-                            attribute = _attribute;
-                            break;
-                        }
+            foreach (var trigger2 in this.triggers) {
+                foreach (string pattern in trigger2.Attribute.Expressions) {
+                    match = Regex.Match(InputLine, pattern, RegexOptions.IgnoreCase);
+                    if (match.Success) {
+                        trigger = trigger2;
+                        break;
                     }
                 }
-                if (method != null) break;
             }
-            if (method == null) return false;
+            if (trigger == null) return false;
 
             // Check the scope.
-            if ((attribute.Scope & CommandScope.PM) == 0 && !Connection.IsChannel(Channel)) return false;
-            if ((attribute.Scope & CommandScope.Channel) == 0 && Connection.IsChannel(Channel)) return false;
+            if ((trigger.Attribute.Scope & CommandScope.PM) == 0 && !Connection.IsChannel(Channel)) return false;
+            if ((trigger.Attribute.Scope & CommandScope.Channel) == 0 && Connection.IsChannel(Channel)) return false;
 
             // Check for permissions.
             string permission;
-            if (attribute.Permission == null)
+            if (trigger.Attribute.Permission == null)
                 permission = null;
-            else if (attribute.Permission != "" && attribute.Permission.StartsWith("."))
-                permission = this.Key + attribute.Permission;
+            else if (trigger.Attribute.Permission != "" && trigger.Attribute.Permission.StartsWith("."))
+                permission = this.Key + trigger.Attribute.Permission;
             else
-                permission = attribute.Permission;
+                permission = trigger.Attribute.Permission;
 
             if (permission != null && !Bot.UserHasPermission(Connection, Channel, Sender, permission)) {
                 // If the user's account name is unknown, they might actually have permission.
@@ -259,40 +268,25 @@ namespace CBot {
                 if (Bot.commandCallbackNeeded && Sender.Account == null) {
                     Bot.GetClientEntry(Connection).commandCallbacks[Sender.Nickname] = new CommandRequest() {
                         Regex = true, Plugin = this, Sender = Sender, Channel = Channel, InputLine = InputLine, GlobalCommand = UsedMyNickname,
-                        FailureMessage = attribute.NoPermissionsMessage
+                        FailureMessage = trigger.Attribute.NoPermissionsMessage
                     };
                     Connection.Send("WHOIS " + Sender.Nickname);
                     return true;
                 }
 
-                if (attribute.NoPermissionsMessage != null) Bot.Say(Connection, Sender.Nickname, attribute.NoPermissionsMessage);
+                if (trigger.Attribute.NoPermissionsMessage != null) Bot.Say(Connection, Sender.Nickname, trigger.Attribute.NoPermissionsMessage);
                 return true;
             }
-
-            // Check the parameters.
-            ParameterInfo[] parameterTypes = method.GetParameters();
-            object[] parameters;
-            bool handled = false;
-
-            if (parameterTypes.Length == 2) {
-                RegexEventArgs e = new RegexEventArgs(Connection, Channel, Sender, match);
-                parameters = new object[] { this, e };
-            } else if (parameterTypes.Length == 5)
-                parameters = new object[] { Connection, Sender, Channel, match, handled };
-            else if (parameterTypes.Length == 4)
-                parameters = new object[] { Connection, Sender, Channel, match };
-            else
-                throw new TargetParameterCountException("The regex-bound procedure " + method.Name + " has an invalid signature. Expected parameters: (object sender, RegexEventArgs e)");
 
             // Run the command.
             // TODO: Run it on a separate thread.
             var entry = Bot.GetClientEntry(Connection);
             try {
                 entry.CurrentProcedurePlugin = this;
-                entry.CurrentProcedure = method;
-                method.Invoke(this, parameters);
+                entry.CurrentProcedure = trigger.Handler.GetMethodInfo();
+                trigger.Handler.Invoke(this, new RegexEventArgs(Connection, Channel, Sender, match));
             } catch (Exception ex) {
-                Bot.LogError(this.Key, method.Name, ex);
+                Bot.LogError(this.Key, trigger.Handler.GetMethodInfo().Name, ex);
                 while (ex is TargetInvocationException || ex is AggregateException) ex = ex.InnerException;
                 Bot.Say(Connection, Channel, "\u00034The command failed. This incident has been logged. ({0})", ex.Message);
             }
@@ -717,5 +711,25 @@ namespace CBot {
 
         public virtual bool OnChannelLeave(object sender, ChannelPartEventArgs e) { return false; }
         public virtual bool OnChannelLeaveSelf(object sender, ChannelPartEventArgs e) { return false; }
+    }
+
+    public class Command {
+        public CommandAttribute Attribute { get; }
+        public PluginCommandHandler Handler { get; }
+
+        public Command(CommandAttribute attribute, PluginCommandHandler handler) {
+            this.Attribute = attribute;
+            this.Handler = handler;
+        }
+    }
+
+    public class Trigger {
+        public RegexAttribute Attribute { get; }
+        public PluginTriggerHandler Handler { get; }
+
+        public Trigger(RegexAttribute attribute, PluginTriggerHandler handler) {
+            this.Attribute = attribute;
+            this.Handler = handler;
+        }
     }
 }
