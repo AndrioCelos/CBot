@@ -6,7 +6,7 @@ using IRC;
 
 namespace GreedyDice {
     public class Game {
-        public IRCClient Connection { get; }
+        public IrcClient Connection { get; }
         public string Channel { get; }
 
         public bool IsOpen { get; set; }
@@ -27,7 +27,7 @@ namespace GreedyDice {
         internal Random RNG;
         internal object Lock;
 
-        public Game(IRCClient connection, string channel, int entryTime) {
+        public Game(IrcClient connection, string channel, int entryTime) {
             this.Connection = connection;
             this.Channel = channel;
             this.GameTimer = new Timer(entryTime == 0 ? 60e+3 : entryTime * 1e+3) { AutoReset = false };

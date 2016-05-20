@@ -3,32 +3,32 @@ using System.Collections.Generic;
 using System.Text;
 
 namespace IRC {
-    public class IRCLine {
+    public class IrcLine {
         public Dictionary<string, string> Tags { get; }
         public string Prefix;
-        public string Command;
+        public string Message;
         public string[] Parameters;
         public bool HasTrail;
 
-        public IRCLine(string command, string[] parameters) {
-            this.Command = command;
+        public IrcLine(string message, string[] parameters) {
+            this.Message = message;
             this.Parameters = parameters;
         }
-        public IRCLine(Dictionary<string, string> tags, string prefix, string command, List<string> parameters, bool hasTrail) {
+        public IrcLine(Dictionary<string, string> tags, string prefix, string command, List<string> parameters, bool hasTrail) {
             this.Tags = tags;
             this.Prefix = prefix;
-            this.Command = command;
+            this.Message = command;
             if (parameters == null) this.Parameters = new string[0];
             else this.Parameters = parameters.ToArray();
             this.HasTrail = hasTrail;
         }
 
-        public static IRCLine Parse(string line) {
-            return IRCLine.Parse(line, true);
+        public static IrcLine Parse(string line) {
+            return IrcLine.Parse(line, true);
         }
-        public static IRCLine Parse(string line, bool allowTags) {
+        public static IrcLine Parse(string line, bool allowTags) {
             if (line == null) throw new ArgumentNullException("line");
-            if (line.Length == 0) return new IRCLine(null, null, null, null, false);
+            if (line.Length == 0) return new IrcLine(null, null, null, null, false);
 
             Dictionary<string, string> tags = null; string prefix = null, command = null;
             var parameters = new List<string>();
@@ -132,7 +132,7 @@ namespace IRC {
                 }
             }
 
-            return new IRCLine(tags, prefix, command, parameters, hasTrail);
+            return new IrcLine(tags, prefix, command, parameters, hasTrail);
         }
 
         public static string EscapeTag(string value) {
@@ -212,7 +212,7 @@ namespace IRC {
                 builder.Append(this.Prefix);
                 builder.Append(" ");
             }
-            builder.Append(this.Command);
+            builder.Append(this.Message);
 
             for (int i = 0; i < this.Parameters.Length; ++i) {
                 builder.Append(" ");

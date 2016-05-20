@@ -9,23 +9,8 @@ using System.Timers;
 using CBot;
 
 namespace BashQuotes {
-    public struct Quote {
-        public string Text;
-        public int Rating;
-
-        public Quote(string text) {
-            this.Text = text;
-            this.Rating = 0;
-        }
-        public Quote(string text, int rating) {
-            this.Text = text;
-            this.Rating = rating;
-        }
-    }
-
-    [APIVersion(3, 2)]
-    public class BashQuotesPlugin : Plugin
-    {
+    [ApiVersion(3, 3)]
+    public class BashQuotesPlugin : Plugin {
         private System.Timers.Timer QuoteTimer;
         private Task getQuotesTask;
 
@@ -51,14 +36,10 @@ namespace BashQuotes {
         private int FailureCount;
         private string FailureMessage;
 
-        public const string UserAgent = "CBot-Quotes/1.3 (annihilator127@gmail.com)";
-        public static Regex Regex = new Regex(@"<p class=""quote""><a (?>[^>]*)><b>#(\d+)</b>.*?\((?:<font (?>[^>]*)>)?(-?\d+)(?:</font>)?\).*?<p class=""qt"">((?>[^<]*)(?:<br />(?>[^<]*))*)</p>", RegexOptions.IgnoreCase | RegexOptions.Singleline);
+        public readonly string UserAgent = "CBot-Quotes/" + typeof(BashQuotesPlugin).Assembly.GetName().Version.ToString(2) + " (annihilator127@gmail.com)";
+        public static Regex Regex = new Regex(@"<p class=""quote""><a (?>[^>]*)><b>#(\d+)</b>.*?\((?:<font (?>[^>]*)>)?(-?\d+)(?:</font>)?\).*?<p class=""qt"">((?>[^<]*)(?:<br />(?>[^<]*))*)</p>", RegexOptions.IgnoreCase | RegexOptions.Singleline | RegexOptions.Compiled);
 
-        public override string Name {
-            get {
-                return "Bash Quotes";
-            }
-        }
+        public override string Name => "Quotes";
 
         public override string Help(string Topic) {
             if (Topic == null) return "Quotes are being provided in this channel.";

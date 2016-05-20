@@ -10,26 +10,24 @@ using CBot;
 using IRC;
 
 namespace BattleBot {
-    internal class DCCClient : IRCClient {
+    internal class DccClient : IrcClient {
         protected BattleBotPlugin plugin;
-        protected internal IRCUser Target;
+        protected internal IrcUser Target;
 
         private TcpClient client;
         private StreamWriter writer;
         private byte[] buffer;
         private StringBuilder messageBuilder;
 
-        internal DCCClient(BattleBotPlugin plugin, IPAddress IP, int port) : base(plugin.ArenaConnection.Me) {
+        internal DccClient(BattleBotPlugin plugin) : base(plugin.ArenaConnection.Me) {
             this.plugin = plugin;
-            this.IP = IP;
-            this.Port = port;
             this.Address = "!" + plugin.Key + ".DCC";
         }
 
         public override void Connect(string host, int port) {
             // Connect to the DCC session.
             this.client = new TcpClient();
-            this.client.Connect(new IPEndPoint(this.IP, this.Port));
+            this.client.Connect(host, port);
             this.writer = new StreamWriter(client.GetStream());
             this.buffer = new byte[512];
             this.messageBuilder = new StringBuilder();
@@ -40,7 +38,7 @@ namespace BattleBot {
             readThread.Start();
 
             this.LastSpoke = DateTime.Now;
-            this.State = IRCClientState.Online;
+            this.State = IrcClientState.Online;
         }
 
         public override void Disconnect() {
@@ -48,15 +46,15 @@ namespace BattleBot {
         }
 
         public override void Send(string t) {
-            if (this.State != IRCClientState.Online) return;
+            if (this.State != IrcClientState.Online) return;
             ConsoleUtils.WriteLine("%cDKGRAY{0} %cDKRED<<%cDKGRAY {1}%r", this.Address, t.Replace("%", "%%"));
 
-            var line = IRCLine.Parse(t);
+            var line = IrcLine.Parse(t);
 
-            if ((line.Command.Equals("PRIVMSG", StringComparison.OrdinalIgnoreCase) || line.Command.Equals("NOTICE", StringComparison.OrdinalIgnoreCase)) && (line.Parameters[0] == "#" ||
-                IRCStringComparer.RFC1459.Equals("#Lobby", line.Parameters[0]) ||
-                IRCStringComparer.RFC1459.Equals("#BattleRoom", line.Parameters[0]) ||
-                IRCStringComparer.RFC1459.Equals(this.Target.Nickname, line.Parameters[0]))) {
+            if ((line.Message.Equals("PRIVMSG", StringComparison.OrdinalIgnoreCase) || line.Message.Equals("NOTICE", StringComparison.OrdinalIgnoreCase)) && (line.Parameters[0] == "#" ||
+                IrcStringComparer.RFC1459.Equals("#Lobby", line.Parameters[0]) ||
+                IrcStringComparer.RFC1459.Equals("#BattleRoom", line.Parameters[0]) ||
+                IrcStringComparer.RFC1459.Equals(this.Target.Nickname, line.Parameters[0]))) {
                 // Emulate a channel message or PM to the target by sending it over DCC.
                 this.SendSub(line.Parameters[1].Replace("\u000F", "\u000F\u000312,99"));
             }

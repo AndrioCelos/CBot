@@ -1,4 +1,5 @@
 ﻿using System;
+using CBot;
 
 namespace BattleBot {
     public enum Category : short {
@@ -127,6 +128,16 @@ namespace BattleBot {
             : this(new string[] { expression }) { }
         public ArenaRegexAttribute(string[] expressions) {
             this.Expressions = expressions;
+        }
+    }
+
+    public class ArenaTrigger {
+        public ArenaRegexAttribute Attribute { get; }
+        public PluginTriggerHandler Handler { get; }
+
+        public ArenaTrigger(ArenaRegexAttribute attribute, PluginTriggerHandler handler) {
+            this.Attribute = attribute;
+            this.Handler = handler;
         }
     }
 }

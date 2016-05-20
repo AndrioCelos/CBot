@@ -14,13 +14,13 @@ namespace CBot {
                 Dictionary<string, string> section; string value;
 
                 if (file.TryGetValue("Me", out section)) {
-                    if (section.TryGetValue("Nicknames", out value)) Bot.dNicknames = value.Split(new char[] { ',', ' ' }, RemoveEmptyEntries);
-                    else if (section.TryGetValue("Nickname", out value)) Bot.dNicknames = new[] { value };
+                    if (section.TryGetValue("Nicknames", out value)) Bot.DefaultNicknames = value.Split(new char[] { ',', ' ' }, RemoveEmptyEntries);
+                    else if (section.TryGetValue("Nickname", out value)) Bot.DefaultNicknames = new[] { value };
 
-                    if (section.TryGetValue("Username", out value)) Bot.dUsername = value;
-                    if (section.TryGetValue("FullName", out value)) Bot.dFullName = value;
-                    if (section.TryGetValue("UserInfo", out value)) Bot.dUserInfo = value;
-                    section.TryGetValue("Avatar", out value); Bot.dAvatar = value;  // That *can* be null.
+                    if (section.TryGetValue("Username", out value)) Bot.DefaultIdent = value;
+                    if (section.TryGetValue("FullName", out value)) Bot.DefaultFullName = value;
+                    if (section.TryGetValue("UserInfo", out value)) Bot.DefaultUserInfo = value;
+                    section.TryGetValue("Avatar", out value); Bot.DefaultAvatar = value;  // That *can* be null.
 
                     file.Remove("Me");
                 }
@@ -89,7 +89,7 @@ namespace CBot {
         public static void LoadPlugins() {
             if (!File.Exists("CBotPlugins.ini")) return;
 
-            Bot.NewPlugins = new Dictionary<string, PluginEntry>(StringComparer.InvariantCultureIgnoreCase);
+            Bot.NewPlugins = new List<PluginEntry>();
             var file = IniFile.FromFile("CBotPlugins.ini");
             string value;
 
@@ -97,7 +97,7 @@ namespace CBot {
                 var entry = new PluginEntry() { Key = section.Key };
                 if (section.Value.TryGetValue("Filename", out value)) entry.Filename = value;
                 if (section.Value.TryGetValue("Channels", out value)) entry.Channels = value.Split(new[] { ',', ' ' }, RemoveEmptyEntries);
-                Bot.NewPlugins.Add(section.Key, entry);
+                Bot.NewPlugins.Add(entry);
             }
         }
 
@@ -163,12 +163,12 @@ namespace CBot {
         public static void SaveConfig() {
             using (var writer = new StreamWriter("CBotConfig.ini", false)) {
                 writer.WriteLine("[Me]");
-                writer.WriteLine("Nicknames=" + string.Join(",", Bot.dNicknames));
-                writer.WriteLine("Username=" + Bot.dUsername);
-                writer.WriteLine("FullName=" + Bot.dFullName);
-                writer.WriteLine("UserInfo=" + Bot.dUserInfo);
-                if (Bot.dAvatar != null)
-                    writer.WriteLine("Avatar=" + Bot.dAvatar);
+                writer.WriteLine("Nicknames=" + string.Join(",", Bot.DefaultNicknames));
+                writer.WriteLine("Username=" + Bot.DefaultIdent);
+                writer.WriteLine("FullName=" + Bot.DefaultFullName);
+                writer.WriteLine("UserInfo=" + Bot.DefaultUserInfo);
+                if (Bot.DefaultAvatar != null)
+                    writer.WriteLine("Avatar=" + Bot.DefaultAvatar);
 
                 foreach (var network in Bot.Clients) {
                     if (network.SaveToConfig) {
@@ -233,10 +233,10 @@ namespace CBot {
             using (var writer = new StreamWriter("CBotPlugins.ini", false)) {
                 foreach (var plugin in Bot.Plugins) {
                     writer.WriteLine("[" + plugin.Key + "]");
-                    writer.WriteLine("Filename=" + plugin.Value.Filename);
-                    bool flag = plugin.Value.Obj.Channels != null;
+                    writer.WriteLine("Filename=" + plugin.Filename);
+                    bool flag = plugin.Obj.Channels != null;
                     if (flag) {
-                        writer.WriteLine("Channels=" + string.Join(",", plugin.Value.Obj.Channels));
+                        writer.WriteLine("Channels=" + string.Join(",", plugin.Obj.Channels));
                     }
                     writer.WriteLine();
                 }

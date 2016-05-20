@@ -1,17 +1,15 @@
 using System;
 using System.Collections.Generic;
-using System.Collections.ObjectModel;
 using System.IO;
 using System.Linq;
 using System.Reflection;
 using System.Text;
 using System.Text.RegularExpressions;
-using System.Threading.Tasks;
 using IRC;
 
 namespace CBot {
     public delegate void PluginCommandHandler(object sender, CommandEventArgs e);
-    public delegate void PluginTriggerHandler(object sender, RegexEventArgs e);
+    public delegate void PluginTriggerHandler(object sender, TriggerEventArgs e);
 
     /// <summary>Provides a base class for CBot plugin main classes.</summary>
     public abstract class Plugin {
@@ -45,21 +43,8 @@ namespace CBot {
         /// </summary>
         public string FilePath { get; internal set; }
 
-        /// <summary>
-        /// Returns the key used to refer to this plugin.
-        /// </summary>
-        [Obsolete("This property is deprecated because it is insecure and inefficient. Use Plugin.Key instead.")]
-        public string MyKey {
-            get {
-                return this.Key;
-            }
-        }
-
-        private Dictionary<string, Command> commands = new Dictionary<string, Command>(StringComparer.CurrentCultureIgnoreCase);
-        private List<Trigger> triggers = new List<Trigger>();
-
-        public ReadOnlyDictionary<string, Command> Commands;
-        public ReadOnlyCollection<Trigger> Triggers;
+        public Dictionary<string, Command> Commands { get; } = new Dictionary<string, Command>(StringComparer.CurrentCultureIgnoreCase);
+        public List<Trigger> Triggers { get; } = new List<Trigger>();
 
         /// <summary>
         /// Contains the message formats currently in use by this plugin.
@@ -89,15 +74,12 @@ namespace CBot {
                 foreach (var attribute in method.GetCustomAttributes()) {
                     if (attribute is CommandAttribute) {
                         foreach (var alias in ((CommandAttribute) attribute).Names)
-                            this.commands.Add(alias, new Command((CommandAttribute) attribute, (PluginCommandHandler) method.CreateDelegate(typeof(PluginCommandHandler), this)));
-                    } else if (attribute is RegexAttribute) {
-                        this.triggers.Add(new Trigger((RegexAttribute) attribute, (PluginTriggerHandler) method.CreateDelegate(typeof(PluginTriggerHandler), this)));
+                            this.Commands.Add(alias, new Command((CommandAttribute) attribute, (PluginCommandHandler) method.CreateDelegate(typeof(PluginCommandHandler), this)));
+                    } else if (attribute is TriggerAttribute) {
+                        this.Triggers.Add(new Trigger((TriggerAttribute) attribute, (PluginTriggerHandler) method.CreateDelegate(typeof(PluginTriggerHandler), this)));
                     }
                 }
             }
-
-            this.Commands = new ReadOnlyDictionary<string, Command>(this.commands);
-            this.Triggers = new ReadOnlyCollection<Trigger>(this.triggers);
         }
 
         /// <summary>
@@ -105,75 +87,104 @@ namespace CBot {
         /// If no topic was specified, the implementation may return a brief description of what this plugin is doing.
         /// </summary>
         /// <param name="Topic">The topic the user asked for help on, or null if none was specified.</param>
-        public virtual string Help(string Topic) {
-            return null;
-        }
+        public virtual string Help(string Topic) => null;
 
         /// <summary>
         /// Returns true if the specified channel is in this plugin's Channels list.
         /// </summary>
-        /// <param name="connection">The connection to the place where the channel is.</param>
-        /// <param name="channel">The channel to check.</param>
+        /// <param name="target">The channel to check.</param>
         /// <returns>True if the specified channel is in the Channels list; false otherwise.</returns>
-        public bool IsActiveChannel(IRCClient connection, string channel) {
-            if (!connection.IsChannel(channel)) return false; //return IsActivePM(connection, channel);
-
+        public bool IsActiveTarget(IrcMessageTarget target) {
+            if (target is IrcUser) return this.IsActivePM((IrcUser) target);
             foreach (string channelName in this.Channels) {
                 string[] fields = channelName.Split(new char[] { '/' }, 2);
                 if (fields.Length == 1)
                     fields = new string[] { "*", fields[0] };
 
-                if (fields[0] == "*" || fields[0].Equals(connection.Extensions.NetworkName, StringComparison.OrdinalIgnoreCase) || fields[0].Equals(connection.Address, StringComparison.OrdinalIgnoreCase)) {
-                    if (fields[1] == "*" || fields[1] == "#*" || fields[1] == "*#" || connection.CaseMappingComparer.Equals(fields[1], channel)) return true;
+                if (fields[0] == "*" || fields[0].Equals(target.Client.Extensions.NetworkName, StringComparison.OrdinalIgnoreCase) || fields[0].Equals(target.Client.Address, StringComparison.OrdinalIgnoreCase)) {
+                    if (fields[1] == "*" || fields[1] == "#*" || fields[1] == "*#" || target.Client.CaseMappingComparer.Equals(fields[1], target.Target)) return true;
+                }
+            }
+            return false;
+        }
+        /// <summary>
+        /// Returns true if the specified channel is in this plugin's Channels list.
+        /// </summary>
+        /// <param name="channel">The channel to check.</param>
+        /// <returns>True if the specified channel is in the Channels list; false otherwise.</returns>
+        public bool IsActiveChannel(IrcChannel channel) => this.IsActiveTarget(channel);
+        /// <summary>
+        /// Returns true if the specified PM target is in this plugin's Channels list.
+        /// Whether or not the user can be seen, or is online, is not relevant.
+        /// </summary>
+        /// <param name="sender">The user to check.</param>
+        /// <returns>True if the specified user is in the Channels list; false otherwise.</returns>
+        public bool IsActivePM(IrcUser sender) {
+            foreach (string channelName in this.Channels) {
+                string[] fields = channelName.Split(new char[] { '/' }, 2);
+                if (fields.Length == 1)
+                    fields = new string[] { "*", fields[0] };
+
+                if (fields[0] == "*" || fields[0].Equals(sender.Client.Extensions.NetworkName, StringComparison.OrdinalIgnoreCase) || fields[0].Equals(sender.Client.Address, StringComparison.OrdinalIgnoreCase)) {
+                    if (fields[1] == "*" || fields[1] == "*?" || sender.Client.CaseMappingComparer.Equals(fields[1], sender.Nickname)) return true;
+                    if (fields[1] == "*#" && sender.Channels.Count != 0) return true;
+                    // Respond to PMs from users in an active channel.
+                    if (sender.Channels.Contains(fields[1])) return true;
                 }
             }
             return false;
         }
 
-        /// <summary>
-        /// Returns true if the specified PM target is in this plugin's Channels list.
-        /// Whether or not the user can be seen, or is online, is not relevant.
-        /// </summary>
-        /// <param name="connection">The connection to the place where the channel is.</param>
-        /// <param name="sender">The nickname of the user to check.</param>
-        /// <returns>True if the specified user is in the Channels list; false otherwise.</returns>
-        public bool IsActivePM(IRCClient connection, string sender) {
-            foreach (string channelName in this.Channels) {
-                string[] fields = channelName.Split(new char[] { '/' }, 2);
-                if (fields.Length == 1)
-                    fields = new string[] { "*", fields[0] };
+        public virtual bool CheckCommands(IrcUser sender, IrcMessageTarget target, string message) {
+            // Check commands.
+            if (this.Commands.Count != 0) {
+                string command; string prefix; string label; string parameters;
+                if (Bot.IsCommand(target, message, out command, out prefix)) {
+                    int pos = command.IndexOf(' ');
+                    if (pos == -1) {
+                        label = command;
+                        parameters = null;
+                    } else {
+                        label = command.Substring(0, pos);
+                        parameters = command.Substring(pos + 1);
+                    }
 
-                if (fields[0] == "*" || fields[0].Equals(connection.Extensions.NetworkName, StringComparison.OrdinalIgnoreCase) || fields[0].Equals(connection.Address, StringComparison.OrdinalIgnoreCase)) {
-                    if (fields[1] == "*" || fields[1] == "*?" || connection.CaseMappingComparer.Equals(fields[1], sender)) return true;
-                    // Respond to PMs from users in an active channel.
-                    if (connection.IsChannel(fields[1])) {
-                        IRCChannel channel;
-                        if (connection.Channels.TryGetValue(fields[1], out channel)) {
-                            if (channel.Users.Contains(sender)) return true;
-                        }
+                    if (!label.Contains(":")) {
+                        if (this.RunCommand(sender, target, label, parameters, false)) return true;
                     }
                 }
             }
+
+            // Check triggers.
+            if (this.Triggers.Count != 0) {
+                Match match = Regex.Match(message, @"^" + Regex.Escape(target.Client.Me.Nickname) + @"\.*[:,-]? ", RegexOptions.IgnoreCase);
+                if (match.Success) {  // The bot was highlighted.
+                    if (this.RunTrigger(sender, target, message.Substring(match.Length), true)) return true;
+                } else {
+                    if (this.RunTrigger(sender, target, message, false)) return true;
+                }
+            }
+
             return false;
         }
 
         /// <summary>
         /// Processes a command line and runs a matching command if one exists and the user has access to it.
         /// </summary>
-        /// <param name="Connection">The connection from whence the command came.</param>
-        /// <param name="Sender">The user sending the command.</param>
-        /// <param name="Channel">The channel in which the command was sent, or the sender's nickname if it was in a private message.</param>
-        /// <param name="InputLine">The message text.</param>
+        /// <param name="sender">The user sending the command.</param>
+        /// <param name="target">The channel in which the command was sent, or the sender nickname if it was in a private message.</param>
+        /// <param name="label">The command label that was entered.</param>
+        /// <param name="parameters">The part of the command after the label.</param>
         /// <param name="globalCommand">True if the global command syntax was used; false otherwise.</param>
         /// <returns>True if a command was matched (even if it was denied); false otherwise.</returns>
-        public bool RunCommand(IRCClient Connection, IRCUser Sender, string Channel, string InputLine, bool globalCommand = false) {
-            string alias = InputLine.Split(new char[] { ' ' })[0];
+        public bool RunCommand(IrcUser sender, IrcMessageTarget target, string label, string parameters, bool globalCommand = false) {
+            string alias = label.Split(new char[] { ' ' })[0];
             Command command;
-            if (!this.commands.TryGetValue(alias, out command)) return false;
+            if (!this.Commands.TryGetValue(alias, out command)) return false;
 
             // Check the scope.
-            if ((command.Attribute.Scope & CommandScope.PM) == 0 && !Connection.IsChannel(Channel)) return false;
-            if ((command.Attribute.Scope & CommandScope.Channel) == 0 && Connection.IsChannel(Channel)) return false;
+            if ((command.Attribute.Scope & CommandScope.PM) == 0 && !(target is IrcChannel)) return false;
+            if ((command.Attribute.Scope & CommandScope.Channel) == 0 && target is IrcChannel) return false;
 
             // Check for permissions.
             string permission;
@@ -184,42 +195,43 @@ namespace CBot {
             else
                 permission = command.Attribute.Permission;
 
-            if (permission != null && !Bot.UserHasPermission(Connection, Channel, Sender, permission)) {
+            if (permission != null && !Bot.UserHasPermission(sender, permission)) {
                 // If the user's account name is unknown, they might actually have permission.
                 // We'll need to send a WHOIS request asynchronously to check for this, though.
-                if (Bot.commandCallbackNeeded && Sender.Account == null) {
-                    Bot.GetClientEntry(Connection).commandCallbacks[Sender.Nickname] = new CommandRequest() {
-                        Regex = false, Plugin = this, Sender = Sender, Channel = Channel, InputLine = InputLine, GlobalCommand = globalCommand,
-                        FailureMessage = command.Attribute.NoPermissionsMessage
+                if (Bot.commandCallbackNeeded && sender.Account == null) {
+                    Bot.GetClientEntry(sender.Client).commandCallbacks[sender.Nickname] = new CommandRequest() {
+                        IsTrigger = false, Plugin = this, Sender = sender, Channel = target, Label = label, Parameters = parameters,
+                        GlobalCommand = globalCommand, FailureMessage = command.Attribute.NoPermissionsMessage
                     };
-                    Connection.Send("WHOIS " + Sender.Nickname);
+                    sender.Client.Send("WHOIS " + sender.Nickname);
                     return true;
                 }
 
-                if (command.Attribute.NoPermissionsMessage != null) Bot.Say(Connection, Sender.Nickname, command.Attribute.NoPermissionsMessage);
+                if (command.Attribute.NoPermissionsMessage != null) Bot.Say(sender.Client, sender.Nickname, command.Attribute.NoPermissionsMessage);
                 return true;
             }
 
             // Parse the parameters.
-            string[] fields = InputLine.Split(new char[] { ' ' }, command.Attribute.MaxArgumentCount + 1, StringSplitOptions.RemoveEmptyEntries).Skip(1).ToArray();
+            string[] fields = parameters?.Split((char[]) null, command.Attribute.MaxArgumentCount, StringSplitOptions.RemoveEmptyEntries)
+                                  ?? new string[0];
             if (fields.Length < command.Attribute.MinArgumentCount) {
-                Bot.Say(Connection, Sender.Nickname, "Not enough parameters.");
-                Bot.Say(Connection, Sender.Nickname, string.Format("The correct syntax is \u000312{0}\u000F.", command.Attribute.Syntax.ReplaceCommands(Connection, Channel)));
+                Bot.Say(sender.Client, sender.Nickname, "Not enough parameters.");
+                Bot.Say(sender.Client, sender.Nickname, string.Format("The correct syntax is \u000312{0}\u000F.", command.Attribute.Syntax.ReplaceCommands(sender.Client, target.Target)));
                 return true;
             }
 
             // Run the command.
             // TODO: Run it on a separate thread.
-            var entry = Bot.GetClientEntry(Connection);
+            var entry = Bot.GetClientEntry(sender.Client);
             try {
-                entry.CurrentProcedurePlugin = this;
+                entry.CurrentProcedurePlugin = this; 
                 entry.CurrentProcedure = command.Handler.GetMethodInfo();
-                CommandEventArgs e = new CommandEventArgs(Connection, Channel, Sender, fields);
+                CommandEventArgs e = new CommandEventArgs(sender.Client, target, sender, fields);
                 command.Handler.Invoke(this, e);
             } catch (Exception ex) {
                 Bot.LogError(this.Key, command.Handler.GetMethodInfo().Name, ex);
                 while (ex is TargetInvocationException || ex is AggregateException) ex = ex.InnerException;
-                Bot.Say(Connection, Channel, "\u00034The command failed. This incident has been logged. ({0})", ex.Message.Replace('\n', ' '));
+                Bot.Say(sender.Client, target.Target, "\u00034The command failed. This incident has been logged. ({0})", ex.Message.Replace('\n', ' '));
             }
             entry.CurrentProcedurePlugin = null;
             entry.CurrentProcedure = null;
@@ -227,31 +239,31 @@ namespace CBot {
         }
 
         /// <summary>
-        /// Processes a command line and runs any matching regex-bound procedures that the user has access to.
+        /// Processes a command line and runs any matching triggers that the user has access to.
         /// </summary>
-        /// <param name="Connection">The connection from whence the command came.</param>
-        /// <param name="Sender">The user sending the command.</param>
-        /// <param name="Channel">The channel in which the command was sent, or the sender's nickname if it was in a private message.</param>
-        /// <param name="InputLine">The message text, excluding the bot's nickname if it started with such.</param>
-        /// <param name="UsedMyNickname">True if the message was prefixed with the bot's nickname; false otherwise.</param>
+        /// <param name="sender">The user sending the command.</param>
+        /// <param name="target">The channel in which the command was sent, or the sender's nickname if it was in a private message.</param>
+        /// <param name="message">The message text, excluding the bot's nickname if it started with such.</param>
+        /// <param name="usedMyNickname">True if the message was prefixed with the bot's nickname; false otherwise.</param>
         /// <returns>True if a command was matched (even if it was denied); false otherwise.</returns>
-        public bool RunRegex(IRCClient Connection, IRCUser Sender, string Channel, string InputLine, bool UsedMyNickname) {
+        public bool RunTrigger(IrcUser sender, IrcMessageTarget target, string message, bool usedMyNickname) {
             Match match = null; Trigger trigger = null;
 
-            foreach (var trigger2 in this.triggers) {
-                foreach (string pattern in trigger2.Attribute.Expressions) {
-                    match = Regex.Match(InputLine, pattern, RegexOptions.IgnoreCase);
+            foreach (var trigger2 in this.Triggers) {
+                foreach (Regex regex in trigger2.Attribute.Expressions) {
+                    match = regex.Match(message);
                     if (match.Success) {
                         trigger = trigger2;
                         break;
                     }
                 }
+                if (trigger != null) break;
             }
             if (trigger == null) return false;
 
             // Check the scope.
-            if ((trigger.Attribute.Scope & CommandScope.PM) == 0 && !Connection.IsChannel(Channel)) return false;
-            if ((trigger.Attribute.Scope & CommandScope.Channel) == 0 && Connection.IsChannel(Channel)) return false;
+            if ((trigger.Attribute.Scope & CommandScope.PM) == 0 && !(target is IrcChannel)) return false;
+            if ((trigger.Attribute.Scope & CommandScope.Channel) == 0 && target is IrcChannel) return false;
 
             // Check for permissions.
             string permission;
@@ -262,33 +274,33 @@ namespace CBot {
             else
                 permission = trigger.Attribute.Permission;
 
-            if (permission != null && !Bot.UserHasPermission(Connection, Channel, Sender, permission)) {
+            if (permission != null && !Bot.UserHasPermission(sender, permission)) {
                 // If the user's account name is unknown, they might actually have permission.
                 // We'll need to send a WHOIS request asynchronously to check for this, though.
-                if (Bot.commandCallbackNeeded && Sender.Account == null) {
-                    Bot.GetClientEntry(Connection).commandCallbacks[Sender.Nickname] = new CommandRequest() {
-                        Regex = true, Plugin = this, Sender = Sender, Channel = Channel, InputLine = InputLine, GlobalCommand = UsedMyNickname,
-                        FailureMessage = trigger.Attribute.NoPermissionsMessage
+                if (Bot.commandCallbackNeeded && sender.Account == null) {
+                    Bot.GetClientEntry(sender.Client).commandCallbacks[sender.Nickname] = new CommandRequest() {
+                        IsTrigger = true, Plugin = this, Sender = sender, Channel = target, Parameters = message,
+                        GlobalCommand = usedMyNickname, FailureMessage = trigger.Attribute.NoPermissionsMessage
                     };
-                    Connection.Send("WHOIS " + Sender.Nickname);
+                    sender.Client.Send("WHOIS " + sender.Nickname);
                     return true;
                 }
 
-                if (trigger.Attribute.NoPermissionsMessage != null) Bot.Say(Connection, Sender.Nickname, trigger.Attribute.NoPermissionsMessage);
+                if (trigger.Attribute.NoPermissionsMessage != null) Bot.Say(sender.Client, sender.Nickname, trigger.Attribute.NoPermissionsMessage);
                 return true;
             }
 
             // Run the command.
             // TODO: Run it on a separate thread.
-            var entry = Bot.GetClientEntry(Connection);
+            var entry = Bot.GetClientEntry(sender.Client);
             try {
                 entry.CurrentProcedurePlugin = this;
                 entry.CurrentProcedure = trigger.Handler.GetMethodInfo();
-                trigger.Handler.Invoke(this, new RegexEventArgs(Connection, Channel, Sender, match));
+                trigger.Handler.Invoke(this, new TriggerEventArgs(sender.Client, target, sender, match));
             } catch (Exception ex) {
                 Bot.LogError(this.Key, trigger.Handler.GetMethodInfo().Name, ex);
                 while (ex is TargetInvocationException || ex is AggregateException) ex = ex.InnerException;
-                Bot.Say(Connection, Channel, "\u00034The command failed. This incident has been logged. ({0})", ex.Message);
+                Bot.Say(sender.Client, target.Target, "\u00034The command failed. This incident has been logged. ({0})", ex.Message);
             }
             entry.CurrentProcedurePlugin = null;
             entry.CurrentProcedure = null;
@@ -572,145 +584,200 @@ namespace CBot {
             Bot.LogError(this.Key, Procedure, ex);
         }
 
-        public virtual bool OnAwayCancelled(object sender, AwayEventArgs e) { return false; }
-        public virtual bool OnAwaySet(object sender, AwayEventArgs e) { return false; }
-        public virtual bool OnBanList(object sender, ChannelModeListEventArgs e) { return false; }
-        public virtual bool OnBanListEnd(object sender, ChannelModeListEndEventArgs e) { return false; }
-        public virtual bool OnChannelAction(object sender, ChannelMessageEventArgs e) {
-            return this.RunRegex((IRCClient) sender, e.Sender, e.Channel, "\u0001ACTION " + e.Message + "\u0001", false);
-        }
-        public virtual bool OnChannelAdmin(object sender, ChannelNicknameModeEventArgs e) { return false; }
-        public virtual bool OnChannelAdminSelf(object sender, ChannelNicknameModeEventArgs e) { return false; }
-        public virtual bool OnChannelBan(object sender, ChannelListModeEventArgs e) { return false; }
-        public virtual bool OnChannelTimestamp(object sender, ChannelTimestampEventArgs e) { return false; }
-        public virtual bool OnChannelCTCP(object sender, ChannelMessageEventArgs e) { return false; }
-        public virtual bool OnChannelDeAdmin(object sender, ChannelNicknameModeEventArgs e) { return false; }
-        public virtual bool OnChannelDeHalfOp(object sender, ChannelNicknameModeEventArgs e) { return false; }
-        public virtual bool OnChannelDeHalfVoice(object sender, ChannelNicknameModeEventArgs e) { return false; }
-        public virtual bool OnChannelDeOp(object sender, ChannelNicknameModeEventArgs e) { return false; }
-        public virtual bool OnChannelDeOwner(object sender, ChannelNicknameModeEventArgs e) { return false; }
-        public virtual bool OnChannelDeVoice(object sender, ChannelNicknameModeEventArgs e) { return false; }
-        public virtual bool OnChannelExempt(object sender, ChannelListModeEventArgs e) { return false; }
-        public virtual bool OnChannelHalfOp(object sender, ChannelNicknameModeEventArgs e) { return false; }
-        public virtual bool OnChannelHalfVoice(object sender, ChannelNicknameModeEventArgs e) { return false; }
-        public virtual bool OnChannelInviteExempt(object sender, ChannelListModeEventArgs e) { return false; }
-        public virtual bool OnChannelJoin(object sender, ChannelJoinEventArgs e) { return false; }
-        public virtual bool OnChannelJoinDenied(object sender, ChannelDeniedEventArgs e) { return false; }
-        public virtual bool OnChannelKick(object sender, ChannelKickEventArgs e) { return false; }
-        public virtual bool OnChannelMessage(object sender, ChannelMessageEventArgs e) {
-            string message = e.Message;
-            Match match = Regex.Match(e.Message, @"^" + Regex.Escape(((IRCClient) sender).Me.Nickname) + @"\.*[:,-]? (.*)", RegexOptions.IgnoreCase);
-            if (match.Success)
-                message = match.Groups[1].Value;
-            else
-                message = e.Message;
-
-            bool handled = false;
-            if (e.Message != "") {
-                if (Bot.GetCommandPrefixes((IRCClient) sender, e.Channel).Contains(message[0].ToString()))
-                    handled = this.RunCommand((IRCClient) sender, e.Sender, e.Channel, message.Substring(1), false);
-                else if (match.Success) {
-                    handled = this.RunCommand((IRCClient) sender, e.Sender, e.Channel, message, false);
-                }
-            }
-            if (!handled)
-                handled = this.RunRegex((IRCClient) sender, e.Sender, e.Channel, message, match.Success);
-            return handled;
-        }
-        public virtual bool OnChannelMessageDenied(object sender, ChannelDeniedEventArgs e) { return false; }
-        public virtual bool OnChannelModeSet(object sender, ChannelModeEventArgs e) { return false; }
-        public virtual bool OnChannelModeUnhandled(object sender, ChannelModeEventArgs e) { return false; }
-        public virtual bool OnChannelModesSet(object sender, ChannelModesSetEventArgs e) { return false; }
-        public virtual bool OnChannelModesGet(object sender, ChannelModesGetEventArgs e) { return false; }
-        public virtual bool OnChannelNotice(object sender, ChannelMessageEventArgs e) { return false; }
-        public virtual bool OnChannelOp(object sender, ChannelNicknameModeEventArgs e) { return false; }
-        public virtual bool OnChannelOwner(object sender, ChannelNicknameModeEventArgs e) { return false; }
-        public virtual bool OnChannelPart(object sender, ChannelPartEventArgs e) { return false; }
-        public virtual bool OnChannelQuiet(object sender, ChannelListModeEventArgs e) { return false; }
-        public virtual bool OnChannelRemoveExempt(object sender, ChannelListModeEventArgs e) { return false; }
-        public virtual bool OnChannelRemoveInviteExempt(object sender, ChannelListModeEventArgs e) { return false; }
-        public virtual bool OnChannelRemoveKey(object sender, ChannelEventArgs e) { return false; }
-        public virtual bool OnChannelRemoveLimit(object sender, ChannelEventArgs e) { return false; }
-        public virtual bool OnChannelSetKey(object sender, ChannelKeyEventArgs e) { return false; }
-        public virtual bool OnChannelSetLimit(object sender, ChannelLimitEventArgs e) { return false; }
-        public virtual bool OnChannelTopic(object sender, ChannelTopicEventArgs e) { return false; }
-        public virtual bool OnChannelTopicChange(object sender, ChannelTopicChangeEventArgs e) { return false; }
-        public virtual bool OnChannelTopicStamp(object sender, ChannelTopicStampEventArgs e) { return false; }
-        public virtual bool OnChannelUnBan(object sender, ChannelListModeEventArgs e) { return false; }
-        public virtual bool OnChannelUnQuiet(object sender, ChannelListModeEventArgs e) { return false; }
-        public virtual bool OnChannelVoice(object sender, ChannelNicknameModeEventArgs e) { return false; }
-        public virtual bool OnPrivateCTCP(object sender, PrivateMessageEventArgs e) { return false; }
-        public virtual bool OnDisconnected(object sender, DisconnectEventArgs e) { return false; }
-        public virtual bool OnException(object sender, ExceptionEventArgs e) { return false; }
-        public virtual bool OnExemptList(object sender, ChannelModeListEventArgs e) { return false; }
-        public virtual bool OnExemptListEnd(object sender, ChannelModeListEndEventArgs e) { return false; }
-        public virtual bool OnInvite(object sender, ChannelInviteEventArgs e) { return false; }
-        public virtual bool OnInviteSent(object sender, ChannelInviteSentEventArgs e) { return false; }
-        public virtual bool OnInviteExemptList(object sender, ChannelModeListEventArgs e) { return false; }
-        public virtual bool OnInviteExemptListEnd(object sender, ChannelModeListEndEventArgs e) { return false; }
-        public virtual bool OnKilled(object sender, PrivateMessageEventArgs e) { return false; }
-        public virtual bool OnChannelList(object sender, ChannelListEventArgs e) { return false; }
-        public virtual bool OnChannelListEnd(object sender, ChannelListEndEventArgs e) { return false; }
-        public virtual bool OnMOTD(object sender, MOTDEventArgs e) { return false; }
-        public virtual bool OnNames(object sender, ChannelNamesEventArgs e) { return false; }
-        public virtual bool OnNamesEnd(object sender, ChannelModeListEndEventArgs e) { return false; }
-        public virtual bool OnNicknameChange(object sender, NicknameChangeEventArgs e) { return false; }
-        public virtual bool OnNicknameChangeSelf(object sender, NicknameChangeEventArgs e) { return false; }
-        public virtual bool OnNicknameChangeFailed(object sender, NicknameEventArgs e) { return false; }
-        public virtual bool OnNicknameInvalid(object sender, NicknameEventArgs e) { return false; }
-        public virtual bool OnNicknameTaken(object sender, NicknameEventArgs e) { return false; }
-        public virtual bool OnPrivateNotice(object sender, PrivateMessageEventArgs e) { return false; }
-        public virtual bool OnPingRequest(object sender, PingEventArgs e) { return false; }
-        public virtual bool OnPingReply(object sender, PingEventArgs e) { return false; }
-        public virtual bool OnPrivateMessage(object sender, PrivateMessageEventArgs e) {
-            string message = e.Message;
-            Match match = Regex.Match(e.Message, @"^" + Regex.Escape(((IRCClient) sender).Me.Nickname) + @"\.*[:,-]? (.*)", RegexOptions.IgnoreCase);
-            if (match.Success)
-                message = match.Groups[1].Value;
-            else
-                message = e.Message;
-
-            bool handled = false;
-            if (e.Message != "") {
-                if (Bot.GetCommandPrefixes((IRCClient) sender, e.Sender.Nickname).Contains(message[0].ToString()))
-                    handled = this.RunCommand((IRCClient) sender, e.Sender, e.Sender.Nickname, message.Substring(1), false);
-                else if (match.Success) {
-                    handled = this.RunCommand((IRCClient) sender, e.Sender, e.Sender.Nickname, message, false);
-                }
-            }
-            if (!handled)
-                handled = this.RunRegex((IRCClient) sender, e.Sender, e.Sender.Nickname, message, match.Success);
-            return handled;
-        }
-        public virtual bool OnPrivateAction(object sender, PrivateMessageEventArgs e) {
-            return this.RunRegex((IRCClient) sender, e.Sender, e.Sender.Nickname, "\u0001ACTION " + e.Message + "\u0001", false);
-        }
-        public virtual bool OnUserQuit(object sender, QuitEventArgs e) { return false; }
-        public virtual bool OnRawLineReceived(object sender, IRCLineEventArgs e) { return false; }
-        public virtual bool OnRawLineSent(object sender, RawEventArgs e) { return false; }
-        public virtual bool OnUserModesGet(object sender, UserModesEventArgs e) { return false; }
-        public virtual bool OnUserModesSet(object sender, UserModesEventArgs e) { return false; }
-        public virtual bool OnWallops(object sender, PrivateMessageEventArgs e) { return false; }
-        public virtual bool OnServerNotice(object sender, PrivateMessageEventArgs e) { return false; }
-        public virtual bool OnServerError(object sender, ServerErrorEventArgs e) { return false; }
-        public virtual bool OnStateChanged(object sender, StateEventArgs e) { return false; }
-        public virtual bool OnTimeOut(object sender, EventArgs e) { return false; }
-        public virtual bool OnWhoList(object sender, WhoListEventArgs e) { return false; }
-        public virtual bool OnWhoIsAuthenticationLine(object sender, WhoisAuthenticationEventArgs e) { return false; }
-        public virtual bool OnWhoIsAwayLine(object sender, WhoisAwayEventArgs e) { return false; }
-        public virtual bool OnWhoIsChannelLine(object sender, WhoisChannelsEventArgs e) { return false; }
-        public virtual bool OnWhoIsEnd(object sender, WhoisEndEventArgs e) { return false; }
-        public virtual bool OnWhoIsIdleLine(object sender, WhoisIdleEventArgs e) { return false; }
-        public virtual bool OnWhoIsNameLine(object sender, WhoisNameEventArgs e) { return false; }
-        public virtual bool OnWhoIsOperLine(object sender, WhoisOperEventArgs e) { return false; }
-        public virtual bool OnWhoIsHelperLine(object sender, WhoisOperEventArgs e) { return false; }
-        public virtual bool OnWhoIsRealHostLine(object sender, WhoisRealHostEventArgs e) { return false; }
-        public virtual bool OnWhoIsServerLine(object sender, WhoisServerEventArgs e) { return false; }
-        public virtual bool OnWhoWasNameLine(object sender, WhoisNameEventArgs e) { return false; }
-        public virtual bool OnWhoWasEnd(object sender, WhoisEndEventArgs e) { return false; }
-
-        public virtual bool OnChannelLeave(object sender, ChannelPartEventArgs e) { return false; }
-        public virtual bool OnChannelLeaveSelf(object sender, ChannelPartEventArgs e) { return false; }
+        /// <summary>When overridden, handles the AwayCancelled event. Return true to stop further processing of the event.</summary>
+        public virtual bool OnAwayCancelled(object sender, AwayEventArgs e) => false;
+        /// <summary>When overridden, handles the AwayMessage event. Return true to stop further processing of the event.</summary>
+        public virtual bool OnAwayMessage(object sender, AwayMessageEventArgs e) => false;
+        /// <summary>When overridden, handles the AwaySet event. Return true to stop further processing of the event.</summary>
+        public virtual bool OnAwaySet(object sender, AwayEventArgs e) => false;
+        /// <summary>Handles the ChannelAction event, including running triggers. Return true to stop further processing of the event.</summary>
+        public virtual bool OnChannelAction(object sender, ChannelMessageEventArgs e) => false;
+        /// <summary>When overridden, handles the ChannelAdmin event. Return true to stop further processing of the event.</summary>
+        public virtual bool OnChannelAdmin(object sender, ChannelStatusChangedEventArgs e) => false;
+        /// <summary>When overridden, handles the ChannelBan event. Return true to stop further processing of the event.</summary>
+        public virtual bool OnChannelBan(object sender, ChannelListChangedEventArgs e) => false;
+        /// <summary>When overridden, handles the ChannelBanList event. Return true to stop further processing of the event.</summary>
+        public virtual bool OnChannelBanList(object sender, ChannelModeListEventArgs e) => false;
+        /// <summary>When overridden, handles the ChannelBanListEnd event. Return true to stop further processing of the event.</summary>
+        public virtual bool OnChannelBanListEnd(object sender, ChannelModeListEndEventArgs e) => false;
+        /// <summary>When overridden, handles the ChannelBanRemoved event. Return true to stop further processing of the event.</summary>
+        public virtual bool OnChannelBanRemoved(object sender, ChannelListChangedEventArgs e) => false;
+        /// <summary>When overridden, handles the ChannelCTCP event. Return true to stop further processing of the event.</summary>
+        public virtual bool OnChannelCTCP(object sender, ChannelMessageEventArgs e) => false;
+        /// <summary>When overridden, handles the ChannelDeAdmin event. Return true to stop further processing of the event.</summary>
+        public virtual bool OnChannelDeAdmin(object sender, ChannelStatusChangedEventArgs e) => false;
+        /// <summary>When overridden, handles the ChannelDeHalfOp event. Return true to stop further processing of the event.</summary>
+        public virtual bool OnChannelDeHalfOp(object sender, ChannelStatusChangedEventArgs e) => false;
+        /// <summary>When overridden, handles the ChannelDeHalfVoice event. Return true to stop further processing of the event.</summary>
+        public virtual bool OnChannelDeHalfVoice(object sender, ChannelStatusChangedEventArgs e) => false;
+        /// <summary>When overridden, handles the ChannelDeOp event. Return true to stop further processing of the event.</summary>
+        public virtual bool OnChannelDeOp(object sender, ChannelStatusChangedEventArgs e) => false;
+        /// <summary>When overridden, handles the ChannelDeOwner event. Return true to stop further processing of the event.</summary>
+        public virtual bool OnChannelDeOwner(object sender, ChannelStatusChangedEventArgs e) => false;
+        /// <summary>When overridden, handles the ChannelDeVoice event. Return true to stop further processing of the event.</summary>
+        public virtual bool OnChannelDeVoice(object sender, ChannelStatusChangedEventArgs e) => false;
+        /// <summary>When overridden, handles the ChannelExempt event. Return true to stop further processing of the event.</summary>
+        public virtual bool OnChannelExempt(object sender, ChannelListChangedEventArgs e) => false;
+        /// <summary>When overridden, handles the ChannelExemptRemoved event. Return true to stop further processing of the event.</summary>
+        public virtual bool OnChannelExemptRemoved(object sender, ChannelListChangedEventArgs e) => false;
+        /// <summary>When overridden, handles the ChannelHalfOp event. Return true to stop further processing of the event.</summary>
+        public virtual bool OnChannelHalfOp(object sender, ChannelStatusChangedEventArgs e) => false;
+        /// <summary>When overridden, handles the ChannelHalfVoice event. Return true to stop further processing of the event.</summary>
+        public virtual bool OnChannelHalfVoice(object sender, ChannelStatusChangedEventArgs e) => false;
+        /// <summary>When overridden, handles the ChannelInviteExempt event. Return true to stop further processing of the event.</summary>
+        public virtual bool OnChannelInviteExempt(object sender, ChannelListChangedEventArgs e) => false;
+        /// <summary>When overridden, handles the ChannelInviteExemptList event. Return true to stop further processing of the event.</summary>
+        public virtual bool OnChannelInviteExemptList(object sender, ChannelModeListEventArgs e) => false;
+        /// <summary>When overridden, handles the ChannelInviteExemptListEnd event. Return true to stop further processing of the event.</summary>
+        public virtual bool OnChannelInviteExemptListEnd(object sender, ChannelModeListEndEventArgs e) => false;
+        /// <summary>When overridden, handles the ChannelInviteExemptRemoved event. Return true to stop further processing of the event.</summary>
+        public virtual bool OnChannelInviteExemptRemoved(object sender, ChannelListChangedEventArgs e) => false;
+        /// <summary>When overridden, handles the ChannelJoin event. Return true to stop further processing of the event.</summary>
+        public virtual bool OnChannelJoin(object sender, ChannelJoinEventArgs e) => false;
+        /// <summary>When overridden, handles the ChannelJoinDenied event. Return true to stop further processing of the event.</summary>
+        public virtual bool OnChannelJoinDenied(object sender, ChannelJoinDeniedEventArgs e) => false;
+        /// <summary>When overridden, handles the ChannelKeyRemoved event. Return true to stop further processing of the event.</summary>
+        public virtual bool OnChannelKeyRemoved(object sender, ChannelChangeEventArgs e) => false;
+        /// <summary>When overridden, handles the ChannelKeySet event. Return true to stop further processing of the event.</summary>
+        public virtual bool OnChannelKeySet(object sender, ChannelKeyEventArgs e) => false;
+        /// <summary>When overridden, handles the ChannelKick event. Return true to stop further processing of the event.</summary>
+        public virtual bool OnChannelKick(object sender, ChannelKickEventArgs e) => false;
+        /// <summary>When overridden, handles the ChannelLeave event. Return true to stop further processing of the event.</summary>
+        public virtual bool OnChannelLeave(object sender, ChannelPartEventArgs e) => false;
+        /// <summary>When overridden, handles the ChannelLimitRemoved event. Return true to stop further processing of the event.</summary>
+        public virtual bool OnChannelLimitRemoved(object sender, ChannelChangeEventArgs e) => false;
+        /// <summary>When overridden, handles the ChannelLimitSet event. Return true to stop further processing of the event.</summary>
+        public virtual bool OnChannelLimitSet(object sender, ChannelLimitEventArgs e) => false;
+        /// <summary>When overridden, handles the ChannelList event. Return true to stop further processing of the event.</summary>
+        public virtual bool OnChannelList(object sender, ChannelListEventArgs e) => false;
+        /// <summary>When overridden, handles the ChannelListChanged event. Return true to stop further processing of the event.</summary>
+        public virtual bool OnChannelListChanged(object sender, ChannelListChangedEventArgs e) => false;
+        /// <summary>When overridden, handles the ChannelListEnd event. Return true to stop further processing of the event.</summary>
+        public virtual bool OnChannelListEnd(object sender, ChannelListEndEventArgs e) => false;
+        /// <summary>Handles the ChannelMessage event, including running commands and triggers. Return true to stop further processing of the event.</summary>
+        public virtual bool OnChannelMessage(object sender, ChannelMessageEventArgs e) => false;
+        /// <summary>When overridden, handles the ChannelMessageDenied event. Return true to stop further processing of the event.</summary>
+        public virtual bool OnChannelMessageDenied(object sender, ChannelJoinDeniedEventArgs e) => false;
+        /// <summary>When overridden, handles the ChannelModeChanged event. Return true to stop further processing of the event.</summary>
+        public virtual bool OnChannelModeChanged(object sender, ChannelModeChangedEventArgs e) => false;
+        /// <summary>When overridden, handles the ChannelModesGet event. Return true to stop further processing of the event.</summary>
+        public virtual bool OnChannelModesGet(object sender, ChannelModesSetEventArgs e) => false;
+        /// <summary>When overridden, handles the ChannelModesSet event. Return true to stop further processing of the event.</summary>
+        public virtual bool OnChannelModesSet(object sender, ChannelModesSetEventArgs e) => false;
+        /// <summary>When overridden, handles the ChannelNotice event. Return true to stop further processing of the event.</summary>
+        public virtual bool OnChannelNotice(object sender, ChannelMessageEventArgs e) => false;
+        /// <summary>When overridden, handles the ChannelOp event. Return true to stop further processing of the event.</summary>
+        public virtual bool OnChannelOp(object sender, ChannelStatusChangedEventArgs e) => false;
+        /// <summary>When overridden, handles the ChannelOwner event. Return true to stop further processing of the event.</summary>
+        public virtual bool OnChannelOwner(object sender, ChannelStatusChangedEventArgs e) => false;
+        /// <summary>When overridden, handles the ChannelPart event. Return true to stop further processing of the event.</summary>
+        public virtual bool OnChannelPart(object sender, ChannelPartEventArgs e) => false;
+        /// <summary>When overridden, handles the ChannelQuiet event. Return true to stop further processing of the event.</summary>
+        public virtual bool OnChannelQuiet(object sender, ChannelListChangedEventArgs e) => false;
+        /// <summary>When overridden, handles the ChannelQuietRemoved event. Return true to stop further processing of the event.</summary>
+        public virtual bool OnChannelQuietRemoved(object sender, ChannelListChangedEventArgs e) => false;
+        /// <summary>When overridden, handles the ChannelStatusChanged event. Return true to stop further processing of the event.</summary>
+        public virtual bool OnChannelStatusChanged(object sender, ChannelStatusChangedEventArgs e) => false;
+        /// <summary>When overridden, handles the ChannelTimestamp event. Return true to stop further processing of the event.</summary>
+        public virtual bool OnChannelTimestamp(object sender, ChannelTimestampEventArgs e) => false;
+        /// <summary>When overridden, handles the ChannelTopicChanged event. Return true to stop further processing of the event.</summary>
+        public virtual bool OnChannelTopicChanged(object sender, ChannelTopicChangeEventArgs e) => false;
+        /// <summary>When overridden, handles the ChannelTopicReceived event. Return true to stop further processing of the event.</summary>
+        public virtual bool OnChannelTopicReceived(object sender, ChannelTopicEventArgs e) => false;
+        /// <summary>When overridden, handles the ChannelTopicStamp event. Return true to stop further processing of the event.</summary>
+        public virtual bool OnChannelTopicStamp(object sender, ChannelTopicStampEventArgs e) => false;
+        /// <summary>When overridden, handles the ChannelVoice event. Return true to stop further processing of the event.</summary>
+        public virtual bool OnChannelVoice(object sender, ChannelStatusChangedEventArgs e) => false;
+        /// <summary>When overridden, handles the Disconnected event. Return true to stop further processing of the event.</summary>
+        public virtual bool OnDisconnected(object sender, DisconnectEventArgs e) => false;
+        /// <summary>When overridden, handles the Exception event. Return true to stop further processing of the event.</summary>
+        public virtual bool OnException(object sender, ExceptionEventArgs e) => false;
+        /// <summary>When overridden, handles the ExemptList event. Return true to stop further processing of the event.</summary>
+        public virtual bool OnExemptList(object sender, ChannelModeListEventArgs e) => false;
+        /// <summary>When overridden, handles the ExemptListEnd event. Return true to stop further processing of the event.</summary>
+        public virtual bool OnExemptListEnd(object sender, ChannelModeListEndEventArgs e) => false;
+        /// <summary>When overridden, handles the Invite event. Return true to stop further processing of the event.</summary>
+        public virtual bool OnInvite(object sender, InviteEventArgs e) => false;
+        /// <summary>When overridden, handles the InviteSent event. Return true to stop further processing of the event.</summary>
+        public virtual bool OnInviteSent(object sender, InviteSentEventArgs e) => false;
+        /// <summary>When overridden, handles the Killed event. Return true to stop further processing of the event.</summary>
+        public virtual bool OnKilled(object sender, PrivateMessageEventArgs e) => false;
+        /// <summary>When overridden, handles the MOTD event. Return true to stop further processing of the event.</summary>
+        public virtual bool OnMOTD(object sender, MotdEventArgs e) => false;
+        /// <summary>When overridden, handles the Names event. Return true to stop further processing of the event.</summary>
+        public virtual bool OnNames(object sender, ChannelNamesEventArgs e) => false;
+        /// <summary>When overridden, handles the NamesEnd event. Return true to stop further processing of the event.</summary>
+        public virtual bool OnNamesEnd(object sender, ChannelModeListEndEventArgs e) => false;
+        /// <summary>When overridden, handles the NicknameChange event. Return true to stop further processing of the event.</summary>
+        public virtual bool OnNicknameChange(object sender, NicknameChangeEventArgs e) => false;
+        /// <summary>When overridden, handles the NicknameChangeFailed event. Return true to stop further processing of the event.</summary>
+        public virtual bool OnNicknameChangeFailed(object sender, NicknameEventArgs e) => false;
+        /// <summary>When overridden, handles the NicknameInvalid event. Return true to stop further processing of the event.</summary>
+        public virtual bool OnNicknameInvalid(object sender, NicknameEventArgs e) => false;
+        /// <summary>When overridden, handles the NicknameTaken event. Return true to stop further processing of the event.</summary>
+        public virtual bool OnNicknameTaken(object sender, NicknameEventArgs e) => false;
+        /// <summary>When overridden, handles the PingReply event. Return true to stop further processing of the event.</summary>
+        public virtual bool OnPingReply(object sender, PingEventArgs e) => false;
+        /// <summary>When overridden, handles the PingRequest event. Return true to stop further processing of the event.</summary>
+        public virtual bool OnPingRequest(object sender, PingEventArgs e) => false;
+        /// <summary>Handles the PrivateAction event, including running triggers. Return true to stop further processing of the event.</summary>
+        public virtual bool OnPrivateAction(object sender, PrivateMessageEventArgs e) => false;
+        /// <summary>When overridden, handles the PrivateCTCP event. Return true to stop further processing of the event.</summary>
+        public virtual bool OnPrivateCTCP(object sender, PrivateMessageEventArgs e) => false;
+        /// <summary>Handles the PrivateMessage event, including running commands and triggers. Return true to stop further processing of the event.</summary>
+        public virtual bool OnPrivateMessage(object sender, PrivateMessageEventArgs e) => false;
+        /// <summary>When overridden, handles the PrivateNotice event. Return true to stop further processing of the event.</summary>
+        public virtual bool OnPrivateNotice(object sender, PrivateMessageEventArgs e) => false;
+        /// <summary>When overridden, handles the RawLineReceived event. Return true to stop further processing of the event.</summary>
+        public virtual bool OnRawLineReceived(object sender, IrcLineEventArgs e) => false;
+        /// <summary>When overridden, handles the RawLineSent event. Return true to stop further processing of the event.</summary>
+        public virtual bool OnRawLineSent(object sender, RawLineEventArgs e) => false;
+        /// <summary>When overridden, handles the RawLineUnhandled event. Return true to stop further processing of the event.</summary>
+        public virtual bool OnRawLineUnhandled(object sender, IrcLineEventArgs e) => false;
+        /// <summary>When overridden, handles the Registered event. Return true to stop further processing of the event.</summary>
+        public virtual bool OnRegistered(object sender, RegisteredEventArgs e) => false;
+        /// <summary>When overridden, handles the ServerError event. Return true to stop further processing of the event.</summary>
+        public virtual bool OnServerError(object sender, ServerErrorEventArgs e) => false;
+        /// <summary>When overridden, handles the ServerNotice event. Return true to stop further processing of the event.</summary>
+        public virtual bool OnServerNotice(object sender, PrivateMessageEventArgs e) => false;
+        /// <summary>When overridden, handles the StateChanged event. Return true to stop further processing of the event.</summary>
+        public virtual bool OnStateChanged(object sender, StateEventArgs e) => false;
+        /// <summary>When overridden, handles the UserDisappeared event. Return true to stop further processing of the event.</summary>
+        public virtual bool OnUserDisappeared(object sender, IrcUserEventArgs e) => false;
+        /// <summary>When overridden, handles the UserModesGet event. Return true to stop further processing of the event.</summary>
+        public virtual bool OnUserModesGet(object sender, UserModesEventArgs e) => false;
+        /// <summary>When overridden, handles the UserModesSet event. Return true to stop further processing of the event.</summary>
+        public virtual bool OnUserModesSet(object sender, UserModesEventArgs e) => false;
+        /// <summary>When overridden, handles the UserQuit event. Return true to stop further processing of the event.</summary>
+        public virtual bool OnUserQuit(object sender, QuitEventArgs e) => false;
+        /// <summary>When overridden, handles the ValidateCertificate event. Return true to stop further processing of the event.</summary>
+        public virtual bool OnValidateCertificate(object sender, ValidateCertificateEventArgs e) => false;
+        /// <summary>When overridden, handles the Wallops event. Return true to stop further processing of the event.</summary>
+        public virtual bool OnWallops(object sender, PrivateMessageEventArgs e) => false;
+        /// <summary>When overridden, handles the WhoIsAuthenticationLine event. Return true to stop further processing of the event.</summary>
+        public virtual bool OnWhoIsAuthenticationLine(object sender, WhoisAuthenticationEventArgs e) => false;
+        /// <summary>When overridden, handles the WhoIsChannelLine event. Return true to stop further processing of the event.</summary>
+        public virtual bool OnWhoIsChannelLine(object sender, WhoisChannelsEventArgs e) => false;
+        /// <summary>When overridden, handles the WhoIsEnd event. Return true to stop further processing of the event.</summary>
+        public virtual bool OnWhoIsEnd(object sender, WhoisEndEventArgs e) => false;
+        /// <summary>When overridden, handles the WhoIsHelperLine event. Return true to stop further processing of the event.</summary>
+        public virtual bool OnWhoIsHelperLine(object sender, WhoisOperEventArgs e) => false;
+        /// <summary>When overridden, handles the WhoIsIdleLine event. Return true to stop further processing of the event.</summary>
+        public virtual bool OnWhoIsIdleLine(object sender, WhoisIdleEventArgs e) => false;
+        /// <summary>When overridden, handles the WhoIsNameLine event. Return true to stop further processing of the event.</summary>
+        public virtual bool OnWhoIsNameLine(object sender, WhoisNameEventArgs e) => false;
+        /// <summary>When overridden, handles the WhoIsOperLine event. Return true to stop further processing of the event.</summary>
+        public virtual bool OnWhoIsOperLine(object sender, WhoisOperEventArgs e) => false;
+        /// <summary>When overridden, handles the WhoIsRealHostLine event. Return true to stop further processing of the event.</summary>
+        public virtual bool OnWhoIsRealHostLine(object sender, WhoisRealHostEventArgs e) => false;
+        /// <summary>When overridden, handles the WhoIsServerLine event. Return true to stop further processing of the event.</summary>
+        public virtual bool OnWhoIsServerLine(object sender, WhoisServerEventArgs e) => false;
+        /// <summary>When overridden, handles the WhoList event. Return true to stop further processing of the event.</summary>
+        public virtual bool OnWhoList(object sender, WhoListEventArgs e) => false;
+        /// <summary>When overridden, handles the WhoWasEnd event. Return true to stop further processing of the event.</summary>
+        public virtual bool OnWhoWasEnd(object sender, WhoisEndEventArgs e) => false;
+        /// <summary>When overridden, handles the WhoWasNameLine event. Return true to stop further processing of the event.</summary>
+        public virtual bool OnWhoWasNameLine(object sender, WhoisNameEventArgs e) => false;
     }
 
     public class Command {
@@ -724,10 +791,10 @@ namespace CBot {
     }
 
     public class Trigger {
-        public RegexAttribute Attribute { get; }
+        public TriggerAttribute Attribute { get; }
         public PluginTriggerHandler Handler { get; }
 
-        public Trigger(RegexAttribute attribute, PluginTriggerHandler handler) {
+        public Trigger(TriggerAttribute attribute, PluginTriggerHandler handler) {
             this.Attribute = attribute;
             this.Handler = handler;
         }

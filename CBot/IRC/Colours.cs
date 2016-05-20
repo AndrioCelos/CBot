@@ -1,3 +1,7 @@
+#pragma warning disable 1591  // Missing XML documentation
+
+using System;
+
 namespace IRC {
     /// <summary>
     /// Provides methods for dealing with mIRC formatting codes.
@@ -5,45 +9,25 @@ namespace IRC {
 	public static class Colours	{
         /// <summary>The colour code.</summary>
 		public const char ColourCode      = '\u0003';
-        /// <summary>The full 'white' colour code.</summary>
 		public const string White         = "\u000300";
-        /// <summary>The full 'black' colour code.</summary>
         public const string Black         = "\u000301";
-        /// <summary>The full 'dark blue' colour code.</summary>
         public const string DarkBlue      = "\u000302";
-        /// <summary>The full 'dark green' colour code.</summary>
         public const string DarkGreen     = "\u000303";
-        /// <summary>The full 'red' colour code.</summary>
         public const string Red           = "\u000304";
-        /// <summary>The full 'brown' colour code.</summary>
         public const string DarkRed       = "\u000305";
-        /// <summary>The full 'purple' colour code.</summary>
         public const string Purple        = "\u000306";
-        /// <summary>The full 'orange' colour code.</summary>
         public const string Orange        = "\u000307";
-        /// <summary>The full 'yellow' colour code.</summary>
         public const string Yellow        = "\u000308";
-        /// <summary>The full 'green' colour code.</summary>
         public const string Green         = "\u000309";
-        /// <summary>The full 'teal' colour code.</summary>
         public const string Teal          = "\u000310";
-        /// <summary>The full 'cyan' colour code.</summary>
         public const string Cyan          = "\u000311";
-        /// <summary>The full 'blue' colour code.</summary>
         public const string Blue          = "\u000312";
-        /// <summary>The full 'magenta' colour code.</summary>
         public const string Magenta       = "\u000313";
-        /// <summary>The full 'dark gray' colour code.</summary>
         public const string DarkGray      = "\u000314";
-        /// <summary>The full 'gray' colour code.</summary>
         public const string Gray          = "\u000315";
-        /// <summary>The bold code.</summary>
         public const string Bold          = "\u0002";
-        /// <summary>The italic code. Not recognised by some clients.</summary>
         public const string Italic        = "\u001C";
-        /// <summary>The underline.</summary>
         public const string Underline     = "\u001F";
-        /// <summary>The strikethrough code. Recognised by few clients.</summary>
         public const string Strikethrough = "\u0013";
         /// <summary>The CTCP code.</summary>
         public const string CTCP          = "\u0001";
@@ -54,24 +38,67 @@ namespace IRC {
         /// <summary>The reverse video code.</summary>
         public const string Reverse       = "\u0016";
 
-        private static readonly int[] nicknameColours = new int[] {3, 4, 6, 8, 9, 10, 11, 12, 13 };
+        private static readonly int[,] defaultColours = new[,] { {3,99}, {4,99}, {6,99}, {8,99}, {9,99}, {10,99}, {11,99}, {12,99}, {13,99} };
 
-        /// <summary>Returns the given nickname preceded by a colour code.</summary>
-        /// <param name="nickname">The nickname to colour.</param>
-        /// <returns>The nickname preceded by a colour code, calculated as per HexChat.</returns>
-        public static string NicknameColour(string nickname) {
-            return "\u0003" + NicknameColourIndex(nickname);
+        /// <summary>Returns a colour code that can be used to colour the given string using HexChat's default list of colours.</summary>
+        /// <param name="nickname">The string to colour.</param>
+        /// <returns>The full colour code for the given string.</returns>
+        public static string NicknameColour(string nickname) => NicknameColour(nickname, defaultColours);
+        /// <summary>Returns a colour code that can be used to colour the given string using the specified list of text colours.</summary>
+        /// <param name="nickname">The string to colour.</param>
+        /// <param name="colours">An array containing colour indices to use on the text.</param>
+        /// <returns>The full colour code for the given string.</returns>
+        public static string NicknameColour(string nickname, int[] colours) => NicknameColour(nickname, transformColourArray(colours));
+        /// <summary>Returns a colour code that can be used to colour the given string using the specified list of text and background colours.</summary>
+        /// <param name="nickname">The string to colour.</param>
+        /// <param name="colours">
+        ///     A two-dimensional array containing colour indices to use on the text.
+        ///     The second dimension must contain two elements. The first element (0) specifies the foreground colours, and the second element (1) the background colours.
+        /// </param>
+        /// <returns>The full colour code for the given string.</returns>
+        public static string NicknameColour(string nickname, int[,] colours) {
+            var result = NicknameColourIndex(nickname, colours);
+            if (result[1] >= 0 && result[1] < 99) return "\u0003" + result[0] + "," + result[1].ToString("00");
+            else return "\u0003" + result[0].ToString("00");
 		}
-        /// <summary>Returns the HexChat colour index for a given nickname.</summary>
-        /// <param name="nickname">The nickname to colour.</param>
-        /// <returns>An integer specifying which colour should be used for this nickname.</returns>
-        public static int NicknameColourIndex(string nickname) {
-			int digest = 0;
+        /// <summary>Returns a colour index that can be used to colour the given string using HexChat's default list of colours.</summary>
+        /// <param name="nickname">The string to colour.</param>
+        /// <returns>An array with two elements, consisting of the foreground and background colour for the given string, in that order.</returns>
+        public static int[] NicknameColourIndex(string nickname) => NicknameColourIndex(nickname, defaultColours);
+        /// <summary>Returns a colour index that can be used to colour the given string using the specified list of text colours.</summary>
+        /// <param name="nickname">The string to colour.</param>
+        /// <param name="colours">An array containing colour indices to use on the text.</param>
+        /// <returns>An array with two elements, consisting of the foreground and background colour for the given string, in that order.</returns>
+        public static int[] NicknameColourIndex(string nickname, int[] colours) => NicknameColourIndex(nickname, transformColourArray(colours));
+        /// <summary>Returns a colour code that can be used to colour the given string using the specified list of text and background colours.</summary>
+        /// <param name="nickname">The string to colour.</param>
+        /// <param name="colours">
+        ///     A two-dimensional array containing colour indices to use on the text.
+        ///     The second dimension must contain two elements. The first element (0) specifies the foreground colours, and the second element (1) the background colours.
+        /// </param>
+        /// <returns>An array with two elements, consisting of the foreground and background colour for the given string, in that order.</returns>
+        public static int[] NicknameColourIndex(string nickname, int[,] colours) {
+            if (colours == null) throw new ArgumentNullException("colours");
+            if (colours.Length == 0) throw new ArgumentException("colours must contain at least one element.", "colours");
+            if (colours.GetUpperBound(1) != 1) throw new ArgumentException("The second dimension of the array must have an upper bound of 1.", "colours");
+
+            int digest = 0;
             for (int i = 0; i < nickname.Length; ++i)
 				digest += nickname[i];
-			return nicknameColours[digest % nicknameColours.Length];
+            digest %= colours.GetUpperBound(0) + 1;
+
+			return new[] { colours[digest, 0], colours[digest, 1] };
 		}
-	}
+
+        private static int[,] transformColourArray(int[] array) {
+            var result = new int[array.Length, 2];
+            for (int i = 0; i < array.Length; ++i) {
+                result[i, 0] = array[i];
+                result[i, 1] = 99;
+            }
+            return result;
+        }
+    }
 
     /// <summary>
     /// Gives the mIRC colour codes.
@@ -93,6 +120,7 @@ namespace IRC {
         Magenta,
         DarkGray,
         Gray,
+        /// <summary>A colour code that resets the background colour.</summary>
         Default = 99
     }
 }

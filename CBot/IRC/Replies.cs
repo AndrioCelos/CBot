@@ -1,6 +1,8 @@
 ﻿namespace IRC {
     /// <summary>Contains constants representing standard IRC reply numerics.</summary>
     public static class Replies {
+        // Standard IRC replies, defined in RFC 2812.
+        // RPL_ISUPPORT is specified in https://tools.ietf.org/html/draft-brocklesby-irc-isupport-03.
         public const string RPL_WELCOME           = "001";
         public const string RPL_YOURHOST          = "002";
         public const string RPL_CREATED           = "003";
@@ -145,25 +147,42 @@
         public const string ERR_UMODEUNKNOWNFLAG  = "501";
         public const string ERR_USERSDONTMATCH    = "502";
 
+        // WATCH replies.
+        // More information at https://github.com/grawity/irc-docs/blob/master/client/draft-meglio-irc-watch-00.txt.
+        /// <summary>Notifies that a user in the WATCH list has gone away.</summary>
         public const string RPL_GONEAWAY          = "598";
+        /// <summary>Notifies that a user in the WATCH list has returned from being away.</summary>
         public const string RPL_NOTAWAY           = "599";
+        /// <summary>Notifies that a user in the WATCH list has come online.</summary>
         public const string RPL_LOGON             = "600";
+        /// <summary>Notifies that a user in the WATCH list has disconnected.</summary>
         public const string RPL_LOGOFF            = "601";
+        /// <summary>Confirms that a WATCH entry has been removed.</summary>
         public const string RPL_WATCHOFF          = "602";
+        /// <summary>Returns stats from the `WATCH S` command.</summary>
+        /// <example>:You have 0 and are on 0 WATCH entries</example>
         public const string RPL_WATCHSTAT         = "603";
+        /// <summary>Indicates that a user added to the WATCH list or listed with `WATCH L` is online.</summary>
         public const string RPL_NOWON             = "604";
+        /// <summary>Indicates that a user added to the WATCH list or listed with `WATCH L` is offline.</summary>
         public const string RPL_NOWOFF            = "605";
+        /// <summary>Lists nicknames in the WATCH list in response to `WATCH S`.</summary>
         public const string RPL_WATCHLIST         = "606";
+        /// <summary>Indicates the end of the WATCH list from `WATCH L` or `WATCH S`.</summary>
         public const string RPL_ENDOFWATCHLIST    = "607";
+        /// <summary>Confirms that the WATCH list has been cleared.</summary>
         public const string RPL_CLEARWATCH        = "608";
+        /// <summary>Together with RPL_NOWON, indicates that a user added to the WATCH list or listed with `WATCH L` is away.</summary>
         public const string RPL_NOWISAWAY         = "609";
 
+        // MONITOR replies.
         public const string RPL_MONONLINE         = "730";
         public const string RPL_MONOFFLINE        = "731";
         public const string RPL_MONLIST           = "732";
         public const string RPL_ENDOFMONLIST      = "733";
         public const string RPL_MONLISTFULL       = "734";
 
+        // SASL replies.
         public const string RPL_LOGGEDIN          = "900";
         public const string RPL_LOGGEDOUT         = "901";
         public const string ERR_NICKLOCKED        = "902";

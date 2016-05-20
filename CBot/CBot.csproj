@@ -23,6 +23,7 @@
     <PlatformTarget>x86</PlatformTarget>
     <Prefer32Bit>false</Prefer32Bit>
     <TargetFrameworkVersion>v4.5</TargetFrameworkVersion>
+    <DocumentationFile>bin\Debug\CBot.XML</DocumentationFile>
   </PropertyGroup>
   <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Release|x86' ">
     <Optimize>true</Optimize>
@@ -61,41 +62,44 @@
     <Compile Include="CBot\AutoJoinChannel.cs" />
     <Compile Include="CBot\ClientEntry.cs" />
     <Compile Include="CBot\CommandScope.cs" />
-    <Compile Include="CBot\ConsoleConnection.cs" />
+    <Compile Include="CBot\ConsoleClient.cs" />
     <Compile Include="CBot\EventArgs.cs" />
     <Compile Include="CBot\IniConfig.cs" />
     <Compile Include="CBot\InvalidPluginException.cs" />
     <Compile Include="CBot\NickServSettings.cs" />
+    <Compile Include="CBot\PluginCollection.cs" />
     <Compile Include="CBot\SayOptions.cs" />
     <Compile Include="CBot\CommandRequest.cs" />
     <Compile Include="IniReader.cs" />
-    <Compile Include="IRC\Channel.cs" />
-    <Compile Include="IRC\ChannelCollection.cs" />
+    <Compile Include="IRC\IrcMessageTarget.cs" />
+    <Compile Include="IRC\IrcChannel.cs" />
+    <Compile Include="IRC\IrcChannelCollection.cs" />
     <Compile Include="IRC\ChannelModes.cs" />
     <Compile Include="IRC\ChannelStatus.cs" />
-    <Compile Include="IRC\ChannelUser.cs" />
+    <Compile Include="IRC\IrcChannelUser.cs" />
     <Compile Include="IRC\EventArgs.cs" />
-    <Compile Include="IRC\Extensions.cs" />
+    <Compile Include="IRC\IrcExtensions.cs" />
     <Compile Include="IRC\Handlers.cs" />
-    <Compile Include="IRC\IRCLine.cs" />
+    <Compile Include="IRC\Hostmask.cs" />
+    <Compile Include="IRC\IrcLine.cs" />
     <Compile Include="IRC\Enums.cs" />
+    <Compile Include="IRC\ModeCollection.cs" />
     <Compile Include="IRC\Replies.cs" />
-    <Compile Include="IRC\StringComparer.cs" />
-    <Compile Include="IRC\User.cs" />
-    <Compile Include="IRC\ChannelUserCollection.cs" />
-    <Compile Include="IRC\UserCollection.cs" />
+    <Compile Include="IRC\IrcStringComparer.cs" />
+    <Compile Include="IRC\IrcUser.cs" />
+    <Compile Include="IRC\IrcChannelUserCollection.cs" />
+    <Compile Include="IRC\IrcUserCollection.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
     <Compile Include="CBot\Account.cs" />
     <Compile Include="ConsoleUtils.cs" />
     <Compile Include="CBot\Bot.cs" />
     <Compile Include="CBot\Identification.cs" />
     <Compile Include="IRC\Colours.cs" />
-    <Compile Include="IRC\IRCClient.cs" />
+    <Compile Include="IRC\IrcClient.cs" />
     <Compile Include="CBot\Plugin.cs" />
     <Compile Include="CBot\PluginEntry.cs" />
   </ItemGroup>
   <ItemGroup>
-    <None Include="app.config" />
     <None Include="packages.config" />
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSHARP.Targets" />

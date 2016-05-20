@@ -7,7 +7,7 @@ A factoid can be looked up by name, using the command:
 where `info` is the name.
 
 Actually, different 'contexts' can be set up, which can correspond to channels. Factoids must be assigned a context. For example, the above example may be known internally as `me/info`, where 'me' is the context name.
-The idea is that the context name can be omitted in one of its channels. But not in wildcard channels. In fact, users and moderators alike may not even know it exists.
+The idea is that the context name can be omitted in one of its channels, but not in wildcard channels. In fact, users and moderators alike may not even know it exists.
 
 Regular expressions
 -------------------
@@ -22,7 +22,7 @@ The regular expression can be just a normal regular expression, which will match
 * `PART:[hostmask]:[channel]:[message]`
 * `QUIT:[hostmask]:[channel]:[message]`
 * `KICK:[hostmask]:[channel]:[message]` — `message` is in the form `target:message`
-* `EXIT:[hostmask]:[channel]:[message]` — matches users leaving the channel by any means.
+* `EXIT:[hostmask]:[channel]:[message]` — triggers when a user leaves the channel by any means.
 * `NICK:[hostmask]:[channel]:[message]` — `message` is the new nickname
 
 All parameters are optional, and can be in any order, except `[message]`, which always comes last.

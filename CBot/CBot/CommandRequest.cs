@@ -2,11 +2,12 @@
 
 namespace CBot {
     internal class CommandRequest {
-        public bool Regex;
+        public bool IsTrigger;
         public Plugin Plugin;
-        public IRCUser Sender;
-        public string Channel;
-        public string InputLine;
+        public IrcUser Sender;
+        public IrcMessageTarget Channel;
+        public string Label;
+        public string Parameters;
         public bool GlobalCommand;
         public string FailureMessage;
     }

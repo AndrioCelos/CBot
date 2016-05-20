@@ -8,7 +8,7 @@ namespace CBot {
     /// </summary>
     public class Identification {
         /// <summary>The connection to the IRC network the user is on.</summary>
-        public IRCClient Connection;
+        public IrcClient Connection;
         /// <summary>The user's nickname.</summary>
         public string Nickname;
         /// <summary>The account to which the user has identified.</summary>
@@ -16,6 +16,6 @@ namespace CBot {
         /// <summary>Indicates whether CBot is watching this user using the WATCH command.</summary>
         public bool Watched;
         /// <summary>The list of channels this user shares with the bot.</summary>
-        public List<string> Channels;
+        public HashSet<string> Channels;
     }
 }

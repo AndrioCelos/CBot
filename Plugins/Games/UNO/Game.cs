@@ -10,8 +10,8 @@ using System.IO;
 
 namespace UNO {
     public class Game {
-        public UNOPlugin Plugin { get; }
-        public IRCClient Connection { get; internal set; }
+        public UnoPlugin Plugin { get; }
+        public IrcClient Connection { get; internal set; }
         public string Channel { get; internal set; }
 
         internal int index;
@@ -58,7 +58,7 @@ namespace UNO {
         internal object Lock = new object();
         internal static object LockShuffle = new object();  // Avoid multiple concurrent requests.
 
-        public Game(UNOPlugin plugin, IRCClient connection, string channel, int entryTime) {
+        public Game(UnoPlugin plugin, IrcClient connection, string channel, int entryTime) {
             this.index = plugin.GameCount;
             ++plugin.GameCount;
 

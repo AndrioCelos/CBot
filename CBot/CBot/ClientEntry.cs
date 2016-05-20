@@ -30,11 +30,11 @@ namespace CBot {
         public double ReconnectDelay { get { return this.ReconnectTimer.Interval; } set { this.ReconnectTimer.Interval = value; } }
         private Timer ReconnectTimer;
         /// <summary>Returns the IRCClient object for this connection.</summary>
-        public IRCClient Client { get; internal set; }
+        public IrcClient Client { get; internal set; }
 
-        public string[] Nicknames { get; set; } = Bot.dNicknames;
-        public string Ident { get; set; } = Bot.dUsername;
-        public string FullName { get; set; } = Bot.dFullName;
+        public string[] Nicknames { get; set; } = Bot.DefaultNicknames;
+        public string Ident { get; set; } = Bot.DefaultIdent;
+        public string FullName { get; set; } = Bot.DefaultFullName;
 
         public string Address { get; set; }
         public int Port { get; set; } = 6667;
@@ -74,7 +74,7 @@ namespace CBot {
         /// <param name="name">The name of the IRC network.</param>
         /// <param name="client">The IRCClient object for this connection.</param>
         /// <param name="reconnectDelay">Returns or sets the delay, in milliseconds, with which CBot should automatically reconnect.</param>
-        public ClientEntry(string name, string address, int port, IRCClient client, int reconnectDelay = 30000) {
+        public ClientEntry(string name, string address, int port, IrcClient client, int reconnectDelay = 30000) {
             if (address == null) throw new ArgumentNullException("address");
 
             this.Name = name;
@@ -88,12 +88,11 @@ namespace CBot {
 
         internal void UpdateSettings() {
             this.Client.Address = this.Address;
-            this.Client.Port = this.Port;
             this.Client.Password = this.Password;
             this.Client.SSL = this.TLS;
             this.Client.AllowInvalidCertificate = this.AcceptInvalidTlsCertificate;
-            this.Client.SASLUsername = this.SaslUsername;
-            this.Client.SASLPassword = this.SaslPassword;
+            this.Client.SaslUsername = this.SaslUsername;
+            this.Client.SaslPassword = this.SaslPassword;
             this.Client.Me.Nickname = this.Nicknames[0];
             this.Client.Me.Ident = this.Ident;
             this.Client.Me.FullName = this.FullName;
@@ -106,7 +105,7 @@ namespace CBot {
         }
 
         internal void ReconnectTimer_Elapsed(object sender, ElapsedEventArgs e) {
-            if (this.Client.State != IRCClientState.Disconnected) return;
+            if (this.Client.State != IrcClientState.Disconnected) return;
             try {
                 ConsoleUtils.WriteLine("Connecting to {0} ({1}) on port {2}.", this.Name, this.Address, this.Port);
                 this.UpdateSettings();

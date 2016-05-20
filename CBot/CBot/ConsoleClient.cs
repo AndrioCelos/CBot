@@ -6,32 +6,31 @@ using IRC;
 namespace CBot {
     /// <summary>
     /// Provides an interface by which the console can be treated the same as an IRC channel by CBot.
-    /// We do this by emulating an IRC network with an IRCClient subclass.
+    /// We do this by emulating an IRC network with an <see cref="IrcClient"/> subclass.
     /// </summary>
-    internal class ConsoleConnection : IRCClient {
+    internal class ConsoleClient : IrcClient {
         private static object consoleLock = new object();
 
-        internal ConsoleConnection() : base(new IRCLocalUser(Bot.dNicknames[0], Bot.dNicknames[0], Bot.dNicknames[0])) {
+        internal ConsoleClient() : base(new IrcLocalUser(Bot.DefaultNicknames[0], Bot.DefaultNicknames[0], Bot.DefaultNicknames[0])) {
             this.Address = "!Console";
             this.Extensions.NetworkName = "!Console";
-            this.Port = 0;
         }
 
         public override void Connect(string host, int port) {
             this.LastSpoke = DateTime.Now;
-            this.State = IRCClientState.Online;
+            this.State = IrcClientState.Online;
 
             this.ReceivedLine(":" + Me.Nickname + "!*@* JOIN #");
             this.ReceivedLine(":User!User@console JOIN #");
         }
 
-        public override void Disconnect() {
-        }
+        public override void Disconnect() { }
 
         public override void Send(string t) {
-            var line = IRCLine.Parse(t);
+            var line = IrcLine.Parse(t);
 
-            if ((line.Command.Equals("PRIVMSG", StringComparison.OrdinalIgnoreCase) || line.Command.Equals("NOTICE", StringComparison.OrdinalIgnoreCase)) && (line.Parameters[0] == "#" || IRCStringComparer.RFC1459.Equals(line.Parameters[0], "User"))) {
+            if ((line.Message.Equals("PRIVMSG", StringComparison.OrdinalIgnoreCase) || line.Message.Equals("NOTICE", StringComparison.OrdinalIgnoreCase)) &&
+                (line.Parameters[0] == "#" || IrcStringComparer.RFC1459.Equals(line.Parameters[0], "User"))) {
                 // Emulate a channel message to # or PM to 'User' by sticking it on the console.
                 writeMessage(line.Parameters[1]);
             }
@@ -107,16 +106,16 @@ namespace CBot {
                         switch (colour % 16) {
                             case -2: Console.ForegroundColor = originalBackground; break;
                             case -1: case 99: Console.ForegroundColor = originalForeground; break;
-                            case 0: Console.ForegroundColor = ConsoleColor.White; break;
-                            case 1: Console.ForegroundColor = ConsoleColor.Black; break;
-                            case 2: Console.ForegroundColor = ConsoleColor.DarkBlue; break;
-                            case 3: Console.ForegroundColor = ConsoleColor.DarkGreen; break;
-                            case 4: Console.ForegroundColor = ConsoleColor.Red; break;
-                            case 5: Console.ForegroundColor = ConsoleColor.DarkRed; break;
-                            case 6: Console.ForegroundColor = ConsoleColor.DarkMagenta; break;
-                            case 7: Console.ForegroundColor = ConsoleColor.DarkYellow; break;
-                            case 8: Console.ForegroundColor = ConsoleColor.Yellow; break;
-                            case 9: Console.ForegroundColor = ConsoleColor.Green; break;
+                            case  0: Console.ForegroundColor = ConsoleColor.White; break;
+                            case  1: Console.ForegroundColor = ConsoleColor.Black; break;
+                            case  2: Console.ForegroundColor = ConsoleColor.DarkBlue; break;
+                            case  3: Console.ForegroundColor = ConsoleColor.DarkGreen; break;
+                            case  4: Console.ForegroundColor = ConsoleColor.Red; break;
+                            case  5: Console.ForegroundColor = ConsoleColor.DarkRed; break;
+                            case  6: Console.ForegroundColor = ConsoleColor.DarkMagenta; break;
+                            case  7: Console.ForegroundColor = ConsoleColor.DarkYellow; break;
+                            case  8: Console.ForegroundColor = ConsoleColor.Yellow; break;
+                            case  9: Console.ForegroundColor = ConsoleColor.Green; break;
                             case 10: Console.ForegroundColor = ConsoleColor.DarkCyan; break;
                             case 11: Console.ForegroundColor = ConsoleColor.Cyan; break;
                             case 12: Console.ForegroundColor = ConsoleColor.Blue; break;
@@ -129,16 +128,16 @@ namespace CBot {
                         switch (backgroundColour % 16) {
                             case -2: case 99: Console.BackgroundColor = originalBackground; break;
                             case -1: Console.BackgroundColor = originalForeground; break;
-                            case 0: Console.BackgroundColor = ConsoleColor.White; break;
-                            case 1: Console.BackgroundColor = ConsoleColor.Black; break;
-                            case 2: Console.BackgroundColor = ConsoleColor.DarkBlue; break;
-                            case 3: Console.BackgroundColor = ConsoleColor.DarkGreen; break;
-                            case 4: Console.BackgroundColor = ConsoleColor.Red; break;
-                            case 5: Console.BackgroundColor = ConsoleColor.DarkRed; break;
-                            case 6: Console.BackgroundColor = ConsoleColor.DarkMagenta; break;
-                            case 7: Console.BackgroundColor = ConsoleColor.DarkYellow; break;
-                            case 8: Console.BackgroundColor = ConsoleColor.Yellow; break;
-                            case 9: Console.BackgroundColor = ConsoleColor.Green; break;
+                            case  0: Console.BackgroundColor = ConsoleColor.White; break;
+                            case  1: Console.BackgroundColor = ConsoleColor.Black; break;
+                            case  2: Console.BackgroundColor = ConsoleColor.DarkBlue; break;
+                            case  3: Console.BackgroundColor = ConsoleColor.DarkGreen; break;
+                            case  4: Console.BackgroundColor = ConsoleColor.Red; break;
+                            case  5: Console.BackgroundColor = ConsoleColor.DarkRed; break;
+                            case  6: Console.BackgroundColor = ConsoleColor.DarkMagenta; break;
+                            case  7: Console.BackgroundColor = ConsoleColor.DarkYellow; break;
+                            case  8: Console.BackgroundColor = ConsoleColor.Yellow; break;
+                            case  9: Console.BackgroundColor = ConsoleColor.Green; break;
                             case 10: Console.BackgroundColor = ConsoleColor.DarkCyan; break;
                             case 11: Console.BackgroundColor = ConsoleColor.Cyan; break;
                             case 12: Console.BackgroundColor = ConsoleColor.Blue; break;
@@ -147,7 +146,7 @@ namespace CBot {
                             case 15: Console.BackgroundColor = ConsoleColor.Gray; break;
                         }
                     }
-                    if (bold && System.Environment.OSVersion.Platform != PlatformID.Unix) {
+                    if (bold && Environment.OSVersion.Platform != PlatformID.Unix) {
                         if (Console.ForegroundColor >= ConsoleColor.DarkBlue && Console.ForegroundColor <= ConsoleColor.DarkYellow)
                             Console.ForegroundColor += 8;
                         else if (Console.ForegroundColor == ConsoleColor.DarkGray)
@@ -155,7 +154,7 @@ namespace CBot {
                         else if (Console.ForegroundColor == ConsoleColor.Gray)
                             Console.ForegroundColor = ConsoleColor.White;
                     }
-                    if (System.Environment.OSVersion.Platform == PlatformID.Unix) {
+                    if (Environment.OSVersion.Platform == PlatformID.Unix) {
                         Console.Write("\u001B[0");
                         switch (colour % 16) {
                             case -2: case -1: case 99: Console.Write(";39"); break;

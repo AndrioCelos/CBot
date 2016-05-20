@@ -11,7 +11,7 @@ using IRC;
 using static System.StringComparison;
 
 namespace Time {
-    [APIVersion(3, 2)]
+    [ApiVersion(3, 3)]
     public class TimePlugin : Plugin {
         public override string Name => "Time zone calculator";
 
@@ -20,7 +20,7 @@ namespace Time {
         private Dictionary<string, Tuple<string, TimeSpan>> timeZoneAbbrevations;
 
         public override void Initialize() {
-            requests = new Dictionary<string, Request>(IRCStringComparer.RFC1459);
+            requests = new Dictionary<string, Request>(IrcStringComparer.RFC1459);
             timeZones = new Dictionary<string, TimeSpan>(StringComparer.InvariantCultureIgnoreCase);
             timeZoneAbbrevations = new Dictionary<string, Tuple<string, TimeSpan>>(StringComparer.InvariantCultureIgnoreCase);
 
@@ -58,7 +58,7 @@ namespace Time {
             if (e.Message.StartsWith("\u0001") && e.Message.EndsWith("\u0001")) {
                 if (e.Message.StartsWith("\u0001TIME ")) {
                     lock (requests) {
-                        string key = ((IRCClient) sender).NetworkName + "/" + e.Sender.Nickname;
+                        string key = ((IrcClient) sender).NetworkName + "/" + e.Sender.Nickname;
                         Request request;
                         if (requests.TryGetValue(key, out request)) {
                             var timeString = e.Message.Substring(6, e.Message.Length - 7);
@@ -68,11 +68,11 @@ namespace Time {
                                 var UTCOffset = DateTimeOffset.Now.Offset + TimeSpan.FromMinutes(minutesDifference);
 
                                 if (request.Zone == null)
-                                    DoConversion((IRCClient) sender, e.Sender.Nickname, request.Channel, request.Time, "your time", UTCOffset, request.ZoneName, request.TargetZone.Value);
+                                    DoConversion((IrcClient) sender, e.Sender, request.Channel, request.Time, "your time", UTCOffset, request.ZoneName, request.TargetZone.Value);
                                 else
-                                    DoConversion((IRCClient) sender, e.Sender.Nickname, request.Channel, request.Time, request.ZoneName, request.Zone.Value, "your time", UTCOffset);
+                                    DoConversion((IrcClient) sender, e.Sender, request.Channel, request.Time, request.ZoneName, request.Zone.Value, "your time", UTCOffset);
                             } else {
-                                Bot.Say((IRCClient) sender, e.Sender.Nickname, "Could not parse your CTCP TIME reply.");
+                                Bot.Say((IrcClient) sender, e.Sender.Nickname, "Could not parse your CTCP TIME reply.");
                             }
                             request.Timer.Dispose();
                             requests.Remove(key);
@@ -143,7 +143,7 @@ namespace Time {
             string key = e.Client.NetworkName + "/" + e.Sender.Nickname;
             Request request;
             if (requests.TryGetValue(key, out request)) {
-                Bot.Say(e.Client, e.Sender.Nickname, "I already have a pending request from you.");
+                e.Whisper("I already have a pending request from you.");
                 return;
             }
 
@@ -174,15 +174,15 @@ namespace Time {
                 zone = null;
                 targetZone = GetOffset(timeString, out targetZoneString);
                 if (targetZone == null) {
-                    Bot.Say(e.Client, e.Sender.Nickname, $"I do not recognize the time zone '{targetZoneString}'.");
+                    e.Whisper($"I do not recognize the time zone '{targetZoneString}'.");
                     return;
                 }
 
-                DoConversion(e.Client, e.Sender.Nickname, e.Channel, null, null, TimeSpan.Zero, targetZoneString, targetZone.Value);
+                DoConversion(e.Client, e.Sender, e.Target.Target, null, null, TimeSpan.Zero, targetZoneString, targetZone.Value);
             } else {
                 DateTime time2;
                 if (!TryParseUserTime(timeString, out time2)) {
-                    Bot.Say(e.Client, e.Sender.Nickname, "I could not parse that time.");
+                    e.Whisper("I could not parse that time.");
                     return;
                 }
                 time = time2;
@@ -190,7 +190,7 @@ namespace Time {
                 else {
                     zone = GetOffset(zoneString, out zoneString);
                     if (zone == null) {
-                        Bot.Say(e.Client, e.Sender.Nickname, $"I do not recognize the time zone '{zoneString}'.");
+                        e.Whisper($"I do not recognize the time zone '{zoneString}'.");
                         return;
                     }
                 }
@@ -198,20 +198,20 @@ namespace Time {
                 else {
                     targetZone = GetOffset(targetZoneString, out targetZoneString);
                     if (targetZone == null) {
-                        Bot.Say(e.Client, e.Sender.Nickname, $"I do not recognize the time zone '{targetZoneString}'.");
+                        e.Whisper($"I do not recognize the time zone '{targetZoneString}'.");
                         return;
                     }
                 }
 
                 // Unless both zones are specified, we need to do a CTCP TIME.
                 if (zone == null || targetZone == null) {
-                    request = new Request(e.Client, e.Channel, e.Sender, time, zone, targetZone, zoneString ?? targetZoneString);
+                    request = new Request(e.Client, e.Target.Target, e.Sender, time, zone, targetZone, zoneString ?? targetZoneString);
                     request.Timeout += Request_Timeout;
-                    Bot.Say(e.Client, e.Sender.Nickname, "\u0001TIME\u0001", SayOptions.NoticeNever);
+                    e.Sender.Ctcp("TIME");
                     requests.Add(key, request);
                     request.Start();
                 } else {
-                    DoConversion(e.Client, e.Sender.Nickname, e.Channel, time, zoneString, zone.Value, targetZoneString, targetZone.Value);
+                    DoConversion(e.Client, e.Sender, e.Target.Target, time, zoneString, zone.Value, targetZoneString, targetZone.Value);
                 }
             }
 
@@ -268,13 +268,13 @@ namespace Time {
             Bot.Say(request.Connection, request.Sender.Nickname, "Didn't receive a CTCP TIME reply from you.");
         }
 
-        private void DoConversion(IRCClient sender, string nickname, string channel, DateTime? time, string zoneName, TimeSpan zoneOffset, string targetZoneName, TimeSpan targetZoneOffset) {
+        private void DoConversion(IrcClient client, IrcUser sender, string target, DateTime? time, string zoneName, TimeSpan zoneOffset, string targetZoneName, TimeSpan targetZoneOffset) {
             var newTime = new DateTimeOffset(time ?? DateTime.UtcNow, zoneOffset).ToOffset(targetZoneOffset);
 
             if (time == null)
-                Bot.Say(sender, channel, $"The time now is \u0002{GetTimeString(newTime.DateTime)} {targetZoneName}\u0002.");
+                Bot.Say(client, target, $"The time now is \u0002{GetTimeString(newTime.DateTime)} {targetZoneName}\u0002.");
             else
-                Bot.Say(sender, channel, $"\u0002{GetTimeString(time.Value)} {zoneName}\u0002 equals \u0002{GetTimeString(newTime.DateTime)} {targetZoneName}\u0002.");
+                Bot.Say(client, target, $"\u0002{GetTimeString(time.Value)} {zoneName}\u0002 equals \u0002{GetTimeString(newTime.DateTime)} {targetZoneName}\u0002.");
         }
 
         public static string GetTimeString(DateTime time) {

@@ -15,7 +15,7 @@ namespace FAQ {
         public Factoid() {
             this.Expressions = new List<string>();
             this.HitTimes = new Dictionary<string, Queue<DateTime>>(StringComparer.InvariantCultureIgnoreCase);
-            this.RateLimitCount = 1;
+            this.RateLimitCount = 0;
             this.RateLimitTime = 120;
             this.NoticeOnJoin = true;
         }

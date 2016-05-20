@@ -377,7 +377,7 @@ namespace BattleBot {
                 score *= this.plugin.AttackMultiplier(technique.Hits, true);
 
                 // Weather bonus
-                if (technique.IsMagic) {
+                if (technique.IsMagic && this.plugin.Weather != null) {
                     if (technique.Element.Equals("fire", StringComparison.InvariantCultureIgnoreCase) &&
                         this.plugin.Weather.Equals("hot", StringComparison.InvariantCultureIgnoreCase))
                         score *= 1.25F;

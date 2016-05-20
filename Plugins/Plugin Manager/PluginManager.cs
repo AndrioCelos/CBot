@@ -8,14 +8,9 @@ using CBot;
 using IRC;
 
 namespace PluginManager {
-    [APIVersion(3, 2)]
-    public class PluginManagerPlugin : Plugin
-    {
-        public override string Name {
-            get {
-                return "Plugin Manager";
-            }
-        }
+    [ApiVersion(3, 3)]
+    public class PluginManagerPlugin : Plugin {
+        public override string Name => "Plugin Manager";
 
         [Command(new string[] { "loadplugin", "load" }, 1, 2, "load [key] <file>", "Loads a plugin",
             "me.manageplugins", CommandScope.Channel | CommandScope.PM | CommandScope.Global)]
@@ -29,18 +24,18 @@ namespace PluginManager {
                 key = Path.GetFileNameWithoutExtension(filename);
             }
 
-            if (Bot.Plugins.ContainsKey(key)) {
-                Bot.Say(e.Client, e.Channel, string.Format("A plugin with the key \u0002{0}\u000F is already loaded.", key));
+            if (Bot.Plugins.Contains(key)) {
+                e.Reply(string.Format("A plugin with the key \u0002{0}\u000F is already loaded.", key));
                 return;
             }
             if (!File.Exists(realFilename = filename)) {
                 if (Path.IsPathRooted(realFilename)) {
-                    Bot.Say(e.Client, e.Channel, string.Format("The file \u0002{0}\u000F doesn't exist.", filename));
+                    e.Reply(string.Format("The file \u0002{0}\u000F doesn't exist.", filename));
                     return;
                 } else {
                     realFilename = Path.Combine("Plugins", filename);
                     if (!File.Exists(realFilename)) {
-                        Bot.Say(e.Client, e.Channel, string.Format("The file \u0002{0}\u000F couldn't be found.", filename));
+                        e.Reply(string.Format("The file \u0002{0}\u000F couldn't be found.", filename));
                         return;
                     }
                 }
@@ -48,11 +43,11 @@ namespace PluginManager {
 
             try {
                 Bot.LoadPlugin(key, realFilename);
-                Bot.Say(e.Client, e.Channel, string.Format("Loaded \u0002{0}\u0002.", Bot.Plugins[key].Obj.Name));
+                e.Reply(string.Format("Loaded \u0002{0}\u0002.", Bot.Plugins[key].Obj.Name));
             } catch (InvalidPluginException ex) {
-                Bot.Say(e.Client, e.Channel, "That file could not be loaded: {0}", ex.Message);
+                e.Reply("That file could not be loaded: {0}", ex.Message);
             } catch (Exception ex) {
-                Bot.Say(e.Client, e.Channel, string.Format("Failed to load the plugin: {0}", ex.Message));
+                e.Reply(string.Format("Failed to load the plugin: {0}", ex.Message));
             }
         }
 
@@ -62,19 +57,19 @@ namespace PluginManager {
             PluginEntry plugin;
             if (Bot.Plugins.TryGetValue(e.Parameters[0], out plugin)) {
                 plugin.Obj.OnSave();
-                Bot.Say(e.Client, e.Channel, string.Format("Called \u0002{0}\u0002 to save successfully.", e.Parameters[0]));
+                e.Reply(string.Format("Called \u0002{0}\u0002 to save successfully.", e.Parameters[0]));
             } else {
-                Bot.Say(e.Client, e.Channel, string.Format("I haven't loaded a plugin with key \u0002{0}\u001F.", e.Parameters[0]));
+                e.Reply(string.Format("I haven't loaded a plugin with key \u0002{0}\u001F.", e.Parameters[0]));
             }
         }
 
         [Command(new string[] { "saveallplugins", "saveall" }, 0, 0, "saveall", "Instructs all plugins to save data.",
             "me.manageplugins", CommandScope.Channel | CommandScope.PM | CommandScope.Global)]
         public void CommandSaveAll(object sender, CommandEventArgs e) {
-            foreach (PluginEntry pluginData in Bot.Plugins.Values) {
+            foreach (PluginEntry pluginData in Bot.Plugins) {
                 pluginData.Obj.OnSave();
             }
-            Bot.Say(e.Client, e.Channel, "Called plugins to save successfully.");
+            e.Reply("Called plugins to save successfully.");
         }
 
         [Command(new string[] { "unloadplugin", "unload" }, 1, 1, "unload <key>", "Drops a plugin. It's impossible to actually unload it on the fly.",
@@ -82,12 +77,10 @@ namespace PluginManager {
         public void CommandUnload(object sender, CommandEventArgs e) {
             PluginEntry plugin;
             if (Bot.Plugins.TryGetValue(e.Parameters[0], out plugin)) {
-                plugin.Obj.OnUnload();
-                plugin.Obj.Channels = new string[0];
-                Bot.Plugins.Remove(e.Parameters[0]);
-                Bot.Say(e.Client, e.Channel, string.Format("Dropped \u0002{0}\u0002.", e.Parameters[0]));
+                Bot.DropPlugin(e.Parameters[0]);
+                e.Reply(string.Format("Dropped \u0002{0}\u0002.", e.Parameters[0]));
             } else {
-                Bot.Say(e.Client, e.Channel, string.Format("I haven't loaded a plugin with key \u0002{0}\u001F.", e.Parameters[0]));
+                e.Reply(string.Format("I haven't loaded a plugin with key \u0002{0}\u001F.", e.Parameters[0]));
             }
         }
 
@@ -128,41 +121,41 @@ namespace PluginManager {
                         }
                     }
                     plugin.Obj.Channels = channels.ToArray();
-                    Bot.Say(e.Client, e.Channel, string.Format("\u0002{0}\u0002 is now assigned to the following channels: \u0002{1}\u0002.", e.Parameters[0], string.Join("\u0002, \u0002", plugin.Obj.Channels)));
+                    e.Reply(string.Format("\u0002{0}\u0002 is now assigned to the following channels: \u0002{1}\u0002.", e.Parameters[0], string.Join("\u0002, \u0002", plugin.Obj.Channels)));
                 } else {
-                    Bot.Say(e.Client, e.Channel, string.Format("\u0002{0}\u0002 is assigned to the following channels: \u0002{1}\u0002.", e.Parameters[0], string.Join("\u0002, \u0002", plugin.Obj.Channels)));
+                    e.Reply(string.Format("\u0002{0}\u0002 is assigned to the following channels: \u0002{1}\u0002.", e.Parameters[0], string.Join("\u0002, \u0002", plugin.Obj.Channels)));
                 }
             } else {
-                Bot.Say(e.Client, e.Channel, string.Format("I haven't loaded a plugin with key \u0002{0}\u001F.", e.Parameters[0]));
+                e.Reply(string.Format("I haven't loaded a plugin with key \u0002{0}\u001F.", e.Parameters[0]));
             }
         }
 
         [Command("threadstate", 1, 1, "threadstate <network>", "Shows what command an IRC read thread is currently doing.",
             "me.debug", CommandScope.Channel | CommandScope.PM | CommandScope.Global)]
         public void CommandThreadState(object sender, CommandEventArgs e) {
-            IRCClient client = null;
+            IrcClient client = null;
 
             foreach (ClientEntry clientEntry in Bot.Clients) {
-                IRCClient _client = clientEntry.Client;
+                IrcClient _client = clientEntry.Client;
                 if (_client.Address.Equals(e.Parameters[0], StringComparison.OrdinalIgnoreCase) || (_client.Extensions.NetworkName ?? "").Equals(e.Parameters[0], StringComparison.OrdinalIgnoreCase)) {
                     client = _client;
                     break;
                 }
             }
             if (client == null) {
-                Bot.Say(e.Client, e.Channel, string.Format("I'm not connected to \u0002{0}\u0002.", e.Parameters[0]));
+                e.Reply(string.Format("I'm not connected to \u0002{0}\u0002.", e.Parameters[0]));
                 return;
             }
 
             var method = Bot.GetClientEntry(client).CurrentProcedure;
             if (method == null) {
-                Bot.Say(e.Client, e.Channel, string.Format("\u0002{0}\u0002's read thread is \u0002standing by\u0002.", e.Parameters[0]));
+                e.Reply(string.Format("\u0002{0}\u0002's read thread is \u0002standing by\u0002.", e.Parameters[0]));
             } else {
                 var attribute = method.GetCustomAttributes<CommandAttribute>().FirstOrDefault();
                 if (attribute != null) {
-                    Bot.Say(e.Client, e.Channel, string.Format("\u0002{0}\u0002's read thread is in \u0002{1}\u0002 – !\u0002{2}\u0002.", e.Parameters[0], Bot.GetClientEntry(client).CurrentProcedurePlugin.Key, attribute.Names[0]));
+                    e.Reply(string.Format("\u0002{0}\u0002's read thread is in \u0002{1}\u0002 – !\u0002{2}\u0002.", e.Parameters[0], Bot.GetClientEntry(client).CurrentProcedurePlugin.Key, attribute.Names[0]));
                 } else {
-                    Bot.Say(e.Client, e.Channel, string.Format("\u0002{0}\u0002's read thread is in \u0002{1}\u0002 – !\u0002{2}\u0002.", e.Parameters[0], Bot.GetClientEntry(client).CurrentProcedurePlugin.Key, method.Name));
+                    e.Reply(string.Format("\u0002{0}\u0002's read thread is in \u0002{1}\u0002 – !\u0002{2}\u0002.", e.Parameters[0], Bot.GetClientEntry(client).CurrentProcedurePlugin.Key, method.Name));
                 }
             }
         }

@@ -14,106 +14,124 @@ using System.Text.RegularExpressions;
 using System.Threading;
 using System.Timers;
 
+using Timer = System.Timers.Timer;
+
 namespace IRC {
-    public delegate void IRCMessageHandler(IRCClient client, IRCLine line);
+    /// <summary>Represents a method that handles a client-bound IRC message.</summary>
+    /// <param name="client">The <see cref="IrcClient"/> receiving the message.</param>
+    /// <param name="line">The content of the message.</param>
+    public delegate void IrcMessageHandler(IrcClient client, IrcLine line);
 
     /// <summary>
     /// Manages a connection to an IRC network.
     /// </summary>
-    public class IRCClient {
-
+    public class IrcClient {
         #region Events
         // TODO: Remove/reorganise/merge some of these?
         /// <summary>Raised when the local user ceases to be marked as away.</summary>
         public event EventHandler<AwayEventArgs> AwayCancelled;
+        /// <summary>Raised when an away message for another user is received.</summary>
+        public event EventHandler<AwayMessageEventArgs> AwayMessage;
         /// <summary>Raised when the local user is marked as away.</summary>
         public event EventHandler<AwayEventArgs> AwaySet;
-        /// <summary>Raised when a channel ban list entry is received.</summary>
-        public event EventHandler<ChannelModeListEventArgs> BanList;
-        /// <summary>Raised when the end of a channel ban list is seen.</summary>
-        public event EventHandler<ChannelModeListEndEventArgs> BanListEnd;
         /// <summary>Raised when a user describes an action on a channel.</summary>
         public event EventHandler<ChannelMessageEventArgs> ChannelAction;
         /// <summary>Raised when a user gains administrator status (+a) on a channel.</summary>
-        public event EventHandler<ChannelNicknameModeEventArgs> ChannelAdmin;
+        public event EventHandler<ChannelStatusChangedEventArgs> ChannelAdmin;
         /// <summary>Raised when a ban is set (+b) on a channel.</summary>
-        public event EventHandler<ChannelListModeEventArgs> ChannelBan;
-        /// <summary>Raised when a channel timestamp is received.</summary>
-        public event EventHandler<ChannelTimestampEventArgs> ChannelTimestamp;
+        public event EventHandler<ChannelListChangedEventArgs> ChannelBan;
+        /// <summary>Raised when a channel ban list entry is received.</summary>
+        public event EventHandler<ChannelModeListEventArgs> ChannelBanList;
+        /// <summary>Raised when the end of a channel ban list is seen.</summary>
+        public event EventHandler<ChannelModeListEndEventArgs> ChannelBanListEnd;
+        /// <summary>Raised when a ban is removed (-b) from a channel.</summary>
+        public event EventHandler<ChannelListChangedEventArgs> ChannelBanRemoved;
         /// <summary>Raised when a CTCP request is received to a channel.</summary>
         public event EventHandler<ChannelMessageEventArgs> ChannelCTCP;
         /// <summary>Raised when a user loses administrator status (-a) on a channel.</summary>
-        public event EventHandler<ChannelNicknameModeEventArgs> ChannelDeAdmin;
+        public event EventHandler<ChannelStatusChangedEventArgs> ChannelDeAdmin;
         /// <summary>Raised when a user loses half-operator status (-h) on a channel.</summary>
-        public event EventHandler<ChannelNicknameModeEventArgs> ChannelDeHalfOp;
+        public event EventHandler<ChannelStatusChangedEventArgs> ChannelDeHalfOp;
         /// <summary>Raised when a user loses half-voice (-V) on a channel.</summary>
-        public event EventHandler<ChannelNicknameModeEventArgs> ChannelDeHalfVoice;
+        public event EventHandler<ChannelStatusChangedEventArgs> ChannelDeHalfVoice;
         /// <summary>Raised when a user loses operator status (-o) on a channel.</summary>
-        public event EventHandler<ChannelNicknameModeEventArgs> ChannelDeOp;
+        public event EventHandler<ChannelStatusChangedEventArgs> ChannelDeOp;
         /// <summary>Raised when a user loses owner status (-q) on a channel.</summary>
-        public event EventHandler<ChannelNicknameModeEventArgs> ChannelDeOwner;
+        public event EventHandler<ChannelStatusChangedEventArgs> ChannelDeOwner;
         /// <summary>Raised when a user loses voice (-v) on a channel.</summary>
-        public event EventHandler<ChannelNicknameModeEventArgs> ChannelDeVoice;
+        public event EventHandler<ChannelStatusChangedEventArgs> ChannelDeVoice;
         /// <summary>Raised when a ban exception is set (+e) on a channel.</summary>
-        public event EventHandler<ChannelListModeEventArgs> ChannelExempt;
+        public event EventHandler<ChannelListChangedEventArgs> ChannelExempt;
+        /// <summary>Raised when a ban exception is removed (-e) on a channel.</summary>
+        public event EventHandler<ChannelListChangedEventArgs> ChannelExemptRemoved;
         /// <summary>Raised when a user gains half-operator status (+h) on a channel.</summary>
-        public event EventHandler<ChannelNicknameModeEventArgs> ChannelHalfOp;
+        public event EventHandler<ChannelStatusChangedEventArgs> ChannelHalfOp;
         /// <summary>Raised when a user gains half-voice (+V) on a channel.</summary>
-        public event EventHandler<ChannelNicknameModeEventArgs> ChannelHalfVoice;
+        public event EventHandler<ChannelStatusChangedEventArgs> ChannelHalfVoice;
         /// <summary>Raised when an invite exemption is set (+I) on a channel.</summary>
-        public event EventHandler<ChannelListModeEventArgs> ChannelInviteExempt;
+        public event EventHandler<ChannelListChangedEventArgs> ChannelInviteExempt;
+        /// <summary>Raised when a channel invite exemption list entry is received. </summary>
+        public event EventHandler<ChannelModeListEventArgs> ChannelInviteExemptList;
+        /// <summary>Raised when the end of a channel invite exemption list is seen.</summary>
+        public event EventHandler<ChannelModeListEndEventArgs> ChannelInviteExemptListEnd;
+        /// <summary>Raised when an invite exemption is removed (-I) on a channel.</summary>
+        public event EventHandler<ChannelListChangedEventArgs> ChannelInviteExemptRemoved;
         /// <summary>Raised when a user, including the local user, joins a channel.</summary>
         public event EventHandler<ChannelJoinEventArgs> ChannelJoin;
         /// <summary>Raised when a join attempt fails.</summary>
-        public event EventHandler<ChannelDeniedEventArgs> ChannelJoinDenied;
+        public event EventHandler<ChannelJoinDeniedEventArgs> ChannelJoinDenied;
+        /// <summary>Raised when a channel's key is removed (-k).</summary>
+        public event EventHandler<ChannelChangeEventArgs> ChannelKeyRemoved;
+        /// <summary>Raised when a key is set (+k) on a channel.</summary>
+        public event EventHandler<ChannelKeyEventArgs> ChannelKeySet;
         /// <summary>Raised when a user, including the local user, is kicked out of a channel.</summary>
         public event EventHandler<ChannelKickEventArgs> ChannelKick;
+        /// <summary>Raised after a more specific event when a user leaves a channel by any means.</summary>
+        public event EventHandler<ChannelPartEventArgs> ChannelLeave;
+        /// <summary>Raised when a channel's user limit is removed (-l).</summary>
+        public event EventHandler<ChannelChangeEventArgs> ChannelLimitRemoved;
+        /// <summary>Raised when a user limit is set (+l) on a channel.</summary>
+        public event EventHandler<ChannelLimitEventArgs> ChannelLimitSet;
+        /// <summary>Raised when a channel list entry is seen.</summary>
+        public event EventHandler<ChannelListEventArgs> ChannelList;
+        /// <summary>Raised when a non-standard status mode has been set or removed on a channel user.</summary>
+        public event EventHandler<ChannelListChangedEventArgs> ChannelListChanged;
+        /// <summary>Raised when the end of the channel list is seen.</summary>
+        public event EventHandler<ChannelListEndEventArgs> ChannelListEnd;
         /// <summary>Raised when a user sends a PRIVMSG to a channel.</summary>
         public event EventHandler<ChannelMessageEventArgs> ChannelMessage;
         /// <summary>Raised when a PRIVMSG attempt fails.</summary>
-        public event EventHandler<ChannelDeniedEventArgs> ChannelMessageDenied;
+        public event EventHandler<ChannelJoinDeniedEventArgs> ChannelMessageDenied;
         /// <summary>Raised when modes are set on a channel, once for each mode.</summary>
-        public event EventHandler<ChannelModeEventArgs> ChannelModeSet;
-        /// <summary>Raised when modes are set on a channel that aren't handled by other events, once for each mode.</summary>
-        public event EventHandler<ChannelModeEventArgs> ChannelModeUnhandled;
+        public event EventHandler<ChannelModeChangedEventArgs> ChannelModeChanged;
+        /// <summary>Raised when a channel's modes are received.</summary>
+        public event EventHandler<ChannelModesSetEventArgs> ChannelModesGet;
         /// <summary>Raised when modes are set on a channel, after other channel mode events.</summary>
         public event EventHandler<ChannelModesSetEventArgs> ChannelModesSet;
-        /// <summary>Raised when a channel's modes are received.</summary>
-        public event EventHandler<ChannelModesGetEventArgs> ChannelModesGet;
         /// <summary>Raised when a user sends a NOTICE to a channel.</summary>
         public event EventHandler<ChannelMessageEventArgs> ChannelNotice;
         /// <summary>Raised when a user gains operator status (+o) on a channel.</summary>
-        public event EventHandler<ChannelNicknameModeEventArgs> ChannelOp;
+        public event EventHandler<ChannelStatusChangedEventArgs> ChannelOp;
         /// <summary>Raised when a user gains owner status (+q) on a channel.</summary>
-        public event EventHandler<ChannelNicknameModeEventArgs> ChannelOwner;
+        public event EventHandler<ChannelStatusChangedEventArgs> ChannelOwner;
         /// <summary>Raised when a user, including the local user, parts a channel.</summary>
         public event EventHandler<ChannelPartEventArgs> ChannelPart;
         /// <summary>Raised when a quiet is set (+q) on a channel/</summary>
-        public event EventHandler<ChannelListModeEventArgs> ChannelQuiet;
-        /// <summary>Raised when a ban exception is removed (-e) on a channel.</summary>
-        public event EventHandler<ChannelListModeEventArgs> ChannelRemoveExempt;
-        /// <summary>Raised when an invite exemption is removed (-I) on a channel.</summary>
-        public event EventHandler<ChannelListModeEventArgs> ChannelRemoveInviteExempt;
-        /// <summary>Raised when a channel's key is removed (-k).</summary>
-        public event EventHandler<ChannelEventArgs> ChannelRemoveKey;
-        /// <summary>Raised when a channel's user limit is removed (-l).</summary>
-        public event EventHandler<ChannelEventArgs> ChannelRemoveLimit;
-        /// <summary>Raised when a key is set (+k) on a channel.</summary>
-        public event EventHandler<ChannelKeyEventArgs> ChannelSetKey;
-        /// <summary>Raised when a user limit is set (+l) on a channel.</summary>
-        public event EventHandler<ChannelLimitEventArgs> ChannelSetLimit;
-        /// <summary>Raised when a channel topic is received.</summary>
-        public event EventHandler<ChannelTopicEventArgs> ChannelTopic;
+        public event EventHandler<ChannelListChangedEventArgs> ChannelQuiet;
+        /// <summary>Raised when a quiet is removed (-q) from a channel.</summary>
+        public event EventHandler<ChannelListChangedEventArgs> ChannelQuietRemoved;
+        /// <summary>Raised when a non-standard status mode has been set or removed on a channel user.</summary>
+        public event EventHandler<ChannelStatusChangedEventArgs> ChannelStatusChanged;
+        /// <summary>Raised when a channel timestamp is received.</summary>
+        public event EventHandler<ChannelTimestampEventArgs> ChannelTimestamp;
         /// <summary>Raised when a channel topic is changed.</summary>
-        public event EventHandler<ChannelTopicChangeEventArgs> ChannelTopicChange;
+        public event EventHandler<ChannelTopicChangeEventArgs> ChannelTopicChanged;
+        /// <summary>Raised when a channel topic is received.</summary>
+        public event EventHandler<ChannelTopicEventArgs> ChannelTopicReceived;
         /// <summary>Raised when a channel topic stamp is received.</summary>
         public event EventHandler<ChannelTopicStampEventArgs> ChannelTopicStamp;
-        /// <summary>Raised when a ban is removed (-b) from a channel.</summary>
-        public event EventHandler<ChannelListModeEventArgs> ChannelUnBan;
-        /// <summary>Raised when a quiet is removed (-q) from a channel.</summary>
-        public event EventHandler<ChannelListModeEventArgs> ChannelUnQuiet;
         /// <summary>Raised when a user gains voice (+v) on a channel.</summary>
-        public event EventHandler<ChannelNicknameModeEventArgs> ChannelVoice;
+        public event EventHandler<ChannelStatusChangedEventArgs> ChannelVoice;
         /// <summary>Raised when the IRC connection is lost.</summary>
         public event EventHandler<DisconnectEventArgs> Disconnected;
         /// <summary>Raised when an exception occurs in the connection.</summary>
@@ -123,21 +141,13 @@ namespace IRC {
         /// <summary>Raised when the end of a channel ban exception list is seen.</summary>
         public event EventHandler<ChannelModeListEndEventArgs> ExemptListEnd;
         /// <summary>Raised when the local user is invited to a channel.</summary>
-        public event EventHandler<ChannelInviteEventArgs> Invite;
+        public event EventHandler<InviteEventArgs> Invite;
         /// <summary>Raised when a channel invite is sent.</summary>
-        public event EventHandler<ChannelInviteSentEventArgs> InviteSent;
-        /// <summary>Raised when a channel invite exemption list entry is received. </summary>
-        public event EventHandler<ChannelModeListEventArgs> InviteExemptList;
-        /// <summary>Raised when the end of a channel invite exemption list is seen.</summary>
-        public event EventHandler<ChannelModeListEndEventArgs> InviteExemptListEnd;
+        public event EventHandler<InviteSentEventArgs> InviteSent;
         /// <summary>Raised when the local user is killed.</summary>
         public event EventHandler<PrivateMessageEventArgs> Killed;
-        /// <summary>Raised when a channel list entry is seen.</summary>
-        public event EventHandler<ChannelListEventArgs> ChannelList;
-        /// <summary>Raised when the end of the channel list is seen.</summary>
-        public event EventHandler<ChannelListEndEventArgs> ChannelListEnd;
         /// <summary>Raised when part of the MOTD is seen.</summary>
-        public event EventHandler<MOTDEventArgs> MOTD;
+        public event EventHandler<MotdEventArgs> MOTD;
         /// <summary>Raised when part of a channel names list is seen.</summary>
         public event EventHandler<ChannelNamesEventArgs> Names;
         /// <summary>Raised when the end of a channel names list is seen.</summary>
@@ -151,9 +161,9 @@ namespace IRC {
         /// <summary>Raised when a nickname change attempt fails because the nickname is taken.</summary>
         public event EventHandler<NicknameEventArgs> NicknameTaken;
         /// <summary>Raised when a PONG is received.</summary>
-        public event EventHandler<PingEventArgs> PingReply;
+        public event EventHandler<PingEventArgs> Pong;
         /// <summary>Raised when a PING is received.</summary>
-        public event EventHandler<PingEventArgs> PingRequest;
+        public event EventHandler<PingEventArgs> PingReceived;
         /// <summary>Raised when a user describes an action in private.</summary>
         public event EventHandler<PrivateMessageEventArgs> PrivateAction;
         /// <summary>Raised when a CTCP request is received in private.</summary>
@@ -163,343 +173,169 @@ namespace IRC {
         /// <summary>Raised when a NOTICE is received in private.</summary>
         public event EventHandler<PrivateMessageEventArgs> PrivateNotice;
         /// <summary>Raised when a line is received from the server, before any other processing.</summary>
-        public event EventHandler<IRCLineEventArgs> RawLineReceived;
-        /// <summary>Raised when a line is received from the server that isn't handled.</summary>
-        public event EventHandler<IRCLineEventArgs> RawLineUnhandled;
+        public event EventHandler<IrcLineEventArgs> RawLineReceived;
         /// <summary>Raised when a line is sent.</summary>
-        public event EventHandler<RawEventArgs> RawLineSent;
+        public event EventHandler<RawLineEventArgs> RawLineSent;
+        /// <summary>Raised when a line is received from the server that isn't handled.</summary>
+        public event EventHandler<IrcLineEventArgs> RawLineUnhandled;
+        /// <summary>Raised when registration completes.</summary>
+        public event EventHandler<RegisteredEventArgs> Registered;
+        /// <summary>Raised when an ERROR message is received.</summary>
+        public event EventHandler<ServerErrorEventArgs> ServerError;
+        /// <summary>Raised when a NOTICE message is received from a server.</summary>
+        public event EventHandler<PrivateMessageEventArgs> ServerNotice;
+        /// <summary>Raised when the State property changes.</summary>
+        public event EventHandler<StateEventArgs> StateChanged;
+        /// <summary>Raised when we lose sight of a user, but they did not leave the network.</summary>
+        public event EventHandler<IrcUserEventArgs> UserDisappeared;
         /// <summary>Raised when user modes are received.</summary>
         public event EventHandler<UserModesEventArgs> UserModesGet;
         /// <summary>Raised when user modes are set.</summary>
         public event EventHandler<UserModesEventArgs> UserModesSet;
-        /// <summary>Raised when a WALLOPS message is received.</summary>
-        public event EventHandler<PrivateMessageEventArgs> Wallops;
-        /// <summary>Raised when a NOTICE message is received from a server.</summary>
-        public event EventHandler<PrivateMessageEventArgs> ServerNotice;
-        /// <summary>Raised when an ERROR message is received.</summary>
-        public event EventHandler<ServerErrorEventArgs> ServerError;
-        /// <summary>Raised when the State property changes.</summary>
-        public event EventHandler<StateEventArgs> StateChanged;
         /// <summary>Raised when a user, including the local user, quits the IRC network.</summary>
         public event EventHandler<QuitEventArgs> UserQuit;
         /// <summary>Raised when the server presents an untrusted TLS certificate. Set e.Valid to true to allow the connection.</summary>
         public event EventHandler<ValidateCertificateEventArgs> ValidateCertificate;
-        /// <summary>Raised when a WHO list entry is received.</summary>
-        public event EventHandler<WhoListEventArgs> WhoList;
+        /// <summary>Raised when a WALLOPS message is received.</summary>
+        public event EventHandler<PrivateMessageEventArgs> Wallops;
         /// <summary>Raised when a WHOIS authentication line is received.</summary>
         public event EventHandler<WhoisAuthenticationEventArgs> WhoIsAuthenticationLine;
-        /// <summary>Raised when a WHOIS away line is received.</summary>
-        public event EventHandler<WhoisAwayEventArgs> WhoIsAwayLine;
         /// <summary>Raised when a WHOIS channels line is received.</summary>
         public event EventHandler<WhoisChannelsEventArgs> WhoIsChannelLine;
         /// <summary>Raised when the end of a WHOIS listing is received.</summary>
         public event EventHandler<WhoisEndEventArgs> WhoIsEnd;
+        /// <summary>Raised when a WHOIS helper line is received.</summary>
+        public event EventHandler<WhoisOperEventArgs> WhoIsHelperLine;
         /// <summary>Raised when a WHOIS idle line is received.</summary>
         public event EventHandler<WhoisIdleEventArgs> WhoIsIdleLine;
         /// <summary>Raised when a WHOIS name line is received.</summary>
         public event EventHandler<WhoisNameEventArgs> WhoIsNameLine;
         /// <summary>Raised when a WHOIS oper line is received.</summary>
         public event EventHandler<WhoisOperEventArgs> WhoIsOperLine;
-        /// <summary>Raised when a WHOIS helper line is received.</summary>
-        public event EventHandler<WhoisOperEventArgs> WhoIsHelperLine;
         /// <summary>Raised when a WHOIS real host line is received.</summary>
         public event EventHandler<WhoisRealHostEventArgs> WhoIsRealHostLine;
         /// <summary>Raised when a WHOIS server line is received.</summary>
         public event EventHandler<WhoisServerEventArgs> WhoIsServerLine;
-        /// <summary>Raised when a WHOWAS name line is received.</summary>
-        public event EventHandler<WhoisNameEventArgs> WhoWasNameLine;
+        /// <summary>Raised when a WHO list entry is received.</summary>
+        public event EventHandler<WhoListEventArgs> WhoList;
         /// <summary>Raised when the end of a WHOWAS list is received.</summary>
         public event EventHandler<WhoisEndEventArgs> WhoWasEnd;
+        /// <summary>Raised when a WHOWAS name line is received.</summary>
+        public event EventHandler<WhoisNameEventArgs> WhoWasNameLine;
         #endregion
 
         #region Event methods
-        protected internal void OnAwayCancelled(AwayEventArgs e) {
-            this.AwayCancelled?.Invoke(this, e);
-        }
-        protected internal void OnAwaySet(AwayEventArgs e) {
-            this.AwaySet?.Invoke(this, e);
-        }
-        protected internal void OnBanList(ChannelModeListEventArgs e) {
-            this.BanList?.Invoke(this, e);
-        }
-        protected internal void OnBanListEnd(ChannelModeListEndEventArgs e) {
-            this.BanListEnd?.Invoke(this, e);
-        }
-        protected internal void OnChannelAction(ChannelMessageEventArgs e) {
-            this.ChannelAction?.Invoke(this, e);
-        }
-        protected internal void OnChannelAdmin(ChannelNicknameModeEventArgs e) {
-            this.ChannelAdmin?.Invoke(this, e);
-        }
-        protected internal void OnChannelBan(ChannelListModeEventArgs e) {
-            this.ChannelBan?.Invoke(this, e);
-        }
-        protected internal void OnChannelTimestamp(ChannelTimestampEventArgs e) {
-            this.ChannelTimestamp?.Invoke(this, e);
-        }
-        protected internal void OnChannelCTCP(ChannelMessageEventArgs e) {
-            this.ChannelCTCP?.Invoke(this, e);
-        }
-        protected internal void OnChannelDeAdmin(ChannelNicknameModeEventArgs e) {
-            this.ChannelDeAdmin?.Invoke(this, e);
-        }
-        protected internal void OnChannelDeHalfOp(ChannelNicknameModeEventArgs e) {
-            this.ChannelDeHalfOp?.Invoke(this, e);
-        }
-        protected internal void OnChannelDeHalfVoice(ChannelNicknameModeEventArgs e) {
-            this.ChannelDeHalfVoice?.Invoke(this, e);
-        }
-        protected internal void OnChannelDeOp(ChannelNicknameModeEventArgs e) {
-            this.ChannelDeOp?.Invoke(this, e);
-        }
-        protected internal void OnChannelDeOwner(ChannelNicknameModeEventArgs e) {
-            this.ChannelDeOwner?.Invoke(this, e);
-        }
-        protected internal void OnChannelDeVoice(ChannelNicknameModeEventArgs e) {
-            this.ChannelDeVoice?.Invoke(this, e);
-        }
-        protected internal void OnChannelExempt(ChannelListModeEventArgs e) {
-            this.ChannelExempt?.Invoke(this, e);
-        }
-        protected internal void OnChannelHalfOp(ChannelNicknameModeEventArgs e) {
-            this.ChannelHalfOp?.Invoke(this, e);
-        }
-        protected internal void OnChannelHalfVoice(ChannelNicknameModeEventArgs e) {
-            this.ChannelHalfVoice?.Invoke(this, e);
-        }
-        protected internal void OnChannelInviteExempt(ChannelListModeEventArgs e) {
-            this.ChannelInviteExempt?.Invoke(this, e);
-        }
-        protected internal void OnChannelJoin(ChannelJoinEventArgs e) {
-            this.ChannelJoin?.Invoke(this, e);
-        }
-        protected internal void OnChannelJoinDenied(ChannelDeniedEventArgs e) {
-            this.ChannelJoinDenied?.Invoke(this, e);
-        }
-        protected internal void OnChannelKick(ChannelKickEventArgs e) {
-            this.ChannelKick?.Invoke(this, e);
-        }
-        protected internal void OnChannelList(ChannelListEventArgs e) {
-            this.ChannelList?.Invoke(this, e);
-        }
-        protected internal void OnChannelListEnd(ChannelListEndEventArgs e) {
-            this.ChannelListEnd?.Invoke(this, e);
-        }
-        protected internal void OnChannelMessage(ChannelMessageEventArgs e) {
-            this.ChannelMessage?.Invoke(this, e);
-        }
-        protected internal void OnChannelMessageDenied(ChannelDeniedEventArgs e) {
-            this.ChannelMessageDenied?.Invoke(this, e);
-        }
-        protected internal void OnChannelModeSet(ChannelModeEventArgs e) {
-            this.ChannelModeSet?.Invoke(this, e);
-        }
-        protected internal void OnChannelModeUnhandled(ChannelModeEventArgs e) {
-            this.ChannelModeUnhandled?.Invoke(this, e);
-        }
-        protected internal void OnChannelModesSet(ChannelModesSetEventArgs e) {
-            this.ChannelModesSet?.Invoke(this, e);
-        }
-        protected internal void OnChannelModesGet(ChannelModesGetEventArgs e) {
-            this.ChannelModesGet?.Invoke(this, e);
-        }
-        protected internal void OnChannelNotice(ChannelMessageEventArgs e) {
-            this.ChannelNotice?.Invoke(this, e);
-        }
-        protected internal void OnChannelOp(ChannelNicknameModeEventArgs e) {
-            this.ChannelOp?.Invoke(this, e);
-        }
-        protected internal void OnChannelOwner(ChannelNicknameModeEventArgs e) {
-            this.ChannelOwner?.Invoke(this, e);
-        }
-        protected internal void OnChannelPart(ChannelPartEventArgs e) {
-            this.ChannelPart?.Invoke(this, e);
-        }
-        protected internal void OnChannelQuiet(ChannelListModeEventArgs e) {
-            this.ChannelQuiet?.Invoke(this, e);
-        }
-        protected internal void OnChannelRemoveExempt(ChannelListModeEventArgs e) {
-            this.ChannelRemoveExempt?.Invoke(this, e);
-        }
-        protected internal void OnChannelRemoveInviteExempt(ChannelListModeEventArgs e) {
-            this.ChannelRemoveInviteExempt?.Invoke(this, e);
-        }
-        protected internal void OnChannelRemoveKey(ChannelEventArgs e) {
-            this.ChannelRemoveKey?.Invoke(this, e);
-        }
-        protected internal void OnChannelRemoveLimit(ChannelEventArgs e) {
-            this.ChannelRemoveLimit?.Invoke(this, e);
-        }
-        protected internal void OnChannelSetKey(ChannelKeyEventArgs e) {
-            this.ChannelSetKey?.Invoke(this, e);
-        }
-        protected internal void OnChannelSetLimit(ChannelLimitEventArgs e) {
-            this.ChannelSetLimit?.Invoke(this, e);
-        }
-        protected internal void OnChannelTopic(ChannelTopicEventArgs e) {
-            this.ChannelTopic?.Invoke(this, e);
-        }
-        protected internal void OnChannelTopicChange(ChannelTopicChangeEventArgs e) {
-            this.ChannelTopicChange?.Invoke(this, e);
-        }
-        protected internal void OnChannelTopicStamp(ChannelTopicStampEventArgs e) {
-            this.ChannelTopicStamp?.Invoke(this, e);
-        }
-        protected internal void OnChannelUnBan(ChannelListModeEventArgs e) {
-            this.ChannelUnBan?.Invoke(this, e);
-        }
-        protected internal void OnChannelUnQuiet(ChannelListModeEventArgs e) {
-            this.ChannelUnQuiet?.Invoke(this, e);
-        }
-        protected internal void OnChannelVoice(ChannelNicknameModeEventArgs e) {
-            this.ChannelVoice?.Invoke(this, e);
-        }
-        protected internal void OnDisconnected(DisconnectEventArgs e) {
+        protected internal virtual void OnAwayCancelled(AwayEventArgs e) => this.AwayCancelled?.Invoke(this, e);
+        protected internal virtual void OnAwayMessage(AwayMessageEventArgs e) => this.AwayMessage?.Invoke(this, e);
+        protected internal virtual void OnAwaySet(AwayEventArgs e) => this.AwaySet?.Invoke(this, e);
+        protected internal virtual void OnBanList(ChannelModeListEventArgs e) => this.ChannelBanList?.Invoke(this, e);
+        protected internal virtual void OnBanListEnd(ChannelModeListEndEventArgs e) => this.ChannelBanListEnd?.Invoke(this, e);
+        protected internal virtual void OnChannelAction(ChannelMessageEventArgs e) => this.ChannelAction?.Invoke(this, e);
+        protected internal virtual void OnChannelAdmin(ChannelStatusChangedEventArgs e) => this.ChannelAdmin?.Invoke(this, e);
+        protected internal virtual void OnChannelBan(ChannelListChangedEventArgs e) => this.ChannelBan?.Invoke(this, e);
+        protected internal virtual void OnChannelTimestamp(ChannelTimestampEventArgs e) => this.ChannelTimestamp?.Invoke(this, e);
+        protected internal virtual void OnChannelCTCP(ChannelMessageEventArgs e) => this.ChannelCTCP?.Invoke(this, e);
+        protected internal virtual void OnChannelDeAdmin(ChannelStatusChangedEventArgs e) => this.ChannelDeAdmin?.Invoke(this, e);
+        protected internal virtual void OnChannelDeHalfOp(ChannelStatusChangedEventArgs e) => this.ChannelDeHalfOp?.Invoke(this, e);
+        protected internal virtual void OnChannelDeHalfVoice(ChannelStatusChangedEventArgs e) => this.ChannelDeHalfVoice?.Invoke(this, e);
+        protected internal virtual void OnChannelDeOp(ChannelStatusChangedEventArgs e) => this.ChannelDeOp?.Invoke(this, e);
+        protected internal virtual void OnChannelDeOwner(ChannelStatusChangedEventArgs e) => this.ChannelDeOwner?.Invoke(this, e);
+        protected internal virtual void OnChannelDeVoice(ChannelStatusChangedEventArgs e) => this.ChannelDeVoice?.Invoke(this, e);
+        protected internal virtual void OnChannelExempt(ChannelListChangedEventArgs e) => this.ChannelExempt?.Invoke(this, e);
+        protected internal virtual void OnChannelHalfOp(ChannelStatusChangedEventArgs e) => this.ChannelHalfOp?.Invoke(this, e);
+        protected internal virtual void OnChannelHalfVoice(ChannelStatusChangedEventArgs e) => this.ChannelHalfVoice?.Invoke(this, e);
+        protected internal virtual void OnChannelInviteExempt(ChannelListChangedEventArgs e) => this.ChannelInviteExempt?.Invoke(this, e);
+        protected internal virtual void OnChannelJoin(ChannelJoinEventArgs e) => this.ChannelJoin?.Invoke(this, e);
+        protected internal virtual void OnChannelJoinDenied(ChannelJoinDeniedEventArgs e) => this.ChannelJoinDenied?.Invoke(this, e);
+        protected internal virtual void OnChannelKick(ChannelKickEventArgs e) => this.ChannelKick?.Invoke(this, e);
+        protected internal virtual void OnChannelLeave(ChannelPartEventArgs e) => this.ChannelLeave?.Invoke(this, e);
+        protected internal virtual void OnChannelList(ChannelListEventArgs e) => this.ChannelList?.Invoke(this, e);
+        protected internal virtual void OnChannelListChanged(ChannelListChangedEventArgs e) => this.ChannelListChanged?.Invoke(this, e);
+        protected internal virtual void OnChannelListEnd(ChannelListEndEventArgs e) => this.ChannelListEnd?.Invoke(this, e);
+        protected internal virtual void OnChannelMessage(ChannelMessageEventArgs e) => this.ChannelMessage?.Invoke(this, e);
+        protected internal virtual void OnChannelMessageDenied(ChannelJoinDeniedEventArgs e) => this.ChannelMessageDenied?.Invoke(this, e);
+        protected internal virtual void OnChannelModeChanged(ChannelModeChangedEventArgs e) => this.ChannelModeChanged?.Invoke(this, e);
+        protected internal virtual void OnChannelModesSet(ChannelModesSetEventArgs e) => this.ChannelModesSet?.Invoke(this, e);
+        protected internal virtual void OnChannelModesGet(ChannelModesSetEventArgs e) => this.ChannelModesGet?.Invoke(this, e);
+        protected internal virtual void OnChannelNotice(ChannelMessageEventArgs e) => this.ChannelNotice?.Invoke(this, e);
+        protected internal virtual void OnChannelOp(ChannelStatusChangedEventArgs e) => this.ChannelOp?.Invoke(this, e);
+        protected internal virtual void OnChannelOwner(ChannelStatusChangedEventArgs e) => this.ChannelOwner?.Invoke(this, e);
+        protected internal virtual void OnChannelPart(ChannelPartEventArgs e) => this.ChannelPart?.Invoke(this, e);
+        protected internal virtual void OnChannelQuiet(ChannelListChangedEventArgs e) => this.ChannelQuiet?.Invoke(this, e);
+        protected internal virtual void OnChannelRemoveExempt(ChannelListChangedEventArgs e) => this.ChannelExemptRemoved?.Invoke(this, e);
+        protected internal virtual void OnChannelRemoveInviteExempt(ChannelListChangedEventArgs e) => this.ChannelInviteExemptRemoved?.Invoke(this, e);
+        protected internal virtual void OnChannelRemoveKey(ChannelChangeEventArgs e) => this.ChannelKeyRemoved?.Invoke(this, e);
+        protected internal virtual void OnChannelRemoveLimit(ChannelChangeEventArgs e) => this.ChannelLimitRemoved?.Invoke(this, e);
+        protected internal virtual void OnChannelSetKey(ChannelKeyEventArgs e) => this.ChannelKeySet?.Invoke(this, e);
+        protected internal virtual void OnChannelSetLimit(ChannelLimitEventArgs e) => this.ChannelLimitSet?.Invoke(this, e);
+        protected internal virtual void OnChannelStatusChanged(ChannelStatusChangedEventArgs e) => this.ChannelStatusChanged?.Invoke(this, e);
+        protected internal virtual void OnChannelTopic(ChannelTopicEventArgs e) => this.ChannelTopicReceived?.Invoke(this, e);
+        protected internal virtual void OnChannelTopicChange(ChannelTopicChangeEventArgs e) => this.ChannelTopicChanged?.Invoke(this, e);
+        protected internal virtual void OnChannelTopicStamp(ChannelTopicStampEventArgs e) => this.ChannelTopicStamp?.Invoke(this, e);
+        protected internal virtual void OnChannelUnBan(ChannelListChangedEventArgs e) => this.ChannelBanRemoved?.Invoke(this, e);
+        protected internal virtual void OnChannelUnQuiet(ChannelListChangedEventArgs e) => this.ChannelQuietRemoved?.Invoke(this, e);
+        protected internal virtual void OnChannelVoice(ChannelStatusChangedEventArgs e) => this.ChannelVoice?.Invoke(this, e);
+        protected internal virtual void OnDisconnected(DisconnectEventArgs e) {
+            this.Channels.Clear();
+            this.Users.Clear();
+            this.UserModes.Clear();
             this.Disconnected?.Invoke(this, e);
         }
-        protected internal void OnException(ExceptionEventArgs e) {
-            this.Exception?.Invoke(this, e);
-        }
-        protected internal void OnExemptList(ChannelModeListEventArgs e) {
-            this.ExemptList?.Invoke(this, e);
-        }
-        protected internal void OnExemptListEnd(ChannelModeListEndEventArgs e) {
-            this.ExemptListEnd?.Invoke(this, e);
-        }
-        protected internal void OnInvite(ChannelInviteEventArgs e) {
-            this.Invite?.Invoke(this, e);
-        }
-        protected internal void OnInviteSent(ChannelInviteSentEventArgs e) {
-            this.InviteSent?.Invoke(this, e);
-        }
-        protected internal void OnInviteExemptList(ChannelModeListEventArgs e) {
-            this.InviteExemptList?.Invoke(this, e);
-        }
-        protected internal void OnInviteExemptListEnd(ChannelModeListEndEventArgs e) {
-            this.InviteExemptListEnd?.Invoke(this, e);
-        }
-        protected internal void OnKilled(PrivateMessageEventArgs e) {
-            this.Killed?.Invoke(this, e);
-        }
-        protected internal void OnMOTD(MOTDEventArgs e) {
-            this.MOTD?.Invoke(this, e);
-        }
-        protected internal void OnNames(ChannelNamesEventArgs e) {
-            this.Names?.Invoke(this, e);
-        }
-        protected internal void OnNamesEnd(ChannelModeListEndEventArgs e) {
-            this.NamesEnd?.Invoke(this, e);
-        }
-        protected internal void OnNicknameChange(NicknameChangeEventArgs e) {
-            this.NicknameChange?.Invoke(this, e);
-        }
-        protected internal void OnNicknameChangeFailed(NicknameEventArgs e) {
-            this.NicknameChangeFailed?.Invoke(this, e);
-        }
-        protected internal void OnNicknameInvalid(NicknameEventArgs e) {
-            this.NicknameInvalid?.Invoke(this, e);
-        }
-        protected internal void OnNicknameTaken(NicknameEventArgs e) {
-            this.NicknameTaken?.Invoke(this, e);
-        }
-        protected internal void OnPingRequest(PingEventArgs e) {
-            this.PingRequest?.Invoke(this, e);
-        }
-        protected internal void OnPingReply(PingEventArgs e) {
-            this.PingReply?.Invoke(this, e);
-        }
-        protected internal void OnPrivateAction(PrivateMessageEventArgs e) {
-            this.PrivateAction?.Invoke(this, e);
-        }
-        protected internal void OnPrivateCTCP(PrivateMessageEventArgs e) {
-            this.PrivateCTCP?.Invoke(this, e);
-        }
-        protected internal void OnPrivateMessage(PrivateMessageEventArgs e) {
-            this.PrivateMessage?.Invoke(this, e);
-        }
-        protected internal void OnPrivateNotice(PrivateMessageEventArgs e) {
-            this.PrivateNotice?.Invoke(this, e);
-        }
-        protected internal void OnUserQuit(QuitEventArgs e) {
-            this.UserQuit?.Invoke(this, e);
-        }
-        protected internal void OnRawLineReceived(IRCLineEventArgs e) {
-            this.RawLineReceived?.Invoke(this, e);
-        }
-        protected internal void OnRawLineUnhandled(IRCLineEventArgs e) {
-            this.RawLineUnhandled?.Invoke(this, e);
-        }
-        protected internal void OnRawLineSent(RawEventArgs e) {
-            this.RawLineSent?.Invoke(this, e);
-        }
-        protected internal void OnUserModesGet(UserModesEventArgs e) {
-            this.UserModesGet?.Invoke(this, e);
-        }
-        protected internal void OnUserModesSet(UserModesEventArgs e) {
-            this.UserModesSet?.Invoke(this, e);
-        }
-        protected internal void OnWallops(PrivateMessageEventArgs e) {
-            this.Wallops?.Invoke(this, e);
-        }
-        protected internal void OnServerNotice(PrivateMessageEventArgs e) {
-            this.ServerNotice?.Invoke(this, e);
-        }
-        protected internal void OnServerError(ServerErrorEventArgs e) {
-            this.ServerError?.Invoke(this, e);
-        }
-        protected internal void OnStateChanged(StateEventArgs e) {
+        protected internal virtual void OnException(ExceptionEventArgs e) => this.Exception?.Invoke(this, e);
+        protected internal virtual void OnExemptList(ChannelModeListEventArgs e) => this.ExemptList?.Invoke(this, e);
+        protected internal virtual void OnExemptListEnd(ChannelModeListEndEventArgs e) => this.ExemptListEnd?.Invoke(this, e);
+        protected internal virtual void OnInvite(InviteEventArgs e) => this.Invite?.Invoke(this, e);
+        protected internal virtual void OnInviteSent(InviteSentEventArgs e) => this.InviteSent?.Invoke(this, e);
+        protected internal virtual void OnInviteExemptList(ChannelModeListEventArgs e) => this.ChannelInviteExemptList?.Invoke(this, e);
+        protected internal virtual void OnInviteExemptListEnd(ChannelModeListEndEventArgs e) => this.ChannelInviteExemptListEnd?.Invoke(this, e);
+        protected internal virtual void OnKilled(PrivateMessageEventArgs e) => this.Killed?.Invoke(this, e);
+        protected internal virtual void OnMotd(MotdEventArgs e) => this.MOTD?.Invoke(this, e);
+        protected internal virtual void OnNames(ChannelNamesEventArgs e) => this.Names?.Invoke(this, e);
+        protected internal virtual void OnNamesEnd(ChannelModeListEndEventArgs e) => this.NamesEnd?.Invoke(this, e);
+        protected internal virtual void OnNicknameChange(NicknameChangeEventArgs e) => this.NicknameChange?.Invoke(this, e);
+        protected internal virtual void OnNicknameChangeFailed(NicknameEventArgs e) => this.NicknameChangeFailed?.Invoke(this, e);
+        protected internal virtual void OnNicknameInvalid(NicknameEventArgs e) => this.NicknameInvalid?.Invoke(this, e);
+        protected internal virtual void OnNicknameTaken(NicknameEventArgs e) => this.NicknameTaken?.Invoke(this, e);
+        protected internal virtual void OnPingReceived(PingEventArgs e) => this.PingReceived?.Invoke(this, e);
+        protected internal virtual void OnPong(PingEventArgs e) => this.Pong?.Invoke(this, e);
+        protected internal virtual void OnPrivateAction(PrivateMessageEventArgs e) => this.PrivateAction?.Invoke(this, e);
+        protected internal virtual void OnPrivateCTCP(PrivateMessageEventArgs e) => this.PrivateCTCP?.Invoke(this, e);
+        protected internal virtual void OnPrivateMessage(PrivateMessageEventArgs e) => this.PrivateMessage?.Invoke(this, e);
+        protected internal virtual void OnPrivateNotice(PrivateMessageEventArgs e) => this.PrivateNotice?.Invoke(this, e);
+        protected internal virtual void OnUserDisappeared(IrcUserEventArgs e) => this.UserDisappeared?.Invoke(this, e);
+        protected internal virtual void OnUserQuit(QuitEventArgs e) => this.UserQuit?.Invoke(this, e);
+        protected internal virtual void OnRawLineReceived(IrcLineEventArgs e) => this.RawLineReceived?.Invoke(this, e);
+        protected internal virtual void OnRawLineUnhandled(IrcLineEventArgs e) => this.RawLineUnhandled?.Invoke(this, e);
+        protected internal virtual void OnRawLineSent(RawLineEventArgs e) => this.RawLineSent?.Invoke(this, e);
+        protected internal virtual void OnRegistered(RegisteredEventArgs e) => this.Registered?.Invoke(this, e);
+        protected internal virtual void OnUserModesGet(UserModesEventArgs e) => this.UserModesGet?.Invoke(this, e);
+        protected internal virtual void OnUserModesSet(UserModesEventArgs e) => this.UserModesSet?.Invoke(this, e);
+        protected internal virtual void OnWallops(PrivateMessageEventArgs e) => this.Wallops?.Invoke(this, e);
+        protected internal virtual void OnServerNotice(PrivateMessageEventArgs e) => this.ServerNotice?.Invoke(this, e);
+        protected internal virtual void OnServerError(ServerErrorEventArgs e) => this.ServerError?.Invoke(this, e);
+        protected internal virtual void OnStateChanged(StateEventArgs e) {
+            if (e.NewState >= IrcClientState.ReceivingServerInfo && e.OldState < IrcClientState.ReceivingServerInfo)
+                this.Users.Add(this.Me);
+
             this.StateChanged?.Invoke(this, e);
         }
-        protected internal void OnValidateCertificate(ValidateCertificateEventArgs e) {
-            this.ValidateCertificate?.Invoke(this, e);
-        }
-        protected internal void OnWhoList(WhoListEventArgs e) {
-            this.WhoList?.Invoke(this, e);
-        }
-        protected internal void OnWhoIsAuthenticationLine(WhoisAuthenticationEventArgs e) {
-            this.WhoIsAuthenticationLine?.Invoke(this, e);
-        }
-        protected internal void OnWhoIsAwayLine(WhoisAwayEventArgs e) {
-            this.WhoIsAwayLine?.Invoke(this, e);
-        }
-        protected internal void OnWhoIsChannelLine(WhoisChannelsEventArgs e) {
-            this.WhoIsChannelLine?.Invoke(this, e);
-        }
-        protected internal void OnWhoIsEnd(WhoisEndEventArgs e) {
-            this.WhoIsEnd?.Invoke(this, e);
-        }
-        protected internal void OnWhoIsIdleLine(WhoisIdleEventArgs e) {
-            this.WhoIsIdleLine?.Invoke(this, e);
-        }
-        protected internal void OnWhoIsNameLine(WhoisNameEventArgs e) {
-            this.WhoIsNameLine?.Invoke(this, e);
-        }
-        protected internal void OnWhoIsOperLine(WhoisOperEventArgs e) {
-            this.WhoIsOperLine?.Invoke(this, e);
-        }
-        protected internal void OnWhoIsHelperLine(WhoisOperEventArgs e) {
-            this.WhoIsHelperLine?.Invoke(this, e);
-        }
-        protected internal void OnWhoIsRealHostLine(WhoisRealHostEventArgs e) {
-            this.WhoIsRealHostLine?.Invoke(this, e);
-        }
-        protected internal void OnWhoIsServerLine(WhoisServerEventArgs e) {
-            this.WhoIsServerLine?.Invoke(this, e);
-        }
-        protected internal void OnWhoWasNameLine(WhoisNameEventArgs e) {
-            this.WhoWasNameLine?.Invoke(this, e);
-        }
-        protected internal void OnWhoWasEnd(WhoisEndEventArgs e) {
-            this.WhoWasEnd?.Invoke(this, e);
-        }
+        protected internal virtual void OnValidateCertificate(ValidateCertificateEventArgs e) => this.ValidateCertificate?.Invoke(this, e);
+        protected internal virtual void OnWhoList(WhoListEventArgs e) => this.WhoList?.Invoke(this, e);
+        protected internal virtual void OnWhoIsAuthenticationLine(WhoisAuthenticationEventArgs e) => this.WhoIsAuthenticationLine?.Invoke(this, e);
+        protected internal virtual void OnWhoIsChannelLine(WhoisChannelsEventArgs e) => this.WhoIsChannelLine?.Invoke(this, e);
+        protected internal virtual void OnWhoIsEnd(WhoisEndEventArgs e) => this.WhoIsEnd?.Invoke(this, e);
+        protected internal virtual void OnWhoIsIdleLine(WhoisIdleEventArgs e) => this.WhoIsIdleLine?.Invoke(this, e);
+        protected internal virtual void OnWhoIsNameLine(WhoisNameEventArgs e) => this.WhoIsNameLine?.Invoke(this, e);
+        protected internal virtual void OnWhoIsOperLine(WhoisOperEventArgs e) => this.WhoIsOperLine?.Invoke(this, e);
+        protected internal virtual void OnWhoIsHelperLine(WhoisOperEventArgs e) => this.WhoIsHelperLine?.Invoke(this, e);
+        protected internal virtual void OnWhoIsRealHostLine(WhoisRealHostEventArgs e) => this.WhoIsRealHostLine?.Invoke(this, e);
+        protected internal virtual void OnWhoIsServerLine(WhoisServerEventArgs e) => this.WhoIsServerLine?.Invoke(this, e);
+        protected internal virtual void OnWhoWasNameLine(WhoisNameEventArgs e) => this.WhoWasNameLine?.Invoke(this, e);
+        protected internal virtual void OnWhoWasEnd(WhoisEndEventArgs e) => this.WhoWasEnd?.Invoke(this, e);
         #endregion
 
         // Server information
-        /// <summary>The IP address to connect to.</summary>
-        public IPAddress IP;
-        /// <summary>The port number to connect on.</summary>
-        public int Port { get; set; }
-        /// <summary>The address to connect to.</summary>
+        /// <summary>The common name (address) of the server, to be checked against the the server's TLS certificate if TLS is used.</summary>
         public string Address { get; set; }
         /// <summary>The password to use when logging in, or null if no password is needed.</summary>
         public string Password { get; set; }
@@ -509,132 +345,121 @@ namespace IRC {
         public string NetworkName => this.Extensions.NetworkName;
 
         /// <summary>A list of all user modes the server supports.</summary>
-        public string SupportedUserModes { get; private set; }
+        public ModeSet SupportedUserModes { get; } = new ModeSet();
         /// <summary>A list of all channel modes the server supports.</summary>
-        public string SupportedChannelModes { get; private set; }
+        public ChannelModes SupportedChannelModes => this.Extensions.ChanModes;
 
         /// <summary>A list of all users we can see on the network.</summary>
-        public IRCUserCollection Users { get; protected set; }
+        public IrcUserCollection Users { get; protected set; }
         /// <summary>A User object representing the local user.</summary>
-        public IRCLocalUser Me { get; protected internal set; }
+        public IrcLocalUser Me { get; protected internal set; }
 
         /// <summary>The username to use with SASL authentication.</summary>
-        public string SASLUsername { get; set; }
+        /// <remarks>Currently only the PLAIN mechanism is supported.</remarks>
+        public string SaslUsername { get; set; }
         /// <summary>The password to use with SASL authentication.</summary>
-        public string SASLPassword { get; set; }
+        public string SaslPassword { get; set; }
+        /// <summary>Returns or sets a value indicating whether a connection will be abandoned if SASL authentication is unsuccessful.</summary>
+        public bool RequireSaslAuthentication { get; set; }
 
-        public Extensions Extensions { get; protected internal set; }
+        /// <summary>/Provides access to RPL_ISUPPORT extensions supported by the server.</summary>
+        public IrcExtensions Extensions { get; protected internal set; }
 
-        /// <summary>A StringComparer that emulates the comparison the server uses, as specified in the RPL_ISUPPORT message.</summary>
-        public StringComparer CaseMappingComparer { get; protected internal set; } = IRCStringComparer.RFC1459;
+        /// <summary>A <see cref="StringComparer"/> that emulates the comparison the server uses, as specified in the RPL_ISUPPORT message.</summary>
+        public IrcStringComparer CaseMappingComparer { get; protected internal set; } = IrcStringComparer.RFC1459;
 
         /// <summary>The time we last sent a PRIVMSG.</summary>
         public DateTime LastSpoke { get; protected internal set; }
         /// <summary>Our current user modes.</summary>
-        public string UserModes { get; protected internal set; }
+        public ModeSet UserModes { get; protected internal set; } = new ModeSet();
         /// <summary>The list of channels we are on.</summary>
-        public IRCChannelCollection Channels { get; }
-        /// <summary>True if we are connected; false otherwise.</summary>
-        public IRCClientState State {
+        public IrcChannelCollection Channels => Me.Channels;
+        /// <summary>The current state of the IRC client.</summary>
+        public IrcClientState State {
             get { return this.state; }
             protected internal set {
-                IRCClientState oldState = this.state;
+                IrcClientState oldState = this.state;
                 this.state = value;
                 this.OnStateChanged(new StateEventArgs(oldState, value));
             }
         }
 
         /// <summary>Contains SHA-256 hashes of TLS certificates that should be accepted.</summary>
-        public List<string> TrustedCertificates { get; private set; }
-        public bool AllowInvalidCertificate;
+        public List<string> TrustedCertificates { get; private set; } = new List<string>();
+        /// <summary>Returns or sets a value indicating whether the connection will continue by default if the server's TLS certificate is invalid.</summary>
+        /// <remarks>This property can be overridden by handling the <see cref="ValidateCertificate"/> event.</remarks>
+        public bool AllowInvalidCertificate { get; set; }
 
-        /// <summary>Returns or sets the encoding used to interpret data.</summary>
+        /// <summary>Returns or sets the text encoding used to interpret data.</summary>
         public Encoding Encoding { get; set; }
 
         private TcpClient tcpClient;
         private bool ssl;
-        private SslStream SSLStream;
+        private SslStream sslStream;
         private StreamReader reader;
-        private StreamWriter _writer;
-        private StreamWriter writer {
-            get { return _writer; }
-            set { _writer = value; }
-        }
-        private Thread ReadThread;
-        private int _PingTimeout;
-        private bool Pinged;
-        private System.Timers.Timer PingTimer;
-        private object ReceiveLock = new object();
+        private StreamWriter writer;
+        private Thread readThread;
+        private int pingTimeout = 60;
+        private bool pinged;
+        private Timer pingTimer = new Timer(60000);
+        private object receiveLock = new object();
         private object Lock = new object();
 
-        private IRCClientState state;
-        private DisconnectReason disconnectReason;
+        private IrcClientState state;
+        internal DisconnectReason disconnectReason;
         internal bool accountKnown;  // Some servers send both 330 and 307 in WHOIS replies. We need to ignore the 307 in that case.
+        internal Dictionary<string, HashSet<string>> pendingNames = new Dictionary<string, HashSet<string>>();
 
         /// <summary>Contains functions used to handle replies received from the server.</summary>
-        protected internal Dictionary<string, IRCMessageHandler> MessageHandlers;
+        protected internal Dictionary<string, IrcMessageHandler> MessageHandlers = new Dictionary<string, IrcMessageHandler>(StringComparer.OrdinalIgnoreCase);
 
-        /// <summary>Creates a new IRCClient object with no name and the default encoding and ping timeout.</summary>
+        /// <summary>Creates a new IRCClient object with no network name and the default encoding and ping timeout.</summary>
         /// <param name="localUser">An IRCLocalUser instance to represent the local user.</param>
-        public IRCClient(IRCLocalUser localUser) : this(localUser, null, new UTF8Encoding(false, false), 60) { }  // Don't want a byte order mark. That messes things up.
-        /// <summary>Creates a new IRCClient object with no name and the default encoding and ping timeout.</summary>
+        public IrcClient(IrcLocalUser localUser) : this(localUser, null, new UTF8Encoding(false, false)) { }  // Don't want a byte order mark. That messes things up.
+        /// <summary>Creates a new IRCClient object with no network name and the default encoding and ping timeout.</summary>
         /// <param name="localUser">An IRCLocalUser instance to represent the local user.</param>
         /// <param name="networkName">The name of the IRC network.</param>
-        public IRCClient(IRCLocalUser localUser, string networkName) : this(localUser, networkName, new UTF8Encoding(false, false), 60) { }
+        public IrcClient(IrcLocalUser localUser, string networkName) : this(localUser, networkName, new UTF8Encoding(false, false)) { }
         /// <summary>Creates a new IRCClient object with no name and the default encoding and ping timeout.</summary>
         /// <param name="localUser">An IRCLocalUser instance to represent the local user.</param>
         /// <param name="encoding">The encoding to use to send and receive data.</param>
-        public IRCClient(IRCLocalUser localUser, Encoding encoding) : this(localUser, null, encoding, 60) { }
-        /// <summary>Creates a new IRCClient object with no name and the default encoding and ping timeout.</summary>
-        /// <param name="localUser">An IRCLocalUser instance to represent the local user.</param>
+        public IrcClient(IrcLocalUser localUser, Encoding encoding) : this(localUser, null, encoding) { }
+        /// <summary>Creates a new <see cref="IrcClient"/> object with no name and the default encoding and ping timeout.</summary>
+        /// <param name="localUser">An <see cref="IrcLocalUser"/> instance to represent the local user.</param>
         /// <param name="networkName">The name of the IRC network.</param>
         /// <param name="encoding">The encoding to use to send and receive data.</param>
-        public IRCClient(IRCLocalUser localUser, string networkName, Encoding encoding) : this(localUser, networkName, encoding, 60) { }
-        /// <summary>Creates a new IRCClient object with no name and the default encoding and ping timeout.</summary>
-        /// <param name="localUser">An IRCLocalUser instance to represent the local user.</param>
-        /// <param name="networkName">The name of the IRC network.</param>
-        /// <param name="encoding">The encoding to use to send and receive data.</param>
-        /// <param name="PingTimeout">The time to wait for a response from the server, in seconds.</param>
-        public IRCClient(IRCLocalUser localUser, string networkName, Encoding encoding, int PingTimeout) {
-            if (localUser == null) throw new ArgumentNullException("localUser");
-            if (encoding == null) throw new ArgumentNullException("encoding");
+        public IrcClient(IrcLocalUser localUser, string networkName, Encoding encoding) {
+            if (localUser == null) throw new ArgumentNullException(nameof(localUser));
+            if (localUser.Client != null && localUser.Client != this) throw new ArgumentException("The " + nameof(IrcLocalUser) + " object is already bound to another " + nameof(IrcClient) + ".", nameof(localUser));
 
-            this.LastSpoke = default(DateTime);
-            this.Extensions = new Extensions(networkName);
-            this.Channels = new IRCChannelCollection(this);
-            this.Users = new IRCUserCollection(this);
-            this.TrustedCertificates = new List<string>();
-            this.Encoding = encoding;
+            this.Extensions = new IrcExtensions(this, networkName);
+            this.Users = new IrcUserCollection(this);
+            this.Encoding = encoding ?? new UTF8Encoding(false, false);
 
-            if (localUser.Client != null && localUser.Client != this) throw new ArgumentException("The IRCLocalUser object is already bound to another IRCClient.", "localUser");
             Me = localUser;
-            localUser.Client = this;
+            localUser.client = this;
+            localUser.Channels = new IrcChannelCollection(this);
 
-            this.MessageHandlers = new Dictionary<string, IRCMessageHandler>(StringComparer.OrdinalIgnoreCase);
+            this.SetDefaultUserModes();
+
             this.RegisterHandlers(typeof(Handlers));
-
-            this._PingTimeout = PingTimeout;
-            if (PingTimeout <= 0)
-                this.PingTimer = new System.Timers.Timer();
-            else
-                this.PingTimer = new System.Timers.Timer(PingTimeout * 1000);
         }
 
-        /// <summary>Adds handlers marked by IRCMessageHandlerAttributes from the given type to this IRCClient.</summary>
+        /// <summary>Adds handlers marked by <see cref="IrcMessageHandlerAttribute"/>s from the given type to this <see cref="IrcClient"/>.</summary>
         public void RegisterHandlers(Type type) {
             foreach (var method in type.GetMethods(BindingFlags.InvokeMethod | BindingFlags.Public | BindingFlags.Static)) {
-                foreach (var attribute in method.GetCustomAttributes<IRCMessageHandlerAttribute>()) {
-                    this.MessageHandlers.Add(attribute.Command, (IRCMessageHandler) method.CreateDelegate(typeof(IRCMessageHandler)));
+                foreach (var attribute in method.GetCustomAttributes<IrcMessageHandlerAttribute>()) {
+                    this.MessageHandlers.Add(attribute.Reply, (IrcMessageHandler) method.CreateDelegate(typeof(IrcMessageHandler)));
                 }
             }
         }
 
         /// <summary>Returns or sets a value specifying whether the connection is or is to be made via TLS.</summary>
-        /// <exception cref="InvalidOperationException">An attempt was made to set this property, and the client is connected.</exception>
+        /// <exception cref="InvalidOperationException">An attempt was made to set this property while the client is connected.</exception>
         public bool SSL {
             get { return this.ssl; }
             set {
-                if (this.State >= IRCClientState.SSLHandshaking)
+                if (this.State >= IrcClientState.SslHandshaking)
                     throw new InvalidOperationException("This property cannot be set while the client is connected.");
                 this.ssl = value;
             }
@@ -642,15 +467,15 @@ namespace IRC {
 
         /// <summary>Returns or sets the ping timeout, in seconds.</summary>
         public int PingTimeout {
-            get { return this._PingTimeout; }
+            get { return this.pingTimeout; }
             set {
-                this._PingTimeout = value;
+                this.pingTimeout = value;
                 bool flag = value == 0;
                 if (value == 0)
-                    this.PingTimer.Enabled = false;
+                    this.pingTimer.Enabled = false;
                 else {
-                    this.PingTimer.Interval = value * 1000;
-                    if (this.State >= IRCClientState.Connecting) this.PingTimer.Enabled = true;
+                    this.pingTimer.Interval = value * 1000;
+                    if (this.State >= IrcClientState.Connecting) this.pingTimer.Enabled = true;
                 }
             }
         }
@@ -659,17 +484,17 @@ namespace IRC {
         public string PingTimeoutMessage { get; set; } = "Ping timeout";
 
         private void PingTimeout_Elapsed(object sender, ElapsedEventArgs e) {
-            lock (this.PingTimer) {
-                if (this.Pinged) {
+            lock (this.pingTimer) {
+                if (this.pinged) {
                     this.disconnectReason = DisconnectReason.PingTimeout;
                     this.Send("QUIT :" + this.PingTimeoutMessage);
                     this.writer.Close();
-                    this.PingTimer.Stop();
+                    this.pingTimer.Stop();
                     this.OnDisconnected(new DisconnectEventArgs(DisconnectReason.PingTimeout, null));
-                    this.State = IRCClientState.Disconnected;
+                    this.State = IrcClientState.Disconnected;
                 } else {
                     this.Send("PING :Keep-alive");
-                    this.Pinged = true;
+                    this.pinged = true;
                 }
             }
         }
@@ -682,25 +507,24 @@ namespace IRC {
             this.Address = host;
             // Connect to the server.
             this.tcpClient = new TcpClient() { ReceiveBufferSize = 1024, SendBufferSize = 1024 };
-            this.State = IRCClientState.Connecting;
+            this.State = IrcClientState.Connecting;
             this.tcpClient.BeginConnect(host, port, this.onConnected, host);
 
-            if (this._PingTimeout != 0) this.PingTimer.Start();
-            this.Pinged = false;
+            if (this.pingTimeout != 0) this.pingTimer.Start();
+            this.pinged = false;
         }
         /// <summary>Connects and logs in to an IRC network.</summary>
         public virtual void Connect(IPAddress ip, int port) {
             this.disconnectReason = 0;
             this.accountKnown = false;
 
-            this.Address = ip.ToString();
             // Connect to the server.
             this.tcpClient = new TcpClient() { ReceiveBufferSize = 1024, SendBufferSize = 1024 };
-            this.State = IRCClientState.Connecting;
+            this.State = IrcClientState.Connecting;
             this.tcpClient.BeginConnect(ip, port, this.onConnected, ip.ToString());
 
-            if (this._PingTimeout != 0) this.PingTimer.Start();
-            this.Pinged = false;
+            if (this.pingTimeout != 0) this.pingTimer.Start();
+            this.pinged = false;
         }
 
         protected virtual void onConnected(IAsyncResult result) {
@@ -708,62 +532,75 @@ namespace IRC {
                 this.tcpClient.EndConnect(result);
             } catch (SocketException ex) {
                 this.OnException(new ExceptionEventArgs(ex, true));
-                this.State = IRCClientState.Disconnected;
+                this.State = IrcClientState.Disconnected;
                 return;
             }
 
             if (this.ssl) {
                 // Make the SSL handshake.
-                this.State = IRCClientState.SSLHandshaking;
-                this.SSLStream = new SslStream(this.tcpClient.GetStream(), false, this.validateCertificate, null);
+                this.State = IrcClientState.SslHandshaking;
+                this.sslStream = new SslStream(this.tcpClient.GetStream(), false, this.validateCertificate, null);
 
                 try {
-                    var protocols = SslProtocols.Tls12 | SslProtocols.Tls11 | SslProtocols.Tls;  // SSLv3 has gone to the dogs.
-                    this.SSLStream.AuthenticateAsClient((string) result.AsyncState, null, protocols, true);
+                    const SslProtocols protocols = SslProtocols.Tls12 | SslProtocols.Tls11 | SslProtocols.Tls;  // SSLv3 has gone to the dogs.
+                    this.sslStream.AuthenticateAsClient(this.Address ?? (string) result.AsyncState, null, protocols, true);
 
-                    this.reader = new StreamReader(this.SSLStream, Encoding);
-                    this.writer = new StreamWriter(this.SSLStream, Encoding);
+                    this.reader = new StreamReader(this.sslStream, Encoding);
+                    this.writer = new StreamWriter(this.sslStream, Encoding);
 
-                    this.State = IRCClientState.Registering;
+                    this.State = IrcClientState.Registering;
+                    this.SetDefaultChannelModes();
+                    this.SetDefaultUserModes();
 
-                    this.ReadThread = new Thread(this.ReadLoop) { Name = "IRCClient read thread: " + (this.NetworkName ?? this.Address) };
-                    this.ReadThread.Start();
+                    this.readThread = new Thread(this.ReadLoop) { Name = "IrcClient read thread: " + (this.NetworkName ?? this.Address) };
+                    this.readThread.Start();
 
                     this.Register();
                 } catch (AuthenticationException ex) {
                     this.OnException(new ExceptionEventArgs(ex, true));
                     this.tcpClient.Close();
-                    this.OnDisconnected(new DisconnectEventArgs(DisconnectReason.TlsAuthenticationFailed, ex));
-                    this.State = IRCClientState.Disconnected;
+                    this.OnDisconnected(new DisconnectEventArgs(DisconnectReason.SslAuthenticationFailed, ex));
+                    this.State = IrcClientState.Disconnected;
                     return;
                 } catch (IOException ex) {
                     this.OnException(new ExceptionEventArgs(ex, true));
                     this.tcpClient.Close();
                     this.OnDisconnected(new DisconnectEventArgs(DisconnectReason.Exception, ex));
-                    this.State = IRCClientState.Disconnected;
+                    this.State = IrcClientState.Disconnected;
                     return;
                 }
             } else {
                 this.reader = new StreamReader(this.tcpClient.GetStream(), Encoding);
                 this.writer = new StreamWriter(this.tcpClient.GetStream(), Encoding);
 
-                this.ReadThread = new Thread(this.ReadLoop) { Name = "IRCClient read thread: " + (this.NetworkName ?? this.Address) };
-                this.ReadThread.Start();
+                this.readThread = new Thread(this.ReadLoop) { Name = "IrcClient read thread: " + (this.NetworkName ?? this.Address) };
+                this.readThread.Start();
 
-                this.State = IRCClientState.Registering;
+                this.State = IrcClientState.Registering;
+                this.SetDefaultChannelModes();
+                this.SetDefaultUserModes();
                 this.Register();
             }
         }
 
         protected virtual bool validateCertificate(object sender, X509Certificate certificate, X509Chain chain, SslPolicyErrors sslPolicyErrors) {
+            bool valid = false;
+            if (this.AllowInvalidCertificate)
+                valid = true;
             // If the certificate is valid, continue.
-            if (sslPolicyErrors == SslPolicyErrors.None) return true;
-            // If the certificate is trusted, continue.
-            var sha256Hash = string.Join(null, new SHA256Managed().ComputeHash(certificate.GetRawCertData()).Select(b => b.ToString("X2")));
-            if (this.TrustedCertificates.Contains(sha256Hash, StringComparer.OrdinalIgnoreCase)) return true;
+            else if (sslPolicyErrors == SslPolicyErrors.None)
+                valid = true;
+            else {
+                // If the certificate is trusted, continue.
+                if (this.TrustedCertificates.Count != 0) {
+                    var sha256Hash = string.Join(null, new SHA256Managed().ComputeHash(certificate.GetRawCertData()).Select(b => b.ToString("X2")));
+                    if (this.TrustedCertificates.Contains(sha256Hash, StringComparer.OrdinalIgnoreCase))
+                        valid = true;
+                }
+            }
 
             // Raise the event.
-            ValidateCertificateEventArgs e = new ValidateCertificateEventArgs(certificate, chain, sslPolicyErrors, this.AllowInvalidCertificate);
+            ValidateCertificateEventArgs e = new ValidateCertificateEventArgs(certificate, chain, sslPolicyErrors, valid);
             this.OnValidateCertificate(e);
             return e.Valid;
         }
@@ -779,31 +616,30 @@ namespace IRC {
         /// <summary>Ungracefully closes the connection to the IRC network.</summary>
         public virtual void Disconnect() {
             this.writer.Close();
-            this.PingTimer.Stop();
+            this.pingTimer.Stop();
             this.OnDisconnected(new DisconnectEventArgs(DisconnectReason.ClientDisconnected, null));
-            this.State = IRCClientState.Disconnected;
+            this.State = IrcClientState.Disconnected;
         }
 
         protected virtual void ReadLoop() {
-            // Read data.
-            while (true) {
+            while (this.State >= IrcClientState.Registering) {
                 string line;
                 try {
-                    if (this._PingTimeout != 0) this.PingTimer.Start();
+                    if (this.pingTimeout != 0) this.pingTimer.Start();
                     line = reader.ReadLine();
                 } catch (Exception ex) when (ex is IOException || ex is SocketException || ex is ObjectDisposedException) {
-                    if (this.State == IRCClientState.Disconnected) break;
+                    if (this.State == IrcClientState.Disconnected) break;
                     this.writer.Close();
-                    this.PingTimer.Stop();
+                    this.pingTimer.Stop();
                     this.OnDisconnected(new DisconnectEventArgs(DisconnectReason.Exception, ex));
                     break;
                 }
 
-                if (this.State == IRCClientState.Disconnected) break;
+                if (this.State == IrcClientState.Disconnected) break;
                 if (line == null) {  // Server disconnected.
                     if (this.disconnectReason == 0) this.disconnectReason = DisconnectReason.ServerDisconnected;
                     this.OnDisconnected(new DisconnectEventArgs(this.disconnectReason, null));
-                    this.State = IRCClientState.Disconnected;
+                    this.State = IrcClientState.Disconnected;
                     break;
                 }
                 this.ReceivedLine(line);
@@ -828,42 +664,43 @@ namespace IRC {
         /// <summary>Handles or simulates a message received from the IRC server.</summary>
         /// <param name="data">The message received or to simulate.</param>
         public virtual void ReceivedLine(string data) {
-            lock (this.ReceiveLock) {
-                var line = IRCLine.Parse(data);
-                this.OnRawLineReceived(new IRCLineEventArgs(data, line));
+            lock (this.receiveLock) {
+                var line = IrcLine.Parse(data);
+                this.OnRawLineReceived(new IrcLineEventArgs(data, line));
 
-                IRCMessageHandler handler;
-                if (this.MessageHandlers.TryGetValue(line.Command, out handler))
+                IrcMessageHandler handler;
+                if (this.MessageHandlers.TryGetValue(line.Message, out handler))
                     handler?.Invoke(this, line);
                 else
-                    this.OnRawLineUnhandled(new IRCLineEventArgs(data, line));
+                    this.OnRawLineUnhandled(new IrcLineEventArgs(data, line));
             }
         }
 
         /// <summary>Sends a raw message to the IRC server.</summary>
         /// <param name="data">The message to send.</param>
-        /// <exception cref="InvalidOperationException">This IRCClient is not connected to a server.</exception>
+        /// <exception cref="InvalidOperationException">The client is not connected to a server.</exception>
         public virtual void Send(string data) {
             lock (this.Lock) {
                 if (!tcpClient.Connected) throw new InvalidOperationException("The client is not connected.");
 
-                this.OnRawLineSent(new RawEventArgs(data));
+                var e = new RawLineEventArgs(data);
+                this.OnRawLineSent(e);
 
-                this.writer.Write(data);
+                this.writer.Write(e.Data);
                 this.writer.Write("\r\n");
                 this.writer.Flush();
 
-                if (this.disconnectReason == 0 && data.StartsWith("QUIT", StringComparison.OrdinalIgnoreCase))
+                if (this.disconnectReason == 0 && e.Data.StartsWith("QUIT", StringComparison.OrdinalIgnoreCase))
                     this.disconnectReason = DisconnectReason.Quit;
-                else if (data.StartsWith("PRIVMSG ", StringComparison.OrdinalIgnoreCase))
+                else if (e.Data.StartsWith("PRIVMSG ", StringComparison.OrdinalIgnoreCase))
                     this.LastSpoke = DateTime.Now;
             }
         }
 
         /// <summary>Sends a raw message to the IRC server.</summary>
-        /// <param name="format">The format of the message, as per string.Format.</param>
+        /// <param name="format">The format of the message, as per <see cref="string.Format(string, object[])"/>.</param>
         /// <param name="parameters">The parameters to include in the message.</param>
-        /// <exception cref="InvalidOperationException">This IRCClient is not connected to a server.</exception>
+        /// <exception cref="InvalidOperationException">The client is not connected to a server.</exception>
         public virtual void Send(string format, params object[] parameters) {
             this.Send(string.Format(format, parameters));
         }
@@ -873,100 +710,293 @@ namespace IRC {
         /// <returns>A copy of the string with mIRC formatting codes removed.</returns>
         public static string RemoveCodes(string message) {
             Regex regex = new Regex(@"\x02|\x0F|\x16|\x1C|\x1F|\x03(\d{0,2}(,\d{1,2})?)?");
-            message = regex.Replace(message.Trim(), "");
+            message = regex.Replace(message, "");
             return message;
         }
-        /// <summary>Removes a leading colon from a string, if one is present.</summary>
-        /// <param name="data">The string to strip.</param>
-        /// <returns>If the string starts with a colon, a copy of the string without that colon; otherwise, the specified string.</returns>
-        public static string RemoveColon(string data) {
-            if (data.StartsWith(":"))
-                return data.Substring(1);
-            else
-                return data;
+
+        protected virtual void SetDefaultChannelModes() {
+            this.Extensions.ChanModes = ChannelModes.RFC1459;
         }
 
-        protected internal void HandleChannelMode(string sender, string target, bool direction, char mode, string parameter) {
-            switch (mode) {
-                case 'I':
-                    this.HandleChannelModeList(sender, target, direction, mode, parameter, this.ChannelRemoveInviteExempt, this.ChannelInviteExempt);
-                    break;
-                case 'V':
-                    this.HandleChannelModeNickname(sender, target, direction, mode, parameter, this.ChannelDeHalfVoice, this.ChannelHalfVoice);
-                    break;
-                case 'a':
-                    this.HandleChannelModeNickname(sender, target, direction, mode, parameter, this.ChannelDeAdmin, this.ChannelAdmin);
-                    break;
-                case 'b':
-                    this.HandleChannelModeList(sender, target, direction, mode, parameter, this.ChannelUnBan, this.ChannelBan);
-                    break;
-                case 'e':
-                    this.HandleChannelModeList(sender, target, direction, mode, parameter, this.ChannelRemoveExempt, this.ChannelExempt);
-                    break;
-                case 'h':
-                    this.HandleChannelModeNickname(sender, target, direction, mode, parameter, this.ChannelDeHalfOp, this.ChannelHalfOp);
-                    break;
-                case 'o':
-                    this.HandleChannelModeNickname(sender, target, direction, mode, parameter, this.ChannelDeOp, this.ChannelOp);
-                    break;
-                case 'q':
-                    if (this.Extensions.StatusPrefix.ContainsKey(mode)) {
-                        // Owner mode
-                        this.HandleChannelModeNickname(sender, target, direction, mode, parameter, this.ChannelDeOwner, this.ChannelOwner);
-                    } else if (this.Extensions.ChanModes.TypeA.Contains(mode)) {
-                        // Quiet mode
-                        this.HandleChannelModeList(sender, target, direction, mode, parameter, this.ChannelUnQuiet, this.ChannelQuiet);
+        protected virtual void SetDefaultUserModes() {
+            this.SupportedUserModes.Clear();
+            this.SupportedUserModes.Add('i');
+            this.SupportedUserModes.Add('o');
+            this.SupportedUserModes.Add('s');
+            this.SupportedUserModes.Add('w');
+        }
+
+        protected internal void HandleChannelModes(IrcUser sender, IrcChannel channel, string modes, IEnumerable<string> parameters, bool modeMessage) {
+            var enumerator = parameters.GetEnumerator();
+            bool direction = true;
+            string parameter;
+
+            var changes = new List<ModeChange>();
+            HashSet<char> oldModes = null;
+            if (!modeMessage) oldModes = new HashSet<char>(channel.Modes);
+
+            foreach (char c in modes) {
+                if (c == '+')
+                    direction = true;
+                else if (c == '-')
+                    direction = false;
+                else {
+                    string oldParameter = null;
+
+                    switch (this.Extensions.ChanModes.ModeType(c)) {
+                        case 'S':
+                            parameter = (enumerator.MoveNext() ? enumerator.Current : "");
+                            this.HandleChannelModeStatus(sender, channel, direction, c, parameter, modeMessage);
+                            break;
+                        case 'A':
+                            parameter = (enumerator.MoveNext() ? enumerator.Current : "");
+                            this.HandleChannelModeList(sender, channel, direction, c, parameter, modeMessage);
+                            break;
+                        case 'D':
+                            parameter = null;
+                            this.HandleChannelMode(sender, channel, direction, c, null, modeMessage);
+                            break;
+                        case 'B':
+                            parameter = (enumerator.MoveNext() ? enumerator.Current : "");
+                            if (direction && !modeMessage && channel.Modes.Contains(c)) oldParameter = channel.Modes.GetParameter(c);
+                            this.HandleChannelMode(sender, channel, direction, c, parameter, modeMessage);
+                            break;
+                        case 'C':
+                            parameter = (direction ? (enumerator.MoveNext() ? enumerator.Current : "") : null);
+                            if (direction && !modeMessage && channel.Modes.Contains(c)) oldParameter = channel.Modes.GetParameter(c);
+                            this.HandleChannelMode(sender, channel, direction, c, parameter, modeMessage);
+                            break;
+                        default:
+                            parameter = null;
+                            this.HandleChannelMode(sender, channel, direction, c, null, modeMessage);
+                            break;
                     }
-                    break;
-                case 'v':
-                    this.HandleChannelModeNickname(sender, target, direction, mode, parameter, this.ChannelDeVoice, this.ChannelVoice);
-                    break;
+
+                    if (direction) {
+                        if (modeMessage || !oldModes.Remove(c)) {
+                            // A mode is set.
+                            changes.Add(new ModeChange() { Direction = direction, Mode = c, Parameter = parameter });
+                        } else if (oldParameter != null && parameter != oldParameter) {
+                            // The parameter has changed.
+                            changes.Add(new ModeChange() { Direction = direction, Mode = c, Parameter = parameter });
+                            channel.Modes.SetParameter(c, parameter);
+                        }
+                    } else if (modeMessage)
+                        changes.Add(new ModeChange() { Direction = direction, Mode = c, Parameter = parameter });
+                }
+            }
+
+            // Check for modes missing from RPL_CHANNELMODEIS.
+            if (!modeMessage)
+                foreach (char c in oldModes)
+                    changes.Add(new ModeChange() { Direction = false, Mode = c, Parameter = null });
+
+            if (modeMessage) this.OnChannelModesSet(new ChannelModesSetEventArgs(sender, channel, changes));
+            else this.OnChannelModesGet(new ChannelModesSetEventArgs(sender, channel, changes));
+        }
+
+        protected internal void HandleChannelModeList(IrcUser sender, IrcChannel channel, bool direction, char mode, string parameter, bool events) {
+            // TODO: implement internal mode lists.
+        }
+        protected internal void HandleChannelModeStatus(IrcUser sender, IrcChannel channel, bool direction, char mode, string parameter, bool events) {
+            IrcChannelUser user;
+            if (channel != null && channel.Users.TryGetValue(parameter, out user)) {
+                if (direction) user.Status.Add(mode);
+                else user.Status.Remove(mode);
+            } else {
+                user = new IrcChannelUser(this, channel, parameter);
             }
         }
-        protected internal void HandleChannelModeList(string sender, string target, bool direction, char mode, string parameter,
-            EventHandler<ChannelListModeEventArgs> downEvent, EventHandler<ChannelListModeEventArgs> upEvent) {
-            if (!this.Extensions.ChanModes.TypeA.Contains(mode)) return;
-            var matchedUsers = FindMatchingUsers(target, parameter);
-            if (direction)
-                upEvent?.Invoke(this, new ChannelListModeEventArgs(this.Users.Get(sender, false), target, parameter, matchedUsers));
-            else
-                downEvent?.Invoke(this, new ChannelListModeEventArgs(this.Users.Get(sender, false), target, parameter, matchedUsers));
-        }
-        protected internal void HandleChannelModeNickname(string sender, string target, bool direction, char mode, string parameter,
-            EventHandler<ChannelNicknameModeEventArgs> downEvent, EventHandler<ChannelNicknameModeEventArgs> upEvent) {
-            if (!this.Extensions.StatusPrefix.ContainsKey(mode)) return;
+        private void HandleChannelMode(IrcUser sender, IrcChannel channel, bool direction, char mode, string parameter, bool events) {
             if (direction) {
-                this.Channels[target].Users[parameter].Status.Add(mode);
-                upEvent?.Invoke(this, new ChannelNicknameModeEventArgs(this.Users.Get(sender, false), target, new IRCChannelUser(this, parameter)));
-            } else {
-                this.Channels[target].Users[parameter].Status.Remove(mode);
-                downEvent?.Invoke(this, new ChannelNicknameModeEventArgs(this.Users.Get(sender, false), target, new IRCChannelUser(this, parameter)));
+                if (parameter != null) channel.Modes.Add(mode, parameter);
+                else channel.Modes.Add(mode);
+            } else channel.Modes.Remove(mode);
+        }
+
+        private void notifyChannelModes(ChannelModesSetEventArgs e) {
+            foreach (var change in e.Modes) {
+                switch (this.Extensions.ChanModes.ModeType(change.Mode)) {
+                    case 'A':
+                        var e2 = new ChannelListChangedEventArgs(e.Sender, e.Channel, change.Direction, change.Mode, change.Parameter, e.Channel.Users.Matching(change.Parameter));
+                        if (change.Mode == 'b') {
+                            if (change.Direction) this.OnChannelBan(e2);
+                            else this.OnChannelUnBan(e2);
+                        } else if (change.Mode == 'q') {
+                            if (change.Direction) this.OnChannelQuiet(e2);
+                            else this.OnChannelUnQuiet(e2);
+                        } else if (change.Mode == this.Extensions.BanExceptionsMode) {
+                            if (change.Direction) this.OnChannelExempt(e2);
+                            else this.OnChannelRemoveExempt(e2);
+                        } else if (change.Mode == this.Extensions.InviteExceptionsMode) {
+                            if (change.Direction) this.OnChannelInviteExempt(e2);
+                            else this.OnChannelRemoveInviteExempt(e2);
+                        } else
+                            this.OnChannelListChanged(e2);
+                        break;
+                    case 'B':
+                        if (change.Mode == 'k') {
+                            if (change.Direction) this.OnChannelSetKey(new ChannelKeyEventArgs(e.Sender, e.Channel, change.Parameter));
+                            else this.OnChannelRemoveKey(new ChannelChangeEventArgs(e.Sender, e.Channel));
+                        } else
+                            this.OnChannelModeChanged(new ChannelModeChangedEventArgs(e.Sender, e.Channel, change.Direction, change.Mode, change.Parameter));
+                        break;
+                    case 'C':
+                        if (change.Mode == 'l') {
+                            if (change.Direction) this.OnChannelSetLimit(new ChannelLimitEventArgs(e.Sender, e.Channel, int.Parse(change.Parameter)));
+                            else this.OnChannelRemoveLimit(new ChannelChangeEventArgs(e.Sender, e.Channel));
+                        } else
+                            this.OnChannelModeChanged(new ChannelModeChangedEventArgs(e.Sender, e.Channel, change.Direction, change.Mode, change.Parameter));
+                        break;
+                    case 'S':
+                        IrcChannelUser user;
+                        if (!e.Channel.Users.TryGetValue(change.Parameter, out user)) user = new IrcChannelUser(this, e.Channel, change.Parameter);
+                        var e3 = new ChannelStatusChangedEventArgs(e.Sender, e.Channel, change.Direction, change.Mode, user);
+
+                        if (change.Mode == 'o') {
+                            if (change.Direction) this.OnChannelOp(e3);
+                            else this.OnChannelDeOp(e3);
+                        } else if (change.Mode == 'v') {
+                            if (change.Direction) this.OnChannelVoice(e3);
+                            else this.OnChannelDeVoice(e3);
+                        } else if (change.Mode == 'h') {
+                            if (change.Direction) this.OnChannelHalfOp(e3);
+                            else this.OnChannelDeHalfOp(e3);
+                        } else if (change.Mode == 'a') {
+                            if (change.Direction) this.OnChannelAdmin(e3);
+                            else this.OnChannelDeAdmin(e3);
+                        } else if (change.Mode == 'q') {
+                            if (change.Direction) this.OnChannelOwner(e3);
+                            else this.OnChannelDeOwner(e3);
+                        } else if (change.Mode == 'V') {
+                            if (change.Direction) this.OnChannelHalfVoice(e3);
+                            else this.OnChannelDeHalfVoice(e3);
+                        } else
+                            this.OnChannelStatusChanged(e3);
+
+                        break;
+                    default:
+                        this.OnChannelModeChanged(new ChannelModeChangedEventArgs(e.Sender, e.Channel, change.Direction, change.Mode, change.Parameter));
+                        break;
+                }
+            }
+        }
+
+        internal IrcUser[] RemoveUserFromChannel(IrcChannel channel, IrcUser user) {
+            channel.Users.Remove(user.Nickname);
+
+            user.Channels.Remove(channel);
+            if (user == Me) {
+                var disappearedUsers = new List<IrcUser>();
+                foreach (var channelUser in channel.Users) {
+                    channelUser.User.Channels.Remove(channel);
+                    if (!channelUser.User.IsSeen) disappearedUsers.Add(channelUser.User);
+                }
+                return disappearedUsers.ToArray();
+            } else if (!user.IsSeen) {
+                return new[] { user };
+            } else
+                return null;
+        }
+
+        internal void SetCaseMappingComparer() {
+            switch (this.Extensions.CaseMapping) {
+                case "ascii"         : this.CaseMappingComparer = new IrcStringComparer(CaseMappingMode.ASCII); break;
+                case "strict-rfc1459": this.CaseMappingComparer = new IrcStringComparer(CaseMappingMode.StrictRFC1459); break;
+                default              : this.CaseMappingComparer = new IrcStringComparer(CaseMappingMode.RFC1459); break;
+            }
+
+            // We need to rebuild the hash tables after setting this.
+            var oldUsers = this.Users; IrcChannelCollection oldChannels;
+            this.Users = new IrcUserCollection(this);
+            foreach (var user in oldUsers) {
+                this.Users.Add(user);
+
+                oldChannels = user.Channels;
+                user.Channels = new IrcChannelCollection(this);
+                foreach (var channel in oldChannels) user.Channels.Add(channel);
+            }
+
+            foreach (var channel in this.Me.Channels) {
+                var oldChannelUsers = channel.Users;
+                channel.Users = new IrcChannelUserCollection(this);
+                foreach (var user in oldChannelUsers) channel.Users.Add(user);
             }
         }
 
         /// <summary>Searches the users on a channel for those matching a specified hostmask.</summary>
-        /// <param name="Channel">The channel to search.</param>
-        /// <param name="Mask">The hostmask to search for.</param>
-        /// <returns>A list of ChannelUser objects representing the matching users.</returns>
-        public IRCChannelUser[] FindMatchingUsers(string Channel, string Mask) {
-            List<IRCChannelUser> MatchedUsers = new List<IRCChannelUser>();
-            StringBuilder exBuilder = new StringBuilder();
+        /// <param name="channel">The channel to search.</param>
+        /// <param name="hostmask">The hostmask to search for.</param>
+        /// <returns>A list of <see cref="IrcChannelUser"/> objects representing the matching users.</returns>
+        public IEnumerable<IrcChannelUser> FindMatchingUsers(string channel, string hostmask)
+            => this.Channels[channel].Users.Matching(hostmask);
 
-            foreach (char c in Mask) {
-                if (c == '*') exBuilder.Append(".*");
-                else if (c == '?') exBuilder.Append(".");
-                else exBuilder.Append(Regex.Escape(c.ToString()));
+        /// <summary>Splits a message that is too long to fit in one line into multiple lines, using this <see cref="IrcClient"/>'s encoding.</summary>
+        /// <param name="message">The message to split.</param>
+        /// <param name="maxLength">The maximum size, in bytes, of each part.</param>
+        /// <returns>
+        /// An enumerable that yields substrings of the message that fit within the specified limit.
+        /// If the message is already small enough to fit into one line, only <paramref name="message"/> itself is yielded.
+        /// </returns>
+        public IEnumerable<string> SplitMessage(string message, int maxLength) => IrcClient.SplitMessage(message, maxLength, this.Encoding);
+        /// <summary>Splits a message that is too long to fit in one line into multiple lines using the specified encoding.</summary>
+        /// <param name="message">The message to split.</param>
+        /// <param name="maxLength">The maximum size, in bytes, of each part.</param>
+        /// <param name="encoding">The encoding to use to calculate lengths.</param>
+        /// <returns>
+        /// An enumerable that yields substrings of the message that fit within the specified limit.
+        /// If the message is already small enough to fit into one line, only <paramref name="message"/> itself is yielded.
+        /// </returns>
+        public static IEnumerable<string> SplitMessage(string message, int maxLength, Encoding encoding) {
+            if (message == null) throw new ArgumentException("message");
+            if (encoding == null) throw new ArgumentException("encoding");
+            if (maxLength <= 0) throw new ArgumentOutOfRangeException("maxLength", "maxLength must be positive.");
+
+            if (encoding.GetByteCount(message) <= maxLength) {
+                yield return message;
+                yield break;
             }
-            Mask = exBuilder.ToString();
 
-            foreach (IRCChannelUser user in this.Channels[Channel].Users) {
-                if (Regex.IsMatch(user.User.ToString(), Mask)) MatchedUsers.Add(user);
+            int messageStart = 0, pos = 0;
+            while (messageStart < message.Length) {
+                string part = null;
+                while (pos < message.Length) {
+                    // Find the next whitespace character.
+                    for (; pos < message.Length; ++pos) {
+                        if (char.IsWhiteSpace(message[pos])) break;
+                    }
+
+                    string part2 = message.Substring(messageStart, pos - messageStart);
+
+                    // Skip repeated whitespace characters.
+                    for (++pos; pos < message.Length; ++pos) {
+                        if (!char.IsWhiteSpace(message[pos])) break;
+                    }
+
+                    // Are we over the limit?
+                    if (encoding.GetByteCount(part2) > maxLength) {
+                        if (part == null) {
+                            // If a single word exceeds the limit, we must break it up.
+                            for (pos = messageStart; pos < message.Length; ++pos) {
+                                part2 = message.Substring(messageStart, pos - messageStart);
+                                if (encoding.GetByteCount(part2) > maxLength) break;
+                                part = part2;
+                            }
+                            if (part == null) throw new InvalidOperationException("Can't even fit a single character in a message?!");
+                        }
+                        break;
+                    }
+
+                    // No.
+                    part = part2;
+                }
+
+                yield return part;
+                messageStart = pos;
             }
-
-            return MatchedUsers.ToArray();
         }
 
-        /// <summary>Determines whether the speciied string is a valid channel name.</summary>
+        /// <summary>Determines whether the specified string is a valid channel name.</summary>
         /// <param name="target">The string to check.</param>
         /// <returns>True if the specified string is a valid channel name; false if it is not.</returns>
         public bool IsChannel(string target) {

@@ -15,8 +15,8 @@ using Demot.RandomOrgApi;
 using Timer = System.Timers.Timer;
 
 namespace UNO {
-    [APIVersion(3, 2)]
-    public class UNOPlugin : Plugin {
+    [ApiVersion(3, 3)]
+    public class UnoPlugin : Plugin {
         public static readonly string[] Hints = new string[] {
             /*  0 */ "It's your turn. Enter \u0002!play \u001Fcard\u000F to play a card from your hand with a matching colour, number or symbol. Here, you can play a {0} card, a {1} or a Wild card. If you have none, enter \u0002!draw\u0002.",
             /*  1 */ "It's your turn. Enter \u0002!play \u001Fcard\u000F to play a card from your hand with a matching colour, number or symbol. Here, you can play a {0} card or a Wild card. If you have none, enter \u0002!draw\u0002.",
@@ -87,11 +87,7 @@ namespace UNO {
         ", RegexOptions.IgnoreCase | RegexOptions.IgnorePatternWhitespace | RegexOptions.Compiled);
         public static readonly Regex ColourParseExpression = new Regex(@"^(r(?:ed)?)|(y(?:ellow)?)|(g(?:reen)?)|(b(?:lue)?)", RegexOptions.IgnoreCase | RegexOptions.Compiled);
 
-        public override string Name {
-            get {
-                return "UNO game";
-            }
-        }
+        public override string Name => "UNO game";
 
         public override string Help(string topic) {
             if (topic == null || topic == "") {
@@ -875,62 +871,62 @@ namespace UNO {
                     if (!SetPermissionCheck(e)) return;
                     if (value == null) {
                         if (this.AIEnabled)
-                            Bot.Say(e.Client, e.Channel, "I \u00039will\u000F join UNO games.");
+                            e.Reply("I \u00039will\u000F join UNO games.");
                         else
-                            Bot.Say(e.Client, e.Channel, "I \u00034will not\u000F join UNO games.");
+                            e.Reply("I \u00034will not\u000F join UNO games.");
                     } else if (Bot.TryParseBoolean(value, out value3)) {
                         if (this.AIEnabled = value3)
-                            Bot.Say(e.Client, e.Channel, "I \u00039will now\u000F join UNO games.");
+                            e.Reply("I \u00039will now\u000F join UNO games.");
                         else
-                            Bot.Say(e.Client, e.Channel, "I \u00034will no longer\u000F join UNO games.");
+                            e.Reply("I \u00034will no longer\u000F join UNO games.");
                     } else
-                        Bot.Say(e.Client, e.Sender.Nickname, string.Format("I don't recognise '{0}' as a Boolean value. Please enter 'on' or 'off'.", value));
+                        e.Whisper(string.Format("I don't recognise '{0}' as a Boolean value. Please enter 'on' or 'off'.", value));
                     break;
                 case "ALLOUT":
                     if (!SetPermissionCheck(e)) return;
                     if (value == null) {
                         if (this.OutLimit == int.MaxValue)
-                            Bot.Say(e.Client, e.Channel, "The game will end only when one player remains.");
+                            e.Reply("The game will end only when one player remains.");
                         else if (this.OutLimit == 1)
-                            Bot.Say(e.Client, e.Channel, "The game will end when \u0002{0}\u0002 player goes out.", this.OutLimit);
+                            e.Reply("The game will end when \u0002{0}\u0002 player goes out.", this.OutLimit);
                         else
-                            Bot.Say(e.Client, e.Channel, "The game will end when \u0002{0}\u0002 players go out.", this.OutLimit);
+                            e.Reply("The game will end when \u0002{0}\u0002 players go out.", this.OutLimit);
                     } else if (Bot.TryParseBoolean(value, out value3)) {
                         if (value3) {
                             this.OutLimit = int.MaxValue;
-                            Bot.Say(e.Client, e.Channel, "The game will now end only when one player remains.");
+                            e.Reply("The game will now end only when one player remains.");
                         } else {
                             this.OutLimit = 1;
-                            Bot.Say(e.Client, e.Channel, "The game will now end when \u0002{0}\u0002 player goes out.", 1);
+                            e.Reply("The game will now end when \u0002{0}\u0002 player goes out.", 1);
                         }
                     } else
-                        Bot.Say(e.Client, e.Sender.Nickname, string.Format("I don't recognise '{0}' as a Boolean value. Please enter 'on' or 'off'.", value));
+                        e.Whisper(string.Format("I don't recognise '{0}' as a Boolean value. Please enter 'on' or 'off'.", value));
                     break;
                 case "OUTLIMIT":
                     if (!SetPermissionCheck(e)) return;
                     if (value == null) {
                         if (this.OutLimit == int.MaxValue)
-                            Bot.Say(e.Client, e.Channel, "The game will end only when one player remains.");
+                            e.Reply("The game will end only when one player remains.");
                         else if (this.OutLimit == 1)
-                            Bot.Say(e.Client, e.Channel, "The game will end when \u0002{0}\u0002 player goes out.", this.OutLimit);
+                            e.Reply("The game will end when \u0002{0}\u0002 player goes out.", this.OutLimit);
                         else
-                            Bot.Say(e.Client, e.Channel, "The game will end when \u0002{0}\u0002 players go out.", this.OutLimit);
+                            e.Reply("The game will end when \u0002{0}\u0002 players go out.", this.OutLimit);
                     } else if (value == "0" || value.Equals("none", StringComparison.InvariantCultureIgnoreCase)) {
                         this.OutLimit = int.MaxValue;
-                        Bot.Say(e.Client, e.Channel, "The game will now end only when one player remains.");
+                        e.Reply("The game will now end only when one player remains.");
                     } else if (int.TryParse(value, out value2)) {
                         if (value2 > 0) {
                             this.OutLimit = value2;
                             if (value2 == int.MaxValue)
-                                Bot.Say(e.Client, e.Channel, "The game will now end only when one player remains.");
+                                e.Reply("The game will now end only when one player remains.");
                             else if (value2 == 1)
-                                Bot.Say(e.Client, e.Channel, "The game will now end when \u0002{0}\u0002 player goes out.", value2);
+                                e.Reply("The game will now end when \u0002{0}\u0002 player goes out.", value2);
                             else
-                                Bot.Say(e.Client, e.Channel, "The game will now end when \u0002{0}\u0002 players go out.", value2);
+                                e.Reply("The game will now end when \u0002{0}\u0002 players go out.", value2);
                         } else
-                            Bot.Say(e.Client, e.Sender.Nickname, "The number must be positive.");
+                            e.Whisper("The number must be positive.");
                     } else
-                        Bot.Say(e.Client, e.Sender.Nickname, "That isn't a valid integer.");
+                        e.Whisper("That isn't a valid integer.");
                     break;
                 case "WILDDRAWFOUR":
                 case "WILDDRAW4":
@@ -941,24 +937,24 @@ namespace UNO {
                     if (!SetPermissionCheck(e)) return;
                     if (value == null) {
                         if (this.WildDrawFour == WildDrawFourRule.Free)
-                            Bot.Say(e.Client, e.Channel, "\u0002Wild Draw Four\u0002 is \u000312freely playable\u000F.");
+                            e.Reply("\u0002Wild Draw Four\u0002 is \u000312freely playable\u000F.");
                         else if (this.WildDrawFour == WildDrawFourRule.AllowBluffing)
-                            Bot.Say(e.Client, e.Channel, "\u0002Wild Draw Four bluffing\u0002 is \u00039enabled\u000F.");
+                            e.Reply("\u0002Wild Draw Four bluffing\u0002 is \u00039enabled\u000F.");
                         else
-                            Bot.Say(e.Client, e.Channel, "\u0002Wild Draw Four bluffing\u0002 is \u00034disabled\u000F.");
+                            e.Reply("\u0002Wild Draw Four bluffing\u0002 is \u00034disabled\u000F.");
                     } else {
                         value = value.Replace(" ", "");
                         if (value == "0" || value.Equals("BluffOff", StringComparison.InvariantCultureIgnoreCase)) {
                             this.WildDrawFour = WildDrawFourRule.DisallowBluffing;
-                            Bot.Say(e.Client, e.Channel, "\u0002Wild Draw Four bluffing\u0002 is now \u00034disabled\u000F.");
+                            e.Reply("\u0002Wild Draw Four bluffing\u0002 is now \u00034disabled\u000F.");
                         } else if (value == "1" || value.Equals("BluffOn", StringComparison.InvariantCultureIgnoreCase)) {
                             this.WildDrawFour = WildDrawFourRule.AllowBluffing;
-                            Bot.Say(e.Client, e.Channel, "\u0002Wild Draw Four bluffing\u0002 is now \u00039enabled\u000F.");
+                            e.Reply("\u0002Wild Draw Four bluffing\u0002 is now \u00039enabled\u000F.");
                         } else if (value == "1" || value.Equals("BluffOn", StringComparison.InvariantCultureIgnoreCase)) {
                             this.WildDrawFour = WildDrawFourRule.Free;
-                            Bot.Say(e.Client, e.Channel, "\u0002Wild Draw Four\u0002 is now \u000312freely playable\u000F.");
+                            e.Reply("\u0002Wild Draw Four\u0002 is now \u000312freely playable\u000F.");
                         } else
-                            Bot.Say(e.Client, e.Sender.Nickname, string.Format("That isn't a valid setting. Please enter 'bluff off', 'bluff on' or 'free'.", value));
+                            e.Whisper(string.Format("That isn't a valid setting. Please enter 'bluff off', 'bluff on' or 'free'.", value));
                     }
                     break;
                 case "SHOWHANDONCHALLENGE":
@@ -968,16 +964,16 @@ namespace UNO {
                     if (!SetPermissionCheck(e)) return;
                     if (value == null) {
                         if (this.ShowHandOnChallenge)
-                            Bot.Say(e.Client, e.Channel, "Cards \u00039must\u000F be shown for a Wild Draw Four challenge.");
+                            e.Reply("Cards \u00039must\u000F be shown for a Wild Draw Four challenge.");
                         else
-                            Bot.Say(e.Client, e.Channel, "Cards \u00034need not\u000F be shown for a Wild Draw Four challenge.");
+                            e.Reply("Cards \u00034need not\u000F be shown for a Wild Draw Four challenge.");
                     } else if (Bot.TryParseBoolean(value, out value3)) {
                         if (this.ShowHandOnChallenge = value3)
-                            Bot.Say(e.Client, e.Channel, "Cards \u00039must\u000F now be shown for a Wild Draw Four challenge.");
+                            e.Reply("Cards \u00039must\u000F now be shown for a Wild Draw Four challenge.");
                         else
-                            Bot.Say(e.Client, e.Channel, "Cards now \u00034need not\u000F be shown for a Wild Draw Four challenge.");
+                            e.Reply("Cards now \u00034need not\u000F be shown for a Wild Draw Four challenge.");
                     } else
-                        Bot.Say(e.Client, e.Sender.Nickname, string.Format("I don't recognise '{0}' as a Boolean value. Please enter 'on' or 'off'.", value));
+                        e.Whisper(string.Format("I don't recognise '{0}' as a Boolean value. Please enter 'on' or 'off'.", value));
                     break;
                 case "ENTRYTIME":
                 case "ENTRYPERIOD":
@@ -985,28 +981,28 @@ namespace UNO {
                 case "ENTRY":
                     if (!SetPermissionCheck(e)) return;
                     if (value == null) {
-                        Bot.Say(e.Client, e.Channel, "The entry period is \u0002{0}\u0002 seconds.", this.EntryTime);
+                        e.Reply("The entry period is \u0002{0}\u0002 seconds.", this.EntryTime);
                     } else if (int.TryParse(value, out value2)) {
                         if (value2 > 0) {
                             this.EntryTime = value2;
-                            Bot.Say(e.Client, e.Channel, "The entry period is now \u0002{0}\u0002 seconds.", this.EntryTime);
+                            e.Reply("The entry period is now \u0002{0}\u0002 seconds.", this.EntryTime);
                         } else
-                            Bot.Say(e.Client, e.Sender.Nickname, "The number must be positive.", value);
+                            e.Whisper("The number must be positive.", value);
                     } else
-                        Bot.Say(e.Client, e.Sender.Nickname, string.Format("That isn't a valid integer.", value));
+                        e.Whisper(string.Format("That isn't a valid integer.", value));
                     break;
                 case "ENTRYWAITLIMIT":
                     if (!SetPermissionCheck(e)) return;
                     if (value == null) {
-                        Bot.Say(e.Client, e.Channel, "The entry period may be extended to \u0002{0}\u0002 seconds.", this.EntryWaitLimit);
+                        e.Reply("The entry period may be extended to \u0002{0}\u0002 seconds.", this.EntryWaitLimit);
                     } else if (int.TryParse(value, out value2)) {
                         if (value2 > 0) {
                             this.EntryWaitLimit = value2;
-                            Bot.Say(e.Client, e.Channel, "The entry period may now be extended to \u0002{0}\u0002 seconds.", this.EntryWaitLimit);
+                            e.Reply("The entry period may now be extended to \u0002{0}\u0002 seconds.", this.EntryWaitLimit);
                         } else
-                            Bot.Say(e.Client, e.Sender.Nickname, "The number must be positive.", value);
+                            e.Whisper("The number must be positive.", value);
                     } else
-                        Bot.Say(e.Client, e.Sender.Nickname, string.Format("That isn't a valid integer.", value));
+                        e.Whisper(string.Format("That isn't a valid integer.", value));
                     break;
                 case "TURNTIME":
                 case "TIMELIMIT":
@@ -1015,36 +1011,36 @@ namespace UNO {
                     if (!SetPermissionCheck(e)) return;
                     if (value == null) {
                         if (this.TurnTime == 0)
-                            Bot.Say(e.Client, e.Channel, "The turn time limit is disabled.", this.TurnTime);
+                            e.Reply("The turn time limit is disabled.", this.TurnTime);
                         else
-                            Bot.Say(e.Client, e.Channel, "The turn time limit is \u0002{0}\u0002 seconds.", this.TurnTime);
+                            e.Reply("The turn time limit is \u0002{0}\u0002 seconds.", this.TurnTime);
                     } else if (int.TryParse(value, out value2)) {
                         if (value2 >= 0) {
                             this.TurnTime = value2;
                             if (value2 == 0)
-                                Bot.Say(e.Client, e.Channel, "The turn time limit is now disabled.", this.TurnTime);
+                                e.Reply("The turn time limit is now disabled.", this.TurnTime);
                             else
-                                Bot.Say(e.Client, e.Channel, "The turn time limit is now \u0002{0}\u0002 seconds.", this.TurnTime);
+                                e.Reply("The turn time limit is now \u0002{0}\u0002 seconds.", this.TurnTime);
                             // Reset the existing turn timers.
                             foreach (Game game in this.Games.Values)
                                 if (!game.IsOpen) game.GameTimer.Interval = this.TurnTime == 0 ? 60e+3 : (this.TurnTime * 1e+3);
                         } else
-                            Bot.Say(e.Client, e.Sender.Nickname, "The number cannot be negative.", value);
+                            e.Whisper("The number cannot be negative.", value);
                     } else
-                        Bot.Say(e.Client, e.Sender.Nickname, string.Format("That isn't a valid integer.", value));
+                        e.Whisper(string.Format("That isn't a valid integer.", value));
                     break;
                 case "TURNWAITLIMIT":
                     if (!SetPermissionCheck(e)) return;
                     if (value == null) {
-                        Bot.Say(e.Client, e.Channel, "The turn time limit may be extended to \u0002{0}\u0002 seconds.", this.TurnWaitLimit);
+                        e.Reply("The turn time limit may be extended to \u0002{0}\u0002 seconds.", this.TurnWaitLimit);
                     } else if (int.TryParse(value, out value2)) {
                         if (value2 > 0) {
                             this.TurnWaitLimit = value2;
-                            Bot.Say(e.Client, e.Channel, "The turn time limit may now be extended to \u0002{0}\u0002 seconds.", this.TurnWaitLimit);
+                            e.Reply("The turn time limit may now be extended to \u0002{0}\u0002 seconds.", this.TurnWaitLimit);
                         } else
-                            Bot.Say(e.Client, e.Sender.Nickname, "The number must be positive.", value);
+                            e.Whisper("The number must be positive.", value);
                     } else
-                        Bot.Say(e.Client, e.Sender.Nickname, string.Format("That isn't a valid integer.", value));
+                        e.Whisper(string.Format("That isn't a valid integer.", value));
                     break;
                 case "VICTORYBONUS":
                 case "WINBONUS":
@@ -1052,31 +1048,31 @@ namespace UNO {
                     if (!SetPermissionCheck(e)) return;
                     if (value == null) {
                         if (this.VictoryBonus)
-                            Bot.Say(e.Client, e.Channel, "Victory bonuses are \u00039enabled\u000F.");
+                            e.Reply("Victory bonuses are \u00039enabled\u000F.");
                         else
-                            Bot.Say(e.Client, e.Channel, "Victory bonuses are \u00034disabled\u000F.");
+                            e.Reply("Victory bonuses are \u00034disabled\u000F.");
                     } else if (Bot.TryParseBoolean(value, out value3)) {
                         if (this.VictoryBonus = value3)
-                            Bot.Say(e.Client, e.Channel, "Victory bonuses are now \u00039enabled\u000F.");
+                            e.Reply("Victory bonuses are now \u00039enabled\u000F.");
                         else
-                            Bot.Say(e.Client, e.Channel, "Victory bonuses are now \u00034disabled\u000F.");
+                            e.Reply("Victory bonuses are now \u00034disabled\u000F.");
                     } else
-                        Bot.Say(e.Client, e.Sender.Nickname, string.Format("I don't recognise '{0}' as a Boolean value. Please enter 'on' or 'off'.", value));
+                        e.Whisper(string.Format("I don't recognise '{0}' as a Boolean value. Please enter 'on' or 'off'.", value));
                     break;
                 case "HANDBONUS":
                     if (!SetPermissionCheck(e)) return;
                     if (value == null) {
                         if (this.HandBonus)
-                            Bot.Say(e.Client, e.Channel, "Hand bonuses are \u00039enabled\u000F.");
+                            e.Reply("Hand bonuses are \u00039enabled\u000F.");
                         else
-                            Bot.Say(e.Client, e.Channel, "Hand bonuses are \u00034disabled\u000F.");
+                            e.Reply("Hand bonuses are \u00034disabled\u000F.");
                     } else if (Bot.TryParseBoolean(value, out value3)) {
                         if (this.HandBonus = value3)
-                            Bot.Say(e.Client, e.Channel, "Hand bonuses are now \u00039enabled\u000F.");
+                            e.Reply("Hand bonuses are now \u00039enabled\u000F.");
                         else
-                            Bot.Say(e.Client, e.Channel, "Hand bonuses are now \u00034disabled\u000F.");
+                            e.Reply("Hand bonuses are now \u00034disabled\u000F.");
                     } else
-                        Bot.Say(e.Client, e.Sender.Nickname, string.Format("I don't recognise '{0}' as a Boolean value. Please enter 'on' or 'off'.", value));
+                        e.Whisper(string.Format("I don't recognise '{0}' as a Boolean value. Please enter 'on' or 'off'.", value));
                     break;
                 case "VICTORYBONUSLASTPLACE":
                 case "VICTORYBONUSLAST":
@@ -1086,16 +1082,16 @@ namespace UNO {
                     if (!SetPermissionCheck(e)) return;
                     if (value == null) {
                         if (this.VictoryBonusLastPlace)
-                            Bot.Say(e.Client, e.Channel, "A victory bonus \u00039will\u000F be awarded to the last place player.");
+                            e.Reply("A victory bonus \u00039will\u000F be awarded to the last place player.");
                         else
-                            Bot.Say(e.Client, e.Channel, "A victory bonus \u00034will not\u000F be awarded to the last place player.");
+                            e.Reply("A victory bonus \u00034will not\u000F be awarded to the last place player.");
                     } else if (Bot.TryParseBoolean(value, out value3)) {
                         if (this.VictoryBonusLastPlace = value3)
-                            Bot.Say(e.Client, e.Channel, "A victory bonus \u00039will now\u000F be awarded to the last place player.");
+                            e.Reply("A victory bonus \u00039will now\u000F be awarded to the last place player.");
                         else
-                            Bot.Say(e.Client, e.Channel, "A victory bonus \u00034will no longer\u000F be awarded to the last place player.");
+                            e.Reply("A victory bonus \u00034will no longer\u000F be awarded to the last place player.");
                     } else
-                        Bot.Say(e.Client, e.Sender.Nickname, string.Format("I don't recognise '{0}' as a Boolean value. Please enter 'on' or 'off'.", value));
+                        e.Whisper(string.Format("I don't recognise '{0}' as a Boolean value. Please enter 'on' or 'off'.", value));
                     break;
                 case "VICTORYBONUSREPEAT":
                 case "WINBONUSREPEAT":
@@ -1103,16 +1099,16 @@ namespace UNO {
                     if (!SetPermissionCheck(e)) return;
                     if (value == null) {
                         if (this.VictoryBonus)
-                            Bot.Say(e.Client, e.Channel, "A victory bonus \u00039will\u000F be awarded to all above last place.");
+                            e.Reply("A victory bonus \u00039will\u000F be awarded to all above last place.");
                         else
-                            Bot.Say(e.Client, e.Channel, "A victory bonus \u00034may not\u000F be awarded to all above last place.");
+                            e.Reply("A victory bonus \u00034may not\u000F be awarded to all above last place.");
                     } else if (Bot.TryParseBoolean(value, out value3)) {
                         if (this.VictoryBonus = value3)
-                            Bot.Say(e.Client, e.Channel, "A victory bonus \u00039will now\u000F be awarded to all above last place.");
+                            e.Reply("A victory bonus \u00039will now\u000F be awarded to all above last place.");
                         else
-                            Bot.Say(e.Client, e.Channel, "A victory bonus \u00034may no longer\u000F be awarded to all above last place.");
+                            e.Reply("A victory bonus \u00034may no longer\u000F be awarded to all above last place.");
                     } else
-                        Bot.Say(e.Client, e.Sender.Nickname, string.Format("I don't recognise '{0}' as a Boolean value. Please enter 'on' or 'off'.", value));
+                        e.Whisper(string.Format("I don't recognise '{0}' as a Boolean value. Please enter 'on' or 'off'.", value));
                     break;
                 case "PARTICIPATIONBONUS":
                 case "PLAYBONUS":
@@ -1120,21 +1116,21 @@ namespace UNO {
                     if (!SetPermissionCheck(e)) return;
                     if (value == null) {
                         if (this.ParticipationBonus == 0)
-                            Bot.Say(e.Client, e.Channel, "The participation bonus is disabled.", this.ParticipationBonus);
+                            e.Reply("The participation bonus is disabled.", this.ParticipationBonus);
                         else if (this.ParticipationBonus == 1 || this.ParticipationBonus == -1)
-                            Bot.Say(e.Client, e.Channel, "The participation bonus is \u0002{0}\u0002 point.", this.ParticipationBonus);
+                            e.Reply("The participation bonus is \u0002{0}\u0002 point.", this.ParticipationBonus);
                         else
-                            Bot.Say(e.Client, e.Channel, "The participation bonus is \u0002{0}\u0002 points.", this.ParticipationBonus);
+                            e.Reply("The participation bonus is \u0002{0}\u0002 points.", this.ParticipationBonus);
                     } else if (int.TryParse(value, out value2)) {
                         this.ParticipationBonus = value2;
                         if (value2 == 0)
-                            Bot.Say(e.Client, e.Channel, "The participation bonus is now disabled.", this.TurnTime);
+                            e.Reply("The participation bonus is now disabled.", this.TurnTime);
                         else if (value2 == 1 || value2 == -1)
-                            Bot.Say(e.Client, e.Channel, "The participation bonus is now \u0002{0}\u0002 point.", this.ParticipationBonus);
+                            e.Reply("The participation bonus is now \u0002{0}\u0002 point.", this.ParticipationBonus);
                         else
-                            Bot.Say(e.Client, e.Channel, "The participation bonus is now \u0002{0}\u0002 points.", this.ParticipationBonus);
+                            e.Reply("The participation bonus is now \u0002{0}\u0002 points.", this.ParticipationBonus);
                     } else
-                        Bot.Say(e.Client, e.Sender.Nickname, string.Format("That isn't a valid integer.", value));
+                        e.Whisper(string.Format("That isn't a valid integer.", value));
                     break;
                 case "QUITPENALTY":
                 case "LEAVEPENALTY":
@@ -1142,21 +1138,21 @@ namespace UNO {
                     if (!SetPermissionCheck(e)) return;
                     if (value == null) {
                         if (this.QuitPenalty == 0)
-                            Bot.Say(e.Client, e.Channel, "The quit penalty is disabled.", this.QuitPenalty);
+                            e.Reply("The quit penalty is disabled.", this.QuitPenalty);
                         else if (this.QuitPenalty == 1 || this.QuitPenalty == -1)
-                            Bot.Say(e.Client, e.Channel, "The quit penalty is \u0002{0}\u0002 point.", this.QuitPenalty);
+                            e.Reply("The quit penalty is \u0002{0}\u0002 point.", this.QuitPenalty);
                         else
-                            Bot.Say(e.Client, e.Channel, "The quit penalty is \u0002{0}\u0002 points.", this.QuitPenalty);
+                            e.Reply("The quit penalty is \u0002{0}\u0002 points.", this.QuitPenalty);
                     } else if (int.TryParse(value, out value2)) {
                         this.QuitPenalty = value2;
                         if (value2 == 0)
-                            Bot.Say(e.Client, e.Channel, "The quit penalty is now disabled.", this.QuitPenalty);
+                            e.Reply("The quit penalty is now disabled.", this.QuitPenalty);
                         else if (value2 == 1 || value2 == -1)
-                            Bot.Say(e.Client, e.Channel, "The quit penalty is now \u0002{0}\u0002 point.", this.QuitPenalty);
+                            e.Reply("The quit penalty is now \u0002{0}\u0002 point.", this.QuitPenalty);
                         else
-                            Bot.Say(e.Client, e.Channel, "The quit penalty is now \u0002{0}\u0002 points.", this.QuitPenalty);
+                            e.Reply("The quit penalty is now \u0002{0}\u0002 points.", this.QuitPenalty);
                     } else
-                        Bot.Say(e.Client, e.Sender.Nickname, string.Format("That isn't a valid integer.", value));
+                        e.Whisper(string.Format("That isn't a valid integer.", value));
                     break;
                 case "VICTORYBONUSVALUE":
                 case "VICTORYBONUSPOINTS":
@@ -1167,27 +1163,27 @@ namespace UNO {
                     if (!SetPermissionCheck(e)) return;
                     if (value == null) {
                         if (this.VictoryBonusValue.Length == 1)
-                            Bot.Say(e.Client, e.Channel, "The victory bonus is \u0002{0}\u0002.", this.VictoryBonusValue[0]);
+                            e.Reply("The victory bonus is \u0002{0}\u0002.", this.VictoryBonusValue[0]);
                         else
-                            Bot.Say(e.Client, e.Channel, "The victory bonuses are \u0002{0}\u0002.", string.Join("\u0002, \u0002", this.VictoryBonusValue));
+                            e.Reply("The victory bonuses are \u0002{0}\u0002.", string.Join("\u0002, \u0002", this.VictoryBonusValue));
                     } else {
                         string[] fields = value.Split(new char[] { ',', ';', ' ' }, StringSplitOptions.RemoveEmptyEntries);
                         List<int> value4 = new List<int>(fields.Length);
                         foreach (string s in fields) {
                             if (int.TryParse(value, out value2)) value4.Add(value2);
                             else {
-                                Bot.Say(e.Client, e.Sender.Nickname, string.Format("'{0}' isn't a valid integer.", value));
+                                e.Whisper(string.Format("'{0}' isn't a valid integer.", value));
                                 return;
                             }
                         }
                         if (value4.Count == 0)
-                            Bot.Say(e.Client, e.Sender.Nickname, "You must specify at least one number.");
+                            e.Whisper("You must specify at least one number.");
                         else {
                             this.VictoryBonusValue = value4.ToArray();
                             if (this.VictoryBonusValue.Length == 1)
-                                Bot.Say(e.Client, e.Channel, "The victory bonus is now \u0002{0}\u0002.", this.VictoryBonusValue[0]);
+                                e.Reply("The victory bonus is now \u0002{0}\u0002.", this.VictoryBonusValue[0]);
                             else
-                                Bot.Say(e.Client, e.Channel, "The victory bonuses are now \u0002{0}\u0002.", string.Join("\u0002, \u0002", this.VictoryBonusValue));
+                                e.Reply("The victory bonuses are now \u0002{0}\u0002.", string.Join("\u0002, \u0002", this.VictoryBonusValue));
                         }
                     }
                     break;
@@ -1198,49 +1194,49 @@ namespace UNO {
                     if (!SetPermissionCheck(e)) return;
                     if (value == null) {
                         if (this.AllowMidGameJoin)
-                            Bot.Say(e.Client, e.Channel, "Players \u00039may\u000F join during a game.");
+                            e.Reply("Players \u00039may\u000F join during a game.");
                         else
-                            Bot.Say(e.Client, e.Channel, "Players \u00034may not\u000F join during a game.");
+                            e.Reply("Players \u00034may not\u000F join during a game.");
                     } else if (Bot.TryParseBoolean(value, out value3)) {
                         if (this.AllowMidGameJoin = value3)
-                            Bot.Say(e.Client, e.Channel, "Players \u00039may\u000F now join during a game.");
+                            e.Reply("Players \u00039may\u000F now join during a game.");
                         else
-                            Bot.Say(e.Client, e.Channel, "Players \u00034may no longer\u000F join during a game.");
+                            e.Reply("Players \u00034may no longer\u000F join during a game.");
                     } else
-                        Bot.Say(e.Client, e.Sender.Nickname, string.Format("I don't recognise '{0}' as a Boolean value. Please enter 'on' or 'off'.", value));
+                        e.Whisper(string.Format("I don't recognise '{0}' as a Boolean value. Please enter 'on' or 'off'.", value));
                     break;
                 case "PROGRESSIVE":
                 case "STACKING":
                     if (!SetPermissionCheck(e)) return;
                     if (value == null) {
                         if (this.Progressive)
-                            Bot.Say(e.Client, e.Channel, "Progressive rules are \u00039enabled\u000F.");
+                            e.Reply("Progressive rules are \u00039enabled\u000F.");
                         else
-                            Bot.Say(e.Client, e.Channel, "Progressive rules are \u00034disabled\u000F.");
+                            e.Reply("Progressive rules are \u00034disabled\u000F.");
                     } else if (Bot.TryParseBoolean(value, out value3)) {
                         if (this.Progressive = value3)
-                            Bot.Say(e.Client, e.Channel, "Progressive rules are now \u00039enabled\u000F.");
+                            e.Reply("Progressive rules are now \u00039enabled\u000F.");
                         else
-                            Bot.Say(e.Client, e.Channel, "Progressive rules are now \u00034disabled\u000F.");
+                            e.Reply("Progressive rules are now \u00034disabled\u000F.");
                     } else
-                        Bot.Say(e.Client, e.Sender.Nickname, string.Format("I don't recognise '{0}' as a Boolean value. Please enter 'on' or 'off'.", value));
+                        e.Whisper(string.Format("I don't recognise '{0}' as a Boolean value. Please enter 'on' or 'off'.", value));
                     break;
                 case "PROGRESSIVECAP":
                 case "STACKINGCAP":
                     if (!SetPermissionCheck(e)) return;
                     if (value == null) {
                         if (this.ProgressiveCap == int.MaxValue)
-                            Bot.Say(e.Client, e.Channel, "There is no stack cap.", this.ProgressiveCap);
+                            e.Reply("There is no stack cap.", this.ProgressiveCap);
                         else
-                            Bot.Say(e.Client, e.Channel, "The stack cap is \u0002{0}\u0002 cards.", this.ProgressiveCap);
+                            e.Reply("The stack cap is \u0002{0}\u0002 cards.", this.ProgressiveCap);
                     } else if (int.TryParse(value, out value2)) {
                         this.ProgressiveCap = value2;
                         if (value2 == int.MaxValue)
-                            Bot.Say(e.Client, e.Channel, "The stack cap is now disabled.", this.ProgressiveCap);
+                            e.Reply("The stack cap is now disabled.", this.ProgressiveCap);
                         else
-                            Bot.Say(e.Client, e.Channel, "The stack cap is now \u0002{0}\u0002 cards.", this.ProgressiveCap);
+                            e.Reply("The stack cap is now \u0002{0}\u0002 cards.", this.ProgressiveCap);
                     } else
-                        Bot.Say(e.Client, e.Sender.Nickname, string.Format("That isn't a valid integer.", value));
+                        e.Whisper(string.Format("That isn't a valid integer.", value));
                     break;
 
                 case "HIGHLIGHT":
@@ -1249,28 +1245,28 @@ namespace UNO {
                     if (value == null) {
                         if (this.PlayerSettings.TryGetValue(e.Sender.Nickname, out player)) {
                             if (player.Highlight == HighlightOptions.On)
-                                Bot.Say(e.Client, e.Channel, "\u0002{0}\u0002, your game alerts are \u00039enabled\u000F.", e.Sender.Nickname);
+                                e.Reply("\u0002{0}\u0002, your game alerts are \u00039enabled\u000F.", e.Sender.Nickname);
                             else if (player.Highlight == HighlightOptions.OnTemporary)
-                                Bot.Say(e.Client, e.Channel, "\u0002{0}\u0002, your game alerts are \u000312enabled for this session\u000F.", e.Sender.Nickname);
+                                e.Reply("\u0002{0}\u0002, your game alerts are \u000312enabled for this session\u000F.", e.Sender.Nickname);
                             else
-                                Bot.Say(e.Client, e.Channel, "\u0002{0}\u0002, your game alerts are \u00034disabled\u000F.", e.Sender.Nickname);
+                                e.Reply("\u0002{0}\u0002, your game alerts are \u00034disabled\u000F.", e.Sender.Nickname);
                         } else
-                            Bot.Say(e.Client, e.Channel, "\u0002{0}\u0002, your game alerts are \u00034disabled\u000F.", e.Sender.Nickname);
+                            e.Reply("\u0002{0}\u0002, your game alerts are \u00034disabled\u000F.", e.Sender.Nickname);
                     } else {
                         if (!this.PlayerSettings.TryGetValue(e.Sender.Nickname, out player))
                             this.PlayerSettings.Add(e.Sender.Nickname, player = new PlayerSettings());
                         value = value.Replace(" ", "");
                         if (value == "0" || value.Equals("Off", StringComparison.InvariantCultureIgnoreCase)) {
                             player.Highlight = HighlightOptions.Off;
-                            Bot.Say(e.Client, e.Channel, "\u0002{0}\u0002, your game alerts are now \u00034disabled\u000F.", e.Sender.Nickname);
+                            e.Reply("\u0002{0}\u0002, your game alerts are now \u00034disabled\u000F.", e.Sender.Nickname);
                         } else if (value == "1" || value.Equals("On", StringComparison.InvariantCultureIgnoreCase) || value.Equals("Permanent", StringComparison.InvariantCultureIgnoreCase)) {
                             player.Highlight = HighlightOptions.On;
-                            Bot.Say(e.Client, e.Channel, "\u0002{0}\u0002, your game alerts are now \u00039enabled\u000F.", e.Sender.Nickname);
+                            e.Reply("\u0002{0}\u0002, your game alerts are now \u00039enabled\u000F.", e.Sender.Nickname);
                         } else if (value == "2" || value.Equals("Temporary", StringComparison.InvariantCultureIgnoreCase)) {
                             player.Highlight = HighlightOptions.OnTemporary;
-                            Bot.Say(e.Client, e.Channel, "\u0002{0}\u0002, your game alerts are now \u000312enabled for this session\u000F.", e.Sender.Nickname);
+                            e.Reply("\u0002{0}\u0002, your game alerts are now \u000312enabled for this session\u000F.", e.Sender.Nickname);
                         } else
-                            Bot.Say(e.Client, e.Sender.Nickname, string.Format("That isn't a valid setting. Please enter 'off', 'on' or 'temporary'.", value));
+                            e.Whisper(string.Format("That isn't a valid setting. Please enter 'off', 'on' or 'temporary'.", value));
                     }
                     break;
                 case "AUTOSORT":
@@ -1278,30 +1274,30 @@ namespace UNO {
                     if (value == null) {
                         if (this.PlayerSettings.TryGetValue(e.Sender.Nickname, out player)) {
                             if (player.AutoSort == AutoSortOptions.Off)
-                                Bot.Say(e.Client, e.Channel, "\u0002{0}\u0002, your cards will \u00034not be sorted\u000F.", e.Sender.Nickname);
+                                e.Reply("\u0002{0}\u0002, your cards will \u00034not be sorted\u000F.", e.Sender.Nickname);
                             else if (player.AutoSort == AutoSortOptions.ByRank)
-                                Bot.Say(e.Client, e.Channel, "\u0002{0}\u0002, your cards will be sorted \u000312by rank\u000F.", e.Sender.Nickname);
+                                e.Reply("\u0002{0}\u0002, your cards will be sorted \u000312by rank\u000F.", e.Sender.Nickname);
                             else
-                                Bot.Say(e.Client, e.Channel, "\u0002{0}\u0002,  your cards will be sorted \u00039by colour\u000F.", e.Sender.Nickname);
+                                e.Reply("\u0002{0}\u0002,  your cards will be sorted \u00039by colour\u000F.", e.Sender.Nickname);
                         } else
-                                Bot.Say(e.Client, e.Channel, "\u0002{0}\u0002,  your cards will be sorted \u00039by colour\u000F.", e.Sender.Nickname);
+                                e.Reply("\u0002{0}\u0002,  your cards will be sorted \u00039by colour\u000F.", e.Sender.Nickname);
                     } else {
                         if (!this.PlayerSettings.TryGetValue(e.Sender.Nickname, out player))
                             this.PlayerSettings.Add(e.Sender.Nickname, player = new PlayerSettings());
                         value = value.Replace(" ", "");
                         if (value == "0" || value.Equals("Off", StringComparison.InvariantCultureIgnoreCase)) {
                             player.AutoSort = AutoSortOptions.Off;
-                            Bot.Say(e.Client, e.Channel, "\u0002{0}\u0002, your cards will \u00034no longer be sorted\u000F.", e.Sender.Nickname);
+                            e.Reply("\u0002{0}\u0002, your cards will \u00034no longer be sorted\u000F.", e.Sender.Nickname);
                         } else if (value == "1" || value.Equals("On", StringComparison.InvariantCultureIgnoreCase) ||
                                    value.Equals("Colour", StringComparison.InvariantCultureIgnoreCase) || value.Equals("ByColour", StringComparison.InvariantCultureIgnoreCase)) {
                             player.AutoSort = AutoSortOptions.ByColour;
-                            Bot.Say(e.Client, e.Channel, "\u0002{0}\u0002,  your cards will now be sorted \u00039by colour\u000F.", e.Sender.Nickname);
+                            e.Reply("\u0002{0}\u0002,  your cards will now be sorted \u00039by colour\u000F.", e.Sender.Nickname);
                         } else if (value == "2" || value.Equals("Rank", StringComparison.InvariantCultureIgnoreCase) || value.Equals("ByRank", StringComparison.InvariantCultureIgnoreCase) ||
                                    value.Equals("Number", StringComparison.InvariantCultureIgnoreCase) || value.Equals("ByNumber", StringComparison.InvariantCultureIgnoreCase)) {
                             player.AutoSort = AutoSortOptions.ByRank;
-                            Bot.Say(e.Client, e.Channel, "\u0002{0}\u0002, your cards will now be sorted \u000312by rank\u000F.", e.Sender.Nickname);
+                            e.Reply("\u0002{0}\u0002, your cards will now be sorted \u000312by rank\u000F.", e.Sender.Nickname);
                         } else
-                            Bot.Say(e.Client, e.Sender.Nickname, string.Format("That isn't a valid setting. Please enter 'off', 'colour' or 'rank'.", value));
+                            e.Whisper(string.Format("That isn't a valid setting. Please enter 'off', 'colour' or 'rank'.", value));
                     }
                     break;
                 case "ALLOWDUELWITHBOT":
@@ -1310,87 +1306,87 @@ namespace UNO {
                 case "DUELBOT":
                     if (value == null) {
                         if (this.PlayerSettings.TryGetValue(e.Sender.Nickname, out player) && !player.AllowDuelWithBot)
-                            Bot.Say(e.Client, e.Channel, "\u0002{0}\u0002, I \u00034will not\u000F enter a duel with you.", e.Sender.Nickname);
+                            e.Reply("\u0002{0}\u0002, I \u00034will not\u000F enter a duel with you.", e.Sender.Nickname);
                         else
-                            Bot.Say(e.Client, e.Channel, "\u0002{0}\u0002, I \u00039may\u000F enter a duel with you.", e.Sender.Nickname);
+                            e.Reply("\u0002{0}\u0002, I \u00039may\u000F enter a duel with you.", e.Sender.Nickname);
                     } else {
                         if (Bot.TryParseBoolean(value, out value3)) {
                             if (!this.PlayerSettings.TryGetValue(e.Sender.Nickname, out player))
                                 this.PlayerSettings.Add(e.Sender.Nickname, player = new PlayerSettings());
                             if (player.AllowDuelWithBot = value3)
-                                Bot.Say(e.Client, e.Channel, "\u0002{0}\u0002, I \u00039may now\u000F enter a duel with you.", e.Sender.Nickname);
+                                e.Reply("\u0002{0}\u0002, I \u00039may now\u000F enter a duel with you.", e.Sender.Nickname);
                             else
-                                Bot.Say(e.Client, e.Channel, "\u0002{0}\u0002, I \u00034will no longer\u000F enter a duel with you.", e.Sender.Nickname);
+                                e.Reply("\u0002{0}\u0002, I \u00034will no longer\u000F enter a duel with you.", e.Sender.Nickname);
                         } else
-                            Bot.Say(e.Client, e.Sender.Nickname, string.Format("I don't recognise '{0}' as a Boolean value. Please enter 'yes' or 'no'.", value));
+                            e.Whisper(string.Format("I don't recognise '{0}' as a Boolean value. Please enter 'yes' or 'no'.", value));
                     }
                     break;
                 case "HINTS":
                     if (value == null) {
                         if (this.PlayerSettings.TryGetValue(e.Sender.Nickname, out player) && !player.Hints)
-                            Bot.Say(e.Client, e.Channel, "\u0002{0}\u0002, I \u00034will not\u000F give you hints.", e.Sender.Nickname);
+                            e.Reply("\u0002{0}\u0002, I \u00034will not\u000F give you hints.", e.Sender.Nickname);
                         else
-                            Bot.Say(e.Client, e.Channel, "\u0002{0}\u0002, I \u00039may\u000F give you hints.", e.Sender.Nickname);
+                            e.Reply("\u0002{0}\u0002, I \u00039may\u000F give you hints.", e.Sender.Nickname);
                     } else {
                         if (Bot.TryParseBoolean(value, out value3)) {
                             if (!this.PlayerSettings.TryGetValue(e.Sender.Nickname, out player))
                                 this.PlayerSettings.Add(e.Sender.Nickname, player = new PlayerSettings());
                             if (player.Hints = value3)
-                                Bot.Say(e.Client, e.Channel, "\u0002{0}\u0002, I \u00039may now\u000F give you hints.", e.Sender.Nickname);
+                                e.Reply("\u0002{0}\u0002, I \u00039may now\u000F give you hints.", e.Sender.Nickname);
                             else
-                                Bot.Say(e.Client, e.Channel, "\u0002{0}\u0002, I \u00034will no longer\u000F give you hints.", e.Sender.Nickname);
+                                e.Reply("\u0002{0}\u0002, I \u00034will no longer\u000F give you hints.", e.Sender.Nickname);
                         } else if (value.Equals("reset", StringComparison.InvariantCultureIgnoreCase)) {
                             if (this.PlayerSettings.TryGetValue(e.Sender.Nickname, out player)) {
-                                for (int i = 0; i < UNOPlugin.Hints.Length; ++i) {
+                                for (int i = 0; i < UnoPlugin.Hints.Length; ++i) {
                                     player.HintsSeen[i] = false;
                                 }
-                                Bot.Say(e.Client, e.Channel, "\u0002{0}\u0002, your hints have been reset.", e.Sender.Nickname);
+                                e.Reply("\u0002{0}\u0002, your hints have been reset.", e.Sender.Nickname);
                             } else {
-                                Bot.Say(e.Client, e.Channel, "\u0002{0}\u0002, you don't seem to have a configuration entry.", e.Sender.Nickname);
+                                e.Reply("\u0002{0}\u0002, you don't seem to have a configuration entry.", e.Sender.Nickname);
                             }
                         } else
-                            Bot.Say(e.Client, e.Sender.Nickname, string.Format("I don't recognise '{0}' as a Boolean value. Please enter 'yes', 'no' or 'reset'.", value));
+                            e.Whisper(string.Format("I don't recognise '{0}' as a Boolean value. Please enter 'yes', 'no' or 'reset'.", value));
                     }
                     break;
                 default:
-                    Bot.Say(e.Client, e.Sender.Nickname, string.Format("I don't manage a setting named \u0002{0}\u0002.", property));
+                    e.Whisper(string.Format("I don't manage a setting named \u0002{0}\u0002.", property));
                     break;
             }
         }
 
         internal bool SetPermissionCheck(CommandEventArgs e) {
-            if (Bot.UserHasPermission(e.Client, e.Channel, e.Sender, this.Key + ".set"))
+            if (Bot.UserHasPermission(e.Sender, this.Key + ".set"))
                 return true;
-            Bot.Say(e.Client, e.Channel, "You don't have access to that setting.");
+            e.Reply("You don't have access to that setting.");
             return false;
         }
 
         [Command(new string[] { "uhelp" }, 0, 1, "uhelp", "Gives information about the UNO game.")]
         public void CommandHelp(object sender, CommandEventArgs e) {
-            Bot.Say(e.Client, e.Sender.Nickname, "For help with this UNO game, see " + (this.GuideURL ?? "http://questers-rest.andriocelos.ml/irc/uno/guide"));
+            e.Whisper("For help with this UNO game, see " + (this.GuideURL ?? "http://questers-rest.andriocelos.ml/irc/uno/guide"));
         }
 
 #region Preparation
-        [Regex("^jo$")]
-        public void RegexJoin(object sender, RegexEventArgs e) {
+        [Trigger("^jo$")]
+        public void RegexJoin(object sender, TriggerEventArgs e) {
             Game game;
-            if (this.Games.TryGetValue(e.Client.NetworkName + "/" + e.Channel, out game))
+            if (this.Games.TryGetValue(e.Client.NetworkName + "/" + e.Target, out game))
                 this.EntryCommand(game, e.Sender.Nickname);
         }
         [Command(new string[] { "join", "ujoin", "uno" }, 0, 0, "ujoin", "Enters you into a game of UNO.",
             null, CommandScope.Channel)]
         public void CommandJoin(object sender, CommandEventArgs e) {
             Game game;
-            string key = e.Client.NetworkName + "/" + e.Channel;
+            string key = e.Client.NetworkName + "/" + e.Target;
             if (this.Games.TryGetValue(key, out game))
                 this.EntryCommand(game, e.Sender.Nickname);
             else {
                 // Start a new game.
-                game = new Game(this, e.Client, e.Channel, this.EntryTime) { IsOpen = true };
+                game = new Game(this, e.Client, e.Target.Target, this.EntryTime) { IsOpen = true };
                 lock (game.Lock) {
                     this.Games.Add(key, game);
                     game.Players.Add(new Player(e.Sender.Nickname));
-                    Bot.Say(e.Client, e.Channel, "\u000313\u0002{0}\u0002 is starting a game of UNO!", e.Sender.Nickname);
+                    e.Reply("\u000313\u0002{0}\u0002 is starting a game of UNO!", e.Sender.Nickname);
                     game.GameTimer.Elapsed += GameTimer_Elapsed;
                     game.HintTimer.Elapsed += HintTimer_Elapsed;
                     Thread.Sleep(600);
@@ -1399,7 +1395,7 @@ namespace UNO {
                         bool anyAlerts = false;
                         StringBuilder messageBuilder = new StringBuilder("\u0001ACTION alerts:");
                         foreach (KeyValuePair<string, PlayerSettings> player in this.PlayerSettings) {
-                            if (player.Value.Highlight > 0 && player.Key != e.Sender.Nickname && e.Client.Channels[e.Channel].Users.Contains(player.Key)) {
+                            if (player.Value.Highlight > 0 && player.Key != e.Sender.Nickname && ((IrcChannel) e.Target).Users.Contains(player.Key)) {
                                 messageBuilder.Append(" ");
                                 messageBuilder.Append(player.Key);
                                 anyAlerts = true;
@@ -1407,14 +1403,14 @@ namespace UNO {
                         }
                         if (anyAlerts) {
                             messageBuilder.Append("\u0001");
-                            Bot.Say(e.Client, e.Channel, messageBuilder.ToString());
+                            e.Reply(messageBuilder.ToString());
                             Thread.Sleep(600);
                         }
                     } finally {
                         game.TurnStartTime = DateTime.Now;
                         game.WaitTime = this.EntryTime;
                         game.GameTimer.Start();
-                        Bot.Say(e.Client, e.Channel, "\u000312Starting in \u0002{0}\u0002 seconds. Say \u000311!ujoin\u000312 if you wish to join the game.", this.EntryTime);
+                        e.Reply("\u000312Starting in \u0002{0}\u0002 seconds. Say \u000311!ujoin\u000312 if you wish to join the game.", this.EntryTime);
                         if (!game.Connection.CaseMappingComparer.Equals(e.Sender.Nickname, game.Connection.Me.Nickname))
                             this.EntryHints(game, e.Sender.Nickname);
                     }
@@ -1426,22 +1422,22 @@ namespace UNO {
             null, CommandScope.Channel)]
         public void CommandAIJoin(object sender, CommandEventArgs e) {
             Game game;
-            string key = e.Client.NetworkName + "/" + e.Channel;
+            string key = e.Client.NetworkName + "/" + e.Target;
             if (!this.AIEnabled)
-                Bot.Say(e.Client, e.Sender.Nickname, "The AI player is disabled.");
+                e.Whisper("The AI player is disabled.");
             else if (!this.Games.TryGetValue(key, out game))
-                Bot.Say(e.Client, e.Sender.Nickname, "There's no game going on at the moment.");
+                e.Whisper("There's no game going on at the moment.");
             else {
                 PlayerSettings playerSettings;
                 if (this.PlayerSettings.TryGetValue(e.Sender.Nickname, out playerSettings) && !playerSettings.AllowDuelWithBot) {
-                    Bot.Say(e.Client, e.Sender.Nickname, "You have requested I not enter a duel with you, {0}. To change this, enter \u0002!uset AllowDuelBot yes\u0002.", e.Sender.Nickname);
+                    e.Whisper("You have requested I not enter a duel with you, {0}. To change this, enter \u0002!uset AllowDuelBot yes\u0002.", e.Sender.Nickname);
                     return;
                 }
 
                 int index;
                 index = game.IndexOf(e.Sender.Nickname);
                 if (index == -1)
-                    Bot.Say(e.Client, e.Sender.Nickname, "You must be in the game to use that command.");
+                    e.Whisper("You must be in the game to use that command.");
                 else
                     this.EntryCommand(game, e.Client.Me.Nickname);
             }
@@ -1451,14 +1447,14 @@ namespace UNO {
             ".start", CommandScope.Channel)]
         public void CommandStart(object sender, CommandEventArgs e) {
             Game game;
-            string key = e.Client.NetworkName + "/" + e.Channel;
+            string key = e.Client.NetworkName + "/" + e.Target;
             if (!this.Games.TryGetValue(key, out game))
-                Bot.Say(e.Client, e.Sender.Nickname, "There's no game going on at the moment.");
+                e.Whisper("There's no game going on at the moment.");
             else {
                 int index;
                 index = game.IndexOf(e.Sender.Nickname);
                 if (index == -1)
-                    Bot.Say(e.Client, e.Sender.Nickname, "You must be in the game to use that command.");
+                    e.Whisper("You must be in the game to use that command.");
                 else {
                     if (!game.IsOpen) {
                         Bot.Say(game.Connection, e.Sender.Nickname, "The game has already started.");
@@ -1474,8 +1470,8 @@ namespace UNO {
                             break;
                         }
                     }
-                    if (!OK && !Bot.UserHasPermission(e.Client, e.Channel, e.Sender, this.Key + ".start.botduel")) {
-                        Bot.Say(e.Client, e.Sender.Nickname, "At least two non-bot players must be present.");
+                    if (!OK && !Bot.UserHasPermission(e.Sender, this.Key + ".start.botduel")) {
+                        e.Whisper("At least two non-bot players must be present.");
                         return;
                     }
                     game.GameTimer.Stop();
@@ -1488,14 +1484,14 @@ namespace UNO {
             ".wait", CommandScope.Channel)]
         public void CommandWait(object sender, CommandEventArgs e) {
             Game game;
-            string key = e.Client.NetworkName + "/" + e.Channel;
+            string key = e.Client.NetworkName + "/" + e.Target;
             if (!this.Games.TryGetValue(key, out game))
-                Bot.Say(e.Client, e.Sender.Nickname, "There's no game going on at the moment.");
+                e.Whisper("There's no game going on at the moment.");
             else {
                 int index;
                 index = game.IndexOf(e.Sender.Nickname);
                 if (index == -1)
-                    Bot.Say(e.Client, e.Sender.Nickname, "You must be in the game to use that command.");
+                    e.Whisper("You must be in the game to use that command.");
                 else {
                     if (!game.GameTimer.Enabled) {
                         Bot.Say(game.Connection, e.Sender.Nickname, "There's no time limit to extend.");
@@ -1563,14 +1559,14 @@ namespace UNO {
             null, CommandScope.Channel)]
         public void CommandQuit(object sender, CommandEventArgs e) {
             Game game;
-            string key = e.Client.NetworkName + "/" + e.Channel;
+            string key = e.Client.NetworkName + "/" + e.Target;
             if (!this.Games.TryGetValue(key, out game))
-                Bot.Say(e.Client, e.Sender.Nickname, "There's no game going on at the moment.");
+                e.Whisper("There's no game going on at the moment.");
             else {
                 lock (game.Lock) {
                     int index = game.IndexOf(e.Sender.Nickname);
                     if (index == -1)
-                        Bot.Say(e.Client, e.Sender.Nickname, "You're not in this game.");
+                        e.Whisper("You're not in this game.");
                     else {
                         Bot.Say(game.Connection, game.Channel, "\u000312\u0002{0}\u0002 has left the game.", e.Sender.Nickname);
                         this.RemovePlayer(game, index);
@@ -1582,7 +1578,7 @@ namespace UNO {
         public override bool OnNicknameChange(object sender, NicknameChangeEventArgs e) {
             Game game;
             foreach (KeyValuePair<string, Game> entry in this.Games) {
-                if (entry.Key.StartsWith(((IRCClient) sender).NetworkName, StringComparison.InvariantCultureIgnoreCase)) {
+                if (entry.Key.StartsWith(((IrcClient) sender).NetworkName, StringComparison.InvariantCultureIgnoreCase)) {
                     game = entry.Value;
                     lock (game.Lock) {
                         int index = game.IndexOf(e.Sender.Nickname);
@@ -1594,23 +1590,8 @@ namespace UNO {
             return base.OnNicknameChange(sender, e);
         }
 
-        public override bool OnNicknameChangeSelf(object sender, NicknameChangeEventArgs e) {
-            Game game;
-            foreach (KeyValuePair<string, Game> entry in this.Games) {
-                if (entry.Key.StartsWith(((IRCClient) sender).NetworkName, StringComparison.InvariantCultureIgnoreCase)) {
-                    game = entry.Value;
-                    lock (game.Lock) {
-                        int index = game.IndexOf(e.Sender.Nickname);
-                        if (index != -1)
-                            game.Players[index].Name = e.NewNickname;
-                    }
-                }
-            }
-            return base.OnNicknameChangeSelf(sender, e);
-        }
-
         public override bool OnChannelJoin(object sender, ChannelJoinEventArgs e) {
-            if (e.Sender.Nickname == ((IRCClient) sender).Me.Nickname) this.StartResetTimer();
+            if (e.Sender.Nickname == ((IrcClient) sender).Me.Nickname) this.StartResetTimer();
             return base.OnChannelJoin(sender, e);
         }
 
@@ -1622,7 +1603,7 @@ namespace UNO {
                 player.Highlight = HighlightOptions.Off;
 
             Game game;
-            if (this.Games.TryGetValue(((IRCClient) sender).NetworkName + "/" + e.Channel, out game)) {
+            if (this.Games.TryGetValue(((IrcClient) sender).NetworkName + "/" + e.Channel, out game)) {
                 lock (game.Lock) {
                     int index = game.IndexOf(e.Sender.Nickname);
                     if (index != -1) {
@@ -1806,7 +1787,7 @@ namespace UNO {
                 do {
                     Thread.Sleep(600);
                     game.Discards.Add(card = this.DrawCards(game, 1)[0]);
-                    string message1 = "\u000312The first up-card is " + UNOPlugin.ShowCard(card) + "\u000312.";
+                    string message1 = "\u000312The first up-card is " + UnoPlugin.ShowCard(card) + "\u000312.";
                     string message2;
                     bool draw = false;
 
@@ -1868,9 +1849,9 @@ namespace UNO {
             ".stop")]
         public void CommandStop(object sender, CommandEventArgs e) {
             Game game;
-            string key = e.Client.NetworkName + "/" + e.Channel;
+            string key = e.Client.NetworkName + "/" + e.Target;
             if (!this.Games.TryGetValue(key, out game))
-                Bot.Say(e.Client, e.Sender.Nickname, "There's no game going on at the moment.");
+                e.Whisper("There's no game going on at the moment.");
             else {
                 lock (game.Lock) {
                     game.GameTimer.Stop();
@@ -1878,7 +1859,7 @@ namespace UNO {
                     game.record.duration = DateTime.UtcNow - game.record.time;
                     if (this.RecordRandomData) game.WriteRecord();
                     this.Games.Remove(key);
-                    Bot.Say(e.Client, e.Channel, "\u000313The game has been cancelled.");
+                    e.Reply("\u000313The game has been cancelled.");
                 }
             }
         }
@@ -1898,7 +1879,7 @@ namespace UNO {
             foreach (byte card in cards) {
                 if (card == 128) break;
                 messageBuilder.Append(" ");
-                messageBuilder.Append(UNOPlugin.ShowCard(card));
+                messageBuilder.Append(UnoPlugin.ShowCard(card));
                 game.Players[playerIndex].Hand.Add(card);
             }
             if (showMessage && game.Players[playerIndex].Name != game.Connection.Me.Nickname)
@@ -1961,7 +1942,7 @@ namespace UNO {
             messageBuilder.Append("You hold:");
             foreach (byte card in game.Players[playerIndex].Hand) {
                 messageBuilder.Append(" ");
-                messageBuilder.Append(UNOPlugin.ShowCard(card));
+                messageBuilder.Append(UnoPlugin.ShowCard(card));
             }
             Bot.Say(game.Connection, game.Players[playerIndex].Name, messageBuilder.ToString());
         }
@@ -1992,25 +1973,25 @@ namespace UNO {
             return cards;
         }
 
-        [Regex(@"^pl\s*(.*)", null, CommandScope.Channel)]
-        public void RegexPlay(object sender, RegexEventArgs e) {
+        [Trigger(@"^pl\s*(.*)", null, CommandScope.Channel)]
+        public void RegexPlay(object sender, TriggerEventArgs e) {
             Game game; int index; byte card; byte colour;
-            UNOPlugin.TryParseCard(e.Match.Groups[1].Value, out card, out colour);
-            if (!this.GameTurnCheck(e.Client, e.Channel, e.Sender.Nickname, card != 128, out game, out index))
+            UnoPlugin.TryParseCard(e.Match.Groups[1].Value, out card, out colour);
+            if (!this.GameTurnCheck(e.Client, e.Target.Target, e.Sender.Nickname, card != 128, out game, out index))
                 return;
             lock (game.Lock) {
                 if (index == game.Turn && (game.WildColour & 64) != 0 && (game.Discards[game.Discards.Count - 1] != 65 || (this.WildDrawFour == WildDrawFourRule.AllowBluffing && game.DrawFourBadColour != 128) ||
                       game.Players.Where(player => player.Presence == PlayerPresence.Playing).Skip(2).Any())) {
                     // In a two-player game, you can play a card right on top of your own Wild Draw Four.
-                    Bot.Say(e.Client, e.Sender.Nickname, "Please choose a colour for your wild card. Say \u0002red\u0002, \u0002yellow\u0002, \u0002green\u0002 or \u0002blue\u0002.");
+                    e.Whisper("Please choose a colour for your wild card. Say \u0002red\u0002, \u0002yellow\u0002, \u0002green\u0002 or \u0002blue\u0002.");
                 } else if (game.DrawFourChallenger == index && (!Progressive || card != 65)) {
-                    Bot.Say(e.Client, e.Sender.Nickname, "That's a wild draw four. You must either \u0002!challenge\u0002 it, or say \u0002!draw\u0002 to take the four cards. Enter \u0002!uhelp drawfour\u0002 for more info.");
+                    e.Whisper("That's a wild draw four. You must either \u0002!challenge\u0002 it, or say \u0002!draw\u0002 to take the four cards. Enter \u0002!uhelp drawfour\u0002 for more info.");
                 } else if (Progressive && index == game.Turn && (game.DrawCount > 0 && (card & 15) != (game.Discards[game.Discards.Count - 1] & 15))) {
-                    Bot.Say(e.Client, e.Sender.Nickname, "A Draw card has been played against you. You must either stack your own card of the same type, or say \u0002!draw\u0002 to take the penalty.");
+                    e.Whisper("A Draw card has been played against you. You must either stack your own card of the same type, or say \u0002!draw\u0002 to take the penalty.");
                 } else if (Progressive && game.DrawCount >= ProgressiveCap) {
-                    Bot.Say(e.Client, e.Sender.Nickname, "You cannot stack any more.");
+                    e.Whisper("You cannot stack any more.");
                 } else if (card == 128) {
-                    Bot.Say(e.Client, e.Sender.Nickname, "Oops! That's not a valid card. Enter \u0002!uhelp commands\u0002 if you're stuck.");
+                    e.Whisper("Oops! That's not a valid card. Enter \u0002!uhelp commands\u0002 if you're stuck.");
                 } else {
                     this.PlayCheck(game, index, card, colour);
                 }
@@ -2019,29 +2000,29 @@ namespace UNO {
         [Command(new string[] { "play", "pl", "uplay" }, 1, 1, "play <card>", "Allows you to play a card on your turn.")]
         public void CommandPlay(object sender, CommandEventArgs e) {
             Game game; int index; byte card; byte colour;
-            UNOPlugin.TryParseCard(e.Parameters[0], out card, out colour);
-            if (!this.GameTurnCheck(e.Client, e.Channel, e.Sender.Nickname, true, out game, out index))
+            UnoPlugin.TryParseCard(e.Parameters[0], out card, out colour);
+            if (!this.GameTurnCheck(e.Client, e.Target.Target, e.Sender.Nickname, true, out game, out index))
                 return;
             lock (game.Lock) {
                 if (index == game.Turn && (game.WildColour & 64) != 0 && (game.Discards[game.Discards.Count - 1] != 65 || (this.WildDrawFour == WildDrawFourRule.AllowBluffing && game.DrawFourBadColour != 128) ||
                       game.Players.Where(player => player.Presence == PlayerPresence.Playing).Skip(2).Any())) {
                     // In a two-player game, you can play a card right on top of your own Wild Draw Four.
-                    Bot.Say(e.Client, e.Sender.Nickname, "Please choose a colour for your wild card. Say \u0002red\u0002, \u0002yellow\u0002, \u0002green\u0002 or \u0002blue\u0002.");
+                    e.Whisper("Please choose a colour for your wild card. Say \u0002red\u0002, \u0002yellow\u0002, \u0002green\u0002 or \u0002blue\u0002.");
                 } else if (game.DrawFourChallenger == index && (!Progressive || card != 65)) {
-                    Bot.Say(e.Client, e.Sender.Nickname, "That's a wild draw four. You must either \u0002!challenge\u0002 it, or say \u0002!draw\u0002 to take the four cards. Enter \u0002!uhelp drawfour\u0002 for more info.");
+                    e.Whisper("That's a wild draw four. You must either \u0002!challenge\u0002 it, or say \u0002!draw\u0002 to take the four cards. Enter \u0002!uhelp drawfour\u0002 for more info.");
                 } else if (Progressive && index == game.Turn && (game.DrawCount > 0 && (card & 15) != (game.Discards[game.Discards.Count - 1] & 15))) {
-                    Bot.Say(e.Client, e.Sender.Nickname, "A Draw card has been played against you. You must either stack your own card of the same type, or say \u0002!draw\u0002 to take the penalty.");
+                    e.Whisper("A Draw card has been played against you. You must either stack your own card of the same type, or say \u0002!draw\u0002 to take the penalty.");
                 } else if (Progressive && game.DrawCount >= ProgressiveCap) {
-                    Bot.Say(e.Client, e.Sender.Nickname, "You cannot stack any more.");
+                    e.Whisper("You cannot stack any more.");
                 } else if (card == 128) {
-                    Bot.Say(e.Client, e.Sender.Nickname, "Oops! That's not a valid card. Enter \u0002!uhelp commands\u0002 if you're stuck.");
+                    e.Whisper("Oops! That's not a valid card. Enter \u0002!uhelp commands\u0002 if you're stuck.");
                 } else {
                     this.PlayCheck(game, index, card, colour);
                 }
             }
         }
 
-        public bool GameTurnCheck(IRCClient connection, string channel, string nickname, bool showMessages, out Game game, out int index) {
+        public bool GameTurnCheck(IrcClient connection, string channel, string nickname, bool showMessages, out Game game, out int index) {
             if (!this.Games.TryGetValue(connection.NetworkName + "/" + channel, out game)) {
                 if (showMessages)
                     Bot.Say(connection, nickname, "There's no game going on at the moment.");
@@ -2070,7 +2051,7 @@ namespace UNO {
         }
 
         public static bool TryParseCard(string s, out byte value, out byte colour) {
-            Match match = UNOPlugin.CardParseExpression.Match(s);
+            Match match = UnoPlugin.CardParseExpression.Match(s);
             if (match.Success) {
                 if (match.Groups[19].Success)
                     value = 65;
@@ -2139,7 +2120,7 @@ namespace UNO {
         }
 
         public static bool TryParseColour(string s, out byte colour) {
-            Match match = UNOPlugin.ColourParseExpression.Match(s);
+            Match match = UnoPlugin.ColourParseExpression.Match(s);
             if (match.Success) {
                 if (match.Groups[1].Success)
                     colour = (byte) Colour.Red;
@@ -2239,7 +2220,7 @@ namespace UNO {
             }
 
             if (endOfGame) {
-                Bot.Say(game.Connection, game.Channel, "\u000312\u0002{0}\u0002 plays {1} \u000312and \u0002goes out\u0002!", game.Players[playerIndex].Name, UNOPlugin.ShowCard(card));
+                Bot.Say(game.Connection, game.Channel, "\u000312\u0002{0}\u0002 plays {1} \u000312and \u0002goes out\u0002!", game.Players[playerIndex].Name, UnoPlugin.ShowCard(card));
                 // If it's a Draw card, deal the cards.
                 if (game.DrawCount != 0) {
                     int victim = game.NextPlayer();
@@ -2314,18 +2295,18 @@ namespace UNO {
                     if (colour == (byte) Colour.Pending) {
                         game.WildColour = 192;
                         if (goneOut)
-                            Bot.Say(game.Connection, game.Channel, "\u000312\u0002{0}\u0002 plays {1} \u000312and \u0002goes out\u0002! Choose a colour, {0}.", game.Players[playerIndex].Name, UNOPlugin.ShowCard(card));
+                            Bot.Say(game.Connection, game.Channel, "\u000312\u0002{0}\u0002 plays {1} \u000312and \u0002goes out\u0002! Choose a colour, {0}.", game.Players[playerIndex].Name, UnoPlugin.ShowCard(card));
                         else
-                            Bot.Say(game.Connection, game.Channel, "\u000312\u0002{0}\u0002 plays {1} \u000312Choose a colour, {0}.", game.Players[playerIndex].Name, UNOPlugin.ShowCard(card));
+                            Bot.Say(game.Connection, game.Channel, "\u000312\u0002{0}\u0002 plays {1} \u000312Choose a colour, {0}.", game.Players[playerIndex].Name, UnoPlugin.ShowCard(card));
                     } else {
                         game.WildColour = colour;
                         game.Advance();
                         if (goneOut) {
-                            Bot.Say(game.Connection, game.Channel, "\u000312\u0002{0}\u0002 plays {1}\u000312, chooses {2}\u000312 and \u0002goes out\u0002!", game.Players[playerIndex].Name, UNOPlugin.ShowCard(card), colourMessage);
+                            Bot.Say(game.Connection, game.Channel, "\u000312\u0002{0}\u0002 plays {1}\u000312, chooses {2}\u000312 and \u0002goes out\u0002!", game.Players[playerIndex].Name, UnoPlugin.ShowCard(card), colourMessage);
                             Thread.Sleep(600);
                             Bot.Say(game.Connection, game.Channel, "\u000312Play continues with \u0002{0}\u0002.", game.Players[game.Turn].Name);
                         } else
-                            Bot.Say(game.Connection, game.Channel, "\u000312\u0002{0}\u0002 plays {1} \u000312to \u0002{3}\u0002 and chooses {2}\u000312.", game.Players[playerIndex].Name, UNOPlugin.ShowCard(card), colourMessage, game.Players[game.Turn].Name);
+                            Bot.Say(game.Connection, game.Channel, "\u000312\u0002{0}\u0002 plays {1} \u000312to \u0002{3}\u0002 and chooses {2}\u000312.", game.Players[playerIndex].Name, UnoPlugin.ShowCard(card), colourMessage, game.Players[game.Turn].Name);
                     }
                 }
             } else if ((card & 15) == (byte) Rank.DrawTwo) {
@@ -2334,18 +2315,18 @@ namespace UNO {
                     // It can be stacked onto.
                     if (goneOut) {
                         goneOut = false;
-                        Bot.Say(game.Connection, game.Channel, "\u000312\u0002{0}\u0002 plays {1}\u000312 to \u0002go out\u0002!", game.Players[playerIndex].Name, UNOPlugin.ShowCard(card));
+                        Bot.Say(game.Connection, game.Channel, "\u000312\u0002{0}\u0002 plays {1}\u000312 to \u0002go out\u0002!", game.Players[playerIndex].Name, UnoPlugin.ShowCard(card));
                         Thread.Sleep(600);
                         Bot.Say(game.Connection, game.Channel, "\u000312Now waiting on \u0002{0}\u0002's response.", game.Players[game.Turn].Name);
                     } else
-                        Bot.Say(game.Connection, game.Channel, "\u000312\u0002{0}\u0002 plays {1}\u000312. Now waiting on \u0002{2}\u0002's response.", game.Players[playerIndex].Name, UNOPlugin.ShowCard(card), game.Players[game.Turn].Name);
+                        Bot.Say(game.Connection, game.Channel, "\u000312\u0002{0}\u0002 plays {1}\u000312. Now waiting on \u0002{2}\u0002's response.", game.Players[playerIndex].Name, UnoPlugin.ShowCard(card), game.Players[game.Turn].Name);
                 } else {
                     if (goneOut) {
-                        Bot.Say(game.Connection, game.Channel, "\u000312\u0002{0}\u0002 plays {1}\u000312 and \u0002goes out\u0002!", game.Players[playerIndex].Name, UNOPlugin.ShowCard(card), game.Players[game.Turn].Name);
+                        Bot.Say(game.Connection, game.Channel, "\u000312\u0002{0}\u0002 plays {1}\u000312 and \u0002goes out\u0002!", game.Players[playerIndex].Name, UnoPlugin.ShowCard(card), game.Players[game.Turn].Name);
                         Thread.Sleep(600);
                         Bot.Say(game.Connection, game.Channel, "\u000312\u0002{0}\u0002 draws {1} cards; play continues with \u0002{2}\u0002.", game.Players[game.Turn].Name, game.DrawCount, game.Players[game.NextPlayer()].Name);
                     } else {
-                        Bot.Say(game.Connection, game.Channel, "\u000312\u0002{0}\u0002 plays {1}\u000312 \u0002{2}\u0002 draws two cards; play continues with \u0002{3}\u0002.", game.Players[playerIndex].Name, UNOPlugin.ShowCard(card), game.Players[game.Turn].Name, game.Players[game.NextPlayer()].Name);
+                        Bot.Say(game.Connection, game.Channel, "\u000312\u0002{0}\u0002 plays {1}\u000312 \u0002{2}\u0002 draws two cards; play continues with \u0002{3}\u0002.", game.Players[playerIndex].Name, UnoPlugin.ShowCard(card), game.Players[game.Turn].Name, game.Players[game.NextPlayer()].Name);
                     }
                     Thread.Sleep(600);
                     this.DealCards(game, game.Turn, game.DrawCount, false);
@@ -2358,34 +2339,34 @@ namespace UNO {
                 game.IsReversed = !game.IsReversed;
                 game.Advance();
                 if (goneOut) {
-                    Bot.Say(game.Connection, game.Channel, "\u000312\u0002{0}\u0002 plays {1}\u000312 and \u0002goes out\u0002!", game.Players[playerIndex].Name, UNOPlugin.ShowCard(card), game.Players[game.Turn].Name);
+                    Bot.Say(game.Connection, game.Channel, "\u000312\u0002{0}\u0002 plays {1}\u000312 and \u0002goes out\u0002!", game.Players[playerIndex].Name, UnoPlugin.ShowCard(card), game.Players[game.Turn].Name);
                     Thread.Sleep(600);
                     Bot.Say(game.Connection, game.Channel, "\u000312Play continues with \u0002{0}\u0002.", game.Players[game.Turn].Name);
                 } else {
-                    Bot.Say(game.Connection, game.Channel, "\u000312\u0002{0}\u0002 plays {1}\u000312 Play continues with \u0002{2}\u0002.", game.Players[playerIndex].Name, UNOPlugin.ShowCard(card), game.Players[game.Turn].Name);
+                    Bot.Say(game.Connection, game.Channel, "\u000312\u0002{0}\u0002 plays {1}\u000312 Play continues with \u0002{2}\u0002.", game.Players[playerIndex].Name, UnoPlugin.ShowCard(card), game.Players[game.Turn].Name);
                 }
             } else if ((card & 14) == 10) {
                 // Skip card, or Reverse card with two players
                 game.Advance();
                 int nextPlayer = game.NextPlayer();
                 if (goneOut) {
-                    Bot.Say(game.Connection, game.Channel, "\u000312\u0002{0}\u0002 plays {1}\u000312 and \u0002goes out\u0002!", game.Players[playerIndex].Name, UNOPlugin.ShowCard(card), game.Players[game.Turn].Name);
+                    Bot.Say(game.Connection, game.Channel, "\u000312\u0002{0}\u0002 plays {1}\u000312 and \u0002goes out\u0002!", game.Players[playerIndex].Name, UnoPlugin.ShowCard(card), game.Players[game.Turn].Name);
                     Thread.Sleep(600);
-                    Bot.Say(game.Connection, game.Channel, "\u000312\u0002{2}\u0002 is skipped; play continues with \u0002{3}\u0002.", game.Players[playerIndex].Name, UNOPlugin.ShowCard(card), game.Players[game.Turn].Name, game.Players[nextPlayer].Name);
+                    Bot.Say(game.Connection, game.Channel, "\u000312\u0002{2}\u0002 is skipped; play continues with \u0002{3}\u0002.", game.Players[playerIndex].Name, UnoPlugin.ShowCard(card), game.Players[game.Turn].Name, game.Players[nextPlayer].Name);
                     game.Advance();
                 } else {
-                    Bot.Say(game.Connection, game.Channel, "\u000312\u0002{0}\u0002 plays {1}\u000312 \u0002{2}\u0002 is skipped; play continues with \u0002{3}\u0002.", game.Players[playerIndex].Name, UNOPlugin.ShowCard(card), game.Players[game.Turn].Name, game.Players[nextPlayer].Name);
+                    Bot.Say(game.Connection, game.Channel, "\u000312\u0002{0}\u0002 plays {1}\u000312 \u0002{2}\u0002 is skipped; play continues with \u0002{3}\u0002.", game.Players[playerIndex].Name, UnoPlugin.ShowCard(card), game.Players[game.Turn].Name, game.Players[nextPlayer].Name);
                     game.Advance();
                 }
             } else {
                 // Number card
                 game.Advance();
                 if (goneOut) {
-                    Bot.Say(game.Connection, game.Channel, "\u000312\u0002{0}\u0002 plays {1}\u000312 and \u0002goes out\u0002!", game.Players[playerIndex].Name, UNOPlugin.ShowCard(card), game.Players[game.Turn].Name);
+                    Bot.Say(game.Connection, game.Channel, "\u000312\u0002{0}\u0002 plays {1}\u000312 and \u0002goes out\u0002!", game.Players[playerIndex].Name, UnoPlugin.ShowCard(card), game.Players[game.Turn].Name);
                     Thread.Sleep(600);
                     Bot.Say(game.Connection, game.Channel, "\u000312Play continues with \u0002{0}\u0002.", game.Players[game.Turn].Name);
                 } else {
-                    Bot.Say(game.Connection, game.Channel, "\u000312\u0002{0}\u0002 plays {1}\u000312 to \u0002{2}\u0002.", game.Players[playerIndex].Name, UNOPlugin.ShowCard(card), game.Players[game.Turn].Name);
+                    Bot.Say(game.Connection, game.Channel, "\u000312\u0002{0}\u0002 plays {1}\u000312 to \u0002{2}\u0002.", game.Players[playerIndex].Name, UnoPlugin.ShowCard(card), game.Players[game.Turn].Name);
                 }
             }
 
@@ -2459,10 +2440,10 @@ namespace UNO {
             }
         }
 
-        [Regex(@"^dr(?!\S)", null, CommandScope.Channel)]
-        public void RegexDraw(object sender, RegexEventArgs e) {
+        [Trigger(@"^dr(?!\S)", null, CommandScope.Channel)]
+        public void RegexDraw(object sender, TriggerEventArgs e) {
             Game game; int index;
-            if (!this.GameTurnCheck(e.Client, e.Channel, e.Sender.Nickname, true, out game, out index))
+            if (!this.GameTurnCheck(e.Client, e.Target.Target, e.Sender.Nickname, true, out game, out index))
                 return;
             lock (game.Lock) {
                 this.DrawCheck(game, index);
@@ -2472,7 +2453,7 @@ namespace UNO {
             null, CommandScope.Channel)]
         public void CommandDraw(object sender, CommandEventArgs e) {
             Game game; int index;
-            if (!this.GameTurnCheck(e.Client, e.Channel, e.Sender.Nickname, true, out game, out index))
+            if (!this.GameTurnCheck(e.Client, e.Target.Target, e.Sender.Nickname, true, out game, out index))
                 return;
             lock (game.Lock) {
                 this.DrawCheck(game, index);
@@ -2528,10 +2509,10 @@ namespace UNO {
             }
         }
 
-        [Regex(@"^pa(?!\S)", null, CommandScope.Channel)]
-        public void RegexPass(object sender, RegexEventArgs e) {
+        [Trigger(@"^pa(?!\S)", null, CommandScope.Channel)]
+        public void RegexPass(object sender, TriggerEventArgs e) {
             Game game; int index;
-            if (!this.GameTurnCheck(e.Client, e.Channel, e.Sender.Nickname, true, out game, out index))
+            if (!this.GameTurnCheck(e.Client, e.Target.Target, e.Sender.Nickname, true, out game, out index))
                 return;
             lock (game.Lock) {
                 this.PassCheck(game, index);
@@ -2541,7 +2522,7 @@ namespace UNO {
             null, CommandScope.Channel)]
         public void CommandPass(object sender, CommandEventArgs e) {
             Game game; int index;
-            if (!this.GameTurnCheck(e.Client, e.Channel, e.Sender.Nickname, true, out game, out index))
+            if (!this.GameTurnCheck(e.Client, e.Target.Target, e.Sender.Nickname, true, out game, out index))
                 return;
             lock (game.Lock) {
                 this.PassCheck(game, index);
@@ -2570,19 +2551,19 @@ namespace UNO {
             }
         }
 
-        [Regex(@"^co (.*)", null, CommandScope.Channel)]
-        public void RegexColour(object sender, RegexEventArgs e) {
+        [Trigger(@"^co (.*)", null, CommandScope.Channel)]
+        public void RegexColour(object sender, TriggerEventArgs e) {
             Game game; int index; byte colour;
-            UNOPlugin.TryParseColour(e.Match.Groups[1].Value, out colour);
-            if (!this.GameTurnCheck(e.Client, e.Channel, e.Sender.Nickname, colour != 128, out game, out index))
+            UnoPlugin.TryParseColour(e.Match.Groups[1].Value, out colour);
+            if (!this.GameTurnCheck(e.Client, e.Target.Target, e.Sender.Nickname, colour != 128, out game, out index))
                 return;
             lock (game.Lock) {
                 if (colour != 128)
                     this.ColourCheck(game, index, colour);
             }
         }
-        [Regex(@"^(?:(Red)|(Yellow)|(Green)|(Blue))(?:!|~|\.*)$", null, CommandScope.Channel)]
-        public void RegexColour2(object sender, RegexEventArgs e) {
+        [Trigger(@"^(?:(Red)|(Yellow)|(Green)|(Blue))(?:!|~|\.*)$", null, CommandScope.Channel)]
+        public void RegexColour2(object sender, TriggerEventArgs e) {
             Game game; int index; byte colour;
             if (e.Match.Groups[1].Success)
                 colour = (byte) Colour.Red;
@@ -2594,7 +2575,7 @@ namespace UNO {
                 colour = (byte) Colour.Blue;
             else
                 return;
-            if (!this.GameTurnCheck(e.Client, e.Channel, e.Sender.Nickname, false, out game, out index))
+            if (!this.GameTurnCheck(e.Client, e.Target.Target, e.Sender.Nickname, false, out game, out index))
                 return;
             lock (game.Lock) {
                 this.ColourCheck(game, index, colour, false);
@@ -2604,12 +2585,12 @@ namespace UNO {
             null, CommandScope.Channel)]
         public void CommandColour(object sender, CommandEventArgs e) {
             Game game; int index; byte colour;
-            UNOPlugin.TryParseColour(e.Parameters[0], out colour);
-            if (!this.GameTurnCheck(e.Client, e.Channel, e.Sender.Nickname, true, out game, out index))
+            UnoPlugin.TryParseColour(e.Parameters[0], out colour);
+            if (!this.GameTurnCheck(e.Client, e.Target.Target, e.Sender.Nickname, true, out game, out index))
                 return;
             lock (game.Lock) {
                 if (colour == 128)
-                    Bot.Say(e.Client, e.Sender.Nickname, "That isn't a valid colour.");
+                    e.Whisper("That isn't a valid colour.");
                 else
                     this.ColourCheck(game, index, colour);
             }
@@ -2660,7 +2641,7 @@ namespace UNO {
             null, CommandScope.Channel)]
         public void CommandChallenge(object sender, CommandEventArgs e) {
             Game game; int index;
-            if (!this.GameTurnCheck(e.Client, e.Channel, e.Sender.Nickname, true, out game, out index))
+            if (!this.GameTurnCheck(e.Client, e.Target.Target, e.Sender.Nickname, true, out game, out index))
                 return;
             lock (game.Lock) {
                 if (game.DrawFourChallenger == index) {
@@ -2682,7 +2663,7 @@ namespace UNO {
                 messageBuilder.AppendFormat("\u0002{0}\u0002 holds:", game.Players[game.DrawFourUser].Name);
                 foreach (byte card in game.Players[game.DrawFourUser].Hand) {
                     messageBuilder.Append(" ");
-                    messageBuilder.Append(UNOPlugin.ShowCard(card));
+                    messageBuilder.Append(UnoPlugin.ShowCard(card));
                 }
                 Bot.Say(game.Connection, game.Players[game.Turn].Name, messageBuilder.ToString());
             }
@@ -2732,9 +2713,9 @@ namespace UNO {
                     else if (!player.Hints) return;
 
                     if (game.HintParameters == null)
-                        game.Connection.Send("NOTICE " + game.Players[game.HintRecipient].Name + " :\u00032[\u000312?\u00032]\u000F " + UNOPlugin.Hints[game.Hint]);
+                        game.Connection.Send("NOTICE " + game.Players[game.HintRecipient].Name + " :\u00032[\u000312?\u00032]\u000F " + UnoPlugin.Hints[game.Hint]);
                     else
-                        game.Connection.Send("NOTICE " + game.Players[game.HintRecipient].Name + " :\u00032[\u000312?\u00032]\u000F " + string.Format(UNOPlugin.Hints[game.Hint], game.HintParameters));
+                        game.Connection.Send("NOTICE " + game.Players[game.HintRecipient].Name + " :\u00032[\u000312?\u00032]\u000F " + string.Format(UnoPlugin.Hints[game.Hint], game.HintParameters));
 
                     if (game.Hint <= 2) game.Hint = 0;
                     player.HintsSeen[game.Hint] = true;
@@ -3053,7 +3034,7 @@ namespace UNO {
             if (this.HandBonus) {
                 foreach (Player player2 in game.Players) {
                     if (player2 == player) continue;
-                    player.HandPoints += UNOPlugin.GetHandTotal(player2.Hand);
+                    player.HandPoints += UnoPlugin.GetHandTotal(player2.Hand);
                 }
             }
 
@@ -3101,7 +3082,7 @@ namespace UNO {
         public void CountHandPoints(Game game, int playerIndex) {
             foreach (Player player in game.Players) {
                 if (player == game.Players[playerIndex]) continue;
-                game.Players[playerIndex].HandPoints += UNOPlugin.GetHandTotal(player.Hand);
+                game.Players[playerIndex].HandPoints += UnoPlugin.GetHandTotal(player.Hand);
             }
         }
 
@@ -3172,9 +3153,9 @@ namespace UNO {
                 foreach (byte card in player.Hand) {
                     if (messageBuilder.Length != 0)
                         messageBuilder.Append(" ");
-                    messageBuilder.Append(UNOPlugin.ShowCard(card));
+                    messageBuilder.Append(UnoPlugin.ShowCard(card));
                 }
-                int handTotal = UNOPlugin.GetHandTotal(player.Hand);
+                int handTotal = UnoPlugin.GetHandTotal(player.Hand);
                 if (!this.HandBonus)
                     Bot.Say(game.Connection, game.Channel, "\u0002{0}\u0002 still held: {1}", player.Name, messageBuilder.ToString(), handTotal);
                 else if (handTotal == 1)
@@ -3267,7 +3248,7 @@ namespace UNO {
                     this.PlayerSettings.Add(player.Name, playerSettings = new PlayerSettings());
                 else if (!playerSettings.Hints || playerSettings.HintsSeen[12]) continue;
 
-                game.Connection.Send("NOTICE " + player.Name + " :\u00032[\u000312?\u00032]\u000F " + UNOPlugin.Hints[12]);
+                game.Connection.Send("NOTICE " + player.Name + " :\u00032[\u000312?\u00032]\u000F " + UnoPlugin.Hints[12]);
                 playerSettings.HintsSeen[12] = true;
             }
         }
@@ -3275,14 +3256,14 @@ namespace UNO {
         [Command(new string[] { "ainudge", "nudge", "uainudge", "unudge" }, 0, 0, "ainudge", "Reminds me to take my turn")]
         public void ComandAINudge(object sender, CommandEventArgs e) {
             Game game;
-            string key = e.Client.NetworkName + "/" + e.Channel;
+            string key = e.Client.NetworkName + "/" + e.Target;
             e.Cancel = false;
             if (!this.Games.TryGetValue(key, out game)) {
                 if (e.Parameters.Length == 0 || e.Parameters[0] != null)
-                    Bot.Say(e.Client, e.Sender.Nickname, "There's no game going on at the moment.");
+                    e.Whisper("There's no game going on at the moment.");
             } else if (game.IsOpen) {
                 if (e.Parameters.Length == 0 || e.Parameters[0] != null)
-                    Bot.Say(e.Client, e.Sender.Nickname, "The game hasn't started yet!");
+                    e.Whisper("The game hasn't started yet!");
             } else {
                 this.AICheck(game);
             }
@@ -3290,60 +3271,60 @@ namespace UNO {
 #endregion
 
 #region Reminder commands
-        [Regex(@"^tu(?!\S)", null, CommandScope.Channel)]
-        public void RegexTurn(object sender, RegexEventArgs e) {
-            this.CommandTurn(sender, new CommandEventArgs(e.Client, e.Channel, e.Sender,
+        [Trigger(@"^tu(?!\S)", null, CommandScope.Channel)]
+        public void RegexTurn(object sender, TriggerEventArgs e) {
+            this.CommandTurn(sender, new CommandEventArgs(e.Client, e.Target, e.Sender,
                 new string[] { e.Match.Length > 2 ? "" : null }));
         }
         [Command(new string[] { "turn", "uturn", "tu" }, 0, 0, "turn", "Reminds you whose turn it is.",
             null, CommandScope.Channel)]
         public void CommandTurn(object sender, CommandEventArgs e) {
             Game game; int index;
-            string key = e.Client.NetworkName + "/" + e.Channel;
+            string key = e.Client.NetworkName + "/" + e.Target;
             if (!this.Games.TryGetValue(key, out game)) {
                 if (e.Parameters.Length == 0 || e.Parameters[0] != null)
-                    Bot.Say(e.Client, e.Sender.Nickname, "There's no game going on at the moment.");
+                    e.Whisper("There's no game going on at the moment.");
             } else if (game.IsOpen) {
                 if (e.Parameters.Length == 0 || e.Parameters[0] != null)
-                    Bot.Say(e.Client, e.Sender.Nickname, "The game hasn't started yet!");
+                    e.Whisper("The game hasn't started yet!");
             } else {
                 lock (game.Lock) {
                     this.CheckTimerReset(game);
                     index = game.IndexOf(e.Sender.Nickname);
                     if (game.Turn == index)
-                        Bot.Say(e.Client, e.Channel, "It's your turn, \u0002{0}\u0002.", game.Players[game.Turn].Name);
+                        e.Reply("It's your turn, \u0002{0}\u0002.", game.Players[game.Turn].Name);
                     else
-                        Bot.Say(e.Client, e.Channel, "It is \u0002{0}\u0002's turn.", game.Players[game.Turn].Name);
+                        e.Reply("It is \u0002{0}\u0002's turn.", game.Players[game.Turn].Name);
                 }
             }
         }
 
-        [Regex(@"^cd(?!\S)", null, CommandScope.Channel)]
-        public void RegexUpCard(object sender, RegexEventArgs e) {
-            this.CommandUpCard(sender, new CommandEventArgs(e.Client, e.Channel, e.Sender,
+        [Trigger(@"^cd(?!\S)", null, CommandScope.Channel)]
+        public void RegexUpCard(object sender, TriggerEventArgs e) {
+            this.CommandUpCard(sender, new CommandEventArgs(e.Client, e.Target, e.Sender,
                 new string[] { e.Match.Length > 2 ? "" : null }));
         }
         [Command(new string[] { "card", "upcard", "ucard", "uupcard", "cd" }, 0, 0, "turn", "Shows you the current up-card; that is, the most recent discard.",
             null, CommandScope.Channel)]
         public void CommandUpCard(object sender, CommandEventArgs e) {
             Game game;
-            string key = e.Client.NetworkName + "/" + e.Channel;
+            string key = e.Client.NetworkName + "/" + e.Target;
             if (!this.Games.TryGetValue(key, out game)) {
                 if (e.Parameters.Length == 0 || e.Parameters[0] != null)
-                    Bot.Say(e.Client, e.Sender.Nickname, "There's no game going on at the moment.");
+                    e.Whisper("There's no game going on at the moment.");
             } else if (game.IsOpen) {
                 if (e.Parameters.Length == 0 || e.Parameters[0] != null)
-                    Bot.Say(e.Client, e.Sender.Nickname, "The game hasn't started yet!");
+                    e.Whisper("The game hasn't started yet!");
             } else {
                 lock (game.Lock) {
                     this.CheckTimerReset(game);
                     byte card = game.Discards[game.Discards.Count - 1];
-                    Bot.Say(e.Client, e.Channel, "The last discard was: {0}", UNOPlugin.ShowCard(card));
+                    e.Reply("The last discard was: {0}", UnoPlugin.ShowCard(card));
                     if ((card & 64) != 0) {
                         if ((game.WildColour & 64) != 0)
-                            Bot.Say(e.Client, e.Channel, "A colour hasn't been chosen yet.");
+                            e.Reply("A colour hasn't been chosen yet.");
                         else if ((game.WildColour & 128) != 0)
-                            Bot.Say(e.Client, e.Channel, "No colour was chosen. You may play any card.");
+                            e.Reply("No colour was chosen. You may play any card.");
                         else {
                             string colourMessage = "\u00035???";
                             if (game.WildColour == (byte) Colour.Red)
@@ -3354,57 +3335,57 @@ namespace UNO {
                                 colourMessage = "\u00039green";
                             else if (game.WildColour == (byte) Colour.Blue)
                                 colourMessage = "\u000312blue";
-                            Bot.Say(e.Client, e.Channel, "The colour chosen is {0}\u000F.", colourMessage);
+                            e.Reply("The colour chosen is {0}\u000F.", colourMessage);
                         }
                     }
                     if (game.DrawCount > 0)
-                        Bot.Say(e.Client, e.Channel, "The draw stack is at \u0002{0}\u0002.", game.DrawCount);
+                        e.Reply("The draw stack is at \u0002{0}\u0002.", game.DrawCount);
                 }
             }
         }
 
-        [Regex(@"^ca(?!\S)", null, CommandScope.Channel)]
-        public void RegexHand(object sender, RegexEventArgs e) {
-            this.CommandHand(sender, new CommandEventArgs(e.Client, e.Channel, e.Sender,
+        [Trigger(@"^ca(?!\S)", null, CommandScope.Channel)]
+        public void RegexHand(object sender, TriggerEventArgs e) {
+            this.CommandHand(sender, new CommandEventArgs(e.Client, e.Target, e.Sender,
                 new string[] { e.Match.Length > 2 ? "" : null }));
         }
         [Command(new string[] { "hand", "cards", "uhand", "ucards", "ca" }, 0, 0, "hand", "Shows you the cards in your hand",
             null, CommandScope.Channel)]
         public void CommandHand(object sender, CommandEventArgs e) {
             Game game; int index;
-            string key = e.Client.NetworkName + "/" + e.Channel;
+            string key = e.Client.NetworkName + "/" + e.Target;
             if (!this.Games.TryGetValue(key, out game)) {
                 if (e.Parameters.Length == 0 || e.Parameters[0] != null)
-                    Bot.Say(e.Client, e.Sender.Nickname, "There's no game going on at the moment.");
+                    e.Whisper("There's no game going on at the moment.");
             } else if (game.IsOpen) {
                 if (e.Parameters.Length == 0 || e.Parameters[0] != null)
-                    Bot.Say(e.Client, e.Sender.Nickname, "The game hasn't started yet!");
+                    e.Whisper("The game hasn't started yet!");
             } else {
                 lock (game.Lock) {
                     this.CheckTimerReset(game);
                     index = game.IndexOf(e.Sender.Nickname);
                     if (index == -1) {
                         if (e.Parameters.Length == 0 || e.Parameters[0] != null)
-                            Bot.Say(e.Client, e.Sender.Nickname, "You're not in this game, {0}.", e.Sender.Nickname);
+                            e.Whisper("You're not in this game, {0}.", e.Sender.Nickname);
                     } else
                         this.ShowHand(game, index);
                 }
             }
         }
 
-        [Regex(@"^ct(?!\S)", null, CommandScope.Channel)]
-        public void RegexCount(object sender, RegexEventArgs e) {
-            this.CommandCount(sender, new CommandEventArgs(e.Client, e.Channel, e.Sender,
+        [Trigger(@"^ct(?!\S)", null, CommandScope.Channel)]
+        public void RegexCount(object sender, TriggerEventArgs e) {
+            this.CommandCount(sender, new CommandEventArgs(e.Client, e.Target, e.Sender,
                 new string[] { e.Match.Length > 2 ? "" : null }));
         }
         [Command(new string[] { "count", "ucount", "ct" }, 0, 0, "count", "Shows you the number of cards in each player's hand",
             null, CommandScope.Channel)]
         public void CommandCount(object sender, CommandEventArgs e) {
             Game game;
-            string key = e.Client.NetworkName + "/" + e.Channel;
+            string key = e.Client.NetworkName + "/" + e.Target;
             if (!this.Games.TryGetValue(key, out game)) {
                 if (e.Parameters.Length == 0 || e.Parameters[0] != null)
-                    Bot.Say(e.Client, e.Sender.Nickname, "There's no game going on at the moment.");
+                    e.Whisper("There's no game going on at the moment.");
             //} else if (game.IsOpen) {
             //    if (e.Parameters.Length == 0 || e.Parameters[0] != null)
             //        Bot.Say(e.Connection, e.Sender.Nickname, "The game hasn't started yet!");
@@ -3433,33 +3414,33 @@ namespace UNO {
 
                         ++n;
                         if (n == 4) {
-                            Bot.Say(e.Client, e.Channel, messageBuilder.ToString());
+                            e.Reply(messageBuilder.ToString());
                             messageBuilder.Clear();
                             n = 0;
                         }
                     }
                     if (n != 0)
-                        Bot.Say(e.Client, e.Channel, messageBuilder.ToString());
+                        e.Reply(messageBuilder.ToString());
                 }
             }
         }
 
-        [Regex(@"^ti(?!\S)", null, CommandScope.Channel)]
-        public void RegexTime(object sender, RegexEventArgs e) {
-            this.CommandTime(sender, new CommandEventArgs(e.Client, e.Channel, e.Sender,
+        [Trigger(@"^ti(?!\S)", null, CommandScope.Channel)]
+        public void RegexTime(object sender, TriggerEventArgs e) {
+            this.CommandTime(sender, new CommandEventArgs(e.Client, e.Target, e.Sender,
                 new string[] { e.Match.Length > 2 ? "" : null }));
         }
         [Command(new string[] { "time", "utime", "ti" }, 0, 0, "time", "Tells you how long the game has lasted",
             null, CommandScope.Channel)]
         public void CommandTime(object sender, CommandEventArgs e) {
             Game game;
-            string key = e.Client.NetworkName + "/" + e.Channel;
+            string key = e.Client.NetworkName + "/" + e.Target;
             if (!this.Games.TryGetValue(key, out game)) {
                 if (e.Parameters.Length == 0 || e.Parameters[0] != null)
-                    Bot.Say(e.Client, e.Sender.Nickname, "There's no game going on at the moment.");
+                    e.Whisper("There's no game going on at the moment.");
             } else if (game.IsOpen) {
                 if (e.Parameters.Length == 0 || e.Parameters[0] != null)
-                    Bot.Say(e.Client, e.Sender.Nickname, "The game hasn't started yet!");
+                    e.Whisper("The game hasn't started yet!");
             } else {
                 lock (game.Lock) {
                     this.CheckTimerReset(game);
@@ -3484,7 +3465,7 @@ namespace UNO {
                     else
                         timeMessage = string.Format("{0}, {1}", minutes, seconds);
                     timeMessage = string.Format(timeMessage, time.Minutes, time.Seconds);
-                    Bot.Say(e.Client, e.Channel, "We are \u0002{0}\u0002 into this game.", timeMessage);
+                    e.Reply("We are \u0002{0}\u0002 into this game.", timeMessage);
                 }
             }
         }
@@ -3503,16 +3484,16 @@ namespace UNO {
         [Command(new string[] { "gimme", "ugimme" }, 0, 1, "ugimme [card]", "Gives you any card. If you're not a developer, you shouldn't be seeing this...")]
         public void CommandCheatGive(object sender, CommandEventArgs e) {
             Game game; int index;
-            string key = e.Client.NetworkName + "/" + e.Channel;
+            string key = e.Client.NetworkName + "/" + e.Target;
             if (!this.Games.TryGetValue(key, out game)) {
-                Bot.Say(e.Client, e.Sender.Nickname, "\u0002Thwarted!\u0002 There's no game going on at the moment.");
+                e.Whisper("\u0002Thwarted!\u0002 There's no game going on at the moment.");
             } else if (game.IsOpen) {
-                Bot.Say(e.Client, e.Sender.Nickname, "\u0002Thwarted!\u0002 The game hasn't started yet!");
+                e.Whisper("\u0002Thwarted!\u0002 The game hasn't started yet!");
             } else {
                 lock (game.Lock) {
                     index = game.IndexOf(e.Sender.Nickname);
                     if (index == -1) {
-                        Bot.Say(e.Client, e.Sender.Nickname, "\u0002Thwarted!\u0002 You're not in this game.", e.Sender.Nickname);
+                        e.Whisper("\u0002Thwarted!\u0002 You're not in this game.", e.Sender.Nickname);
                     } else if (e.Parameters.Length == 0)
                         game.Players[index].Hand.Add(65);
                     else
@@ -3524,16 +3505,16 @@ namespace UNO {
         [Command(new string[] { "clear", "uclear" }, 0, 0, "uclear", "Removes all of your cards. If you're not a developer, you shouldn't be seeing this...")]
         public void CommandCheatClear(object sender, CommandEventArgs e) {
             Game game; int index;
-            string key = e.Client.NetworkName + "/" + e.Channel;
+            string key = e.Client.NetworkName + "/" + e.Target;
             if (!this.Games.TryGetValue(key, out game)) {
-                Bot.Say(e.Client, e.Sender.Nickname, "\u0002Thwarted!\u0002 There's no game going on at the moment.");
+                e.Whisper("\u0002Thwarted!\u0002 There's no game going on at the moment.");
             } else if (game.IsOpen) {
-                Bot.Say(e.Client, e.Sender.Nickname, "\u0002Thwarted!\u0002 The game hasn't started yet!");
+                e.Whisper("\u0002Thwarted!\u0002 The game hasn't started yet!");
             } else {
                 lock (game.Lock) {
                     index = game.IndexOf(e.Sender.Nickname);
                     if (index == -1) {
-                        Bot.Say(e.Client, e.Sender.Nickname, "\u0002Thwarted!\u0002 You're not in this game.", e.Sender.Nickname);
+                        e.Whisper("\u0002Thwarted!\u0002 You're not in this game.", e.Sender.Nickname);
                     } else
                         game.Players[index].Hand.Clear();
                 }
@@ -3543,7 +3524,7 @@ namespace UNO {
 #endregion
 
 #region Statistics
-        public PlayerStats GetStats(Dictionary<string, PlayerStats> list, IRCClient connection, string channel, string nickname, bool add = false) {
+        public PlayerStats GetStats(Dictionary<string, PlayerStats> list, IrcClient connection, string channel, string nickname, bool add = false) {
             string name = nickname;  // TODO: Add some sort of authentication to this.
             PlayerStats stats;
 
@@ -3563,7 +3544,7 @@ namespace UNO {
 
             if (stats.CurrentStreak < 0) {
                 // A losing streak has been broken.
-                IRCChannel channel; IRCChannelUser user; string gender = "their";
+                IrcChannel channel; IrcChannelUser user; string gender = "their";
                 if (game.Connection.Channels.TryGetValue(game.Channel, out channel)) {
                     if (channel.Users.TryGetValue(player.Name, out user)) {
                         gender = user.User.GenderRefTheir.ToLowerInvariant();
@@ -3614,23 +3595,23 @@ namespace UNO {
                 target = e.Parameters[0];
 
             PlayerStats stats;
-            stats = this.GetStats(this.ScoreboardCurrent, e.Client, e.Channel, target, false);
+            stats = this.GetStats(this.ScoreboardCurrent, e.Client, e.Target.Target, target, false);
 
             if (stats == null)
-                Bot.Say(e.Client, e.Channel, "\u0002{0}\u0002 hasn't played a game yet.", target);
+                e.Reply("\u0002{0}\u0002 hasn't played a game yet.", target);
             else {
                 string rankString; bool tie;
                 this.GetRank(stats, this.ScoreboardCurrent, out rankString, out tie);
                 if (tie) {
                     if (stats.Points == 1)
-                        Bot.Say(e.Client, e.Channel, "\u0002{0}\u0002 is tying for \u0002{1}\u0002 place, with \u0002{2}\u0002 point.", target, rankString, stats.Points);
+                        e.Reply("\u0002{0}\u0002 is tying for \u0002{1}\u0002 place, with \u0002{2}\u0002 point.", target, rankString, stats.Points);
                     else
-                        Bot.Say(e.Client, e.Channel, "\u0002{0}\u0002 is tying for \u0002{1}\u0002 place, with \u0002{2}\u0002 points.", target, rankString, stats.Points);
+                        e.Reply("\u0002{0}\u0002 is tying for \u0002{1}\u0002 place, with \u0002{2}\u0002 points.", target, rankString, stats.Points);
                 } else {
                     if (stats.Points == 1)
-                        Bot.Say(e.Client, e.Channel, "\u0002{0}\u0002 is in \u0002{1}\u0002 place, with \u0002{2}\u0002 point.", target, rankString, stats.Points);
+                        e.Reply("\u0002{0}\u0002 is in \u0002{1}\u0002 place, with \u0002{2}\u0002 point.", target, rankString, stats.Points);
                     else
-                        Bot.Say(e.Client, e.Channel, "\u0002{0}\u0002 is in \u0002{1}\u0002 place, with \u0002{2}\u0002 points.", target, rankString, stats.Points);
+                        e.Reply("\u0002{0}\u0002 is in \u0002{1}\u0002 place, with \u0002{2}\u0002 points.", target, rankString, stats.Points);
                 }
             }
         }
@@ -3640,7 +3621,7 @@ namespace UNO {
             string target;
 
             if (this.ScoreboardLast == null || this.ScoreboardLast.Count == 0) {
-                Bot.Say(e.Client, e.Channel, "We haven't had a complete scoring period yet.");
+                e.Reply("We haven't had a complete scoring period yet.");
                 return;
             }
 
@@ -3650,23 +3631,23 @@ namespace UNO {
                 target = e.Parameters[0];
 
             PlayerStats stats;
-            stats = this.GetStats(this.ScoreboardLast, e.Client, e.Channel, target, false);
+            stats = this.GetStats(this.ScoreboardLast, e.Client, e.Target.Target, target, false);
 
             if (stats == null)
-                Bot.Say(e.Client, e.Channel, "\u0002{0}\u0002 didn't play last period.", target);
+                e.Reply("\u0002{0}\u0002 didn't play last period.", target);
             else {
                 string rankString; bool tie;
                 this.GetRank(stats, this.ScoreboardLast, out rankString, out tie);
                 if (tie) {
                     if (stats.Points == 1)
-                        Bot.Say(e.Client, e.Channel, "\u0002{0}\u0002 tied for \u0002{1}\u0002 place last period, with \u0002{2}\u0002 point.", target, rankString, stats.Points);
+                        e.Reply("\u0002{0}\u0002 tied for \u0002{1}\u0002 place last period, with \u0002{2}\u0002 point.", target, rankString, stats.Points);
                     else
-                        Bot.Say(e.Client, e.Channel, "\u0002{0}\u0002 tied for \u0002{1}\u0002 place last period, with \u0002{2}\u0002 points.", target, rankString, stats.Points);
+                        e.Reply("\u0002{0}\u0002 tied for \u0002{1}\u0002 place last period, with \u0002{2}\u0002 points.", target, rankString, stats.Points);
                 } else {
                     if (stats.Points == 1)
-                        Bot.Say(e.Client, e.Channel, "\u0002{0}\u0002 was ranked \u0002{1}\u0002 last period, with \u0002{2}\u0002 point.", target, rankString, stats.Points);
+                        e.Reply("\u0002{0}\u0002 was ranked \u0002{1}\u0002 last period, with \u0002{2}\u0002 point.", target, rankString, stats.Points);
                     else
-                        Bot.Say(e.Client, e.Channel, "\u0002{0}\u0002 was ranked \u0002{1}\u0002 last period, with \u0002{2}\u0002 points.", target, rankString, stats.Points);
+                        e.Reply("\u0002{0}\u0002 was ranked \u0002{1}\u0002 last period, with \u0002{2}\u0002 points.", target, rankString, stats.Points);
                 }
             }
         }
@@ -3681,7 +3662,7 @@ namespace UNO {
                         tie = true;
                 }
             }
-            rankString = UNOPlugin.RankString(rank);
+            rankString = UnoPlugin.RankString(rank);
             return rank;
         }
 
@@ -3750,9 +3731,9 @@ namespace UNO {
             }
             if (list.Count == 0) {
                 if (list == this.ScoreboardLast)
-                    Bot.Say(e.Client, e.Channel, "We haven't had a complete scoring period yet.");
+                    e.Reply("We haven't had a complete scoring period yet.");
                 else
-                    Bot.Say(e.Client, e.Channel, "No one has scored yet.");
+                    e.Reply("No one has scored yet.");
                 return;
             }
             if (sortKey >= LeaderboardMode.SortedByRecord) {
@@ -3760,7 +3741,7 @@ namespace UNO {
                 periodMessage = "";
             }
 
-            List<PlayerStats> top = UNOPlugin.SortLeaderboard(list.Values, sortKey);
+            List<PlayerStats> top = UnoPlugin.SortLeaderboard(list.Values, sortKey);
 
             StringBuilder messageBuilder = new StringBuilder();
 
@@ -3817,9 +3798,9 @@ namespace UNO {
                 else if (realRank == 2)
                     messageBuilder.Append("\u00039\u00023rd\u0002  ");
                 else if (realRank < 10)
-                    messageBuilder.AppendFormat("\u000310\u0002{0}\u0002  ", UNOPlugin.RankString(realRank + 1));
+                    messageBuilder.AppendFormat("\u000310\u0002{0}\u0002  ", UnoPlugin.RankString(realRank + 1));
                 else
-                    messageBuilder.AppendFormat("\u00036\u0002{0}\u0002  ", UNOPlugin.RankString(realRank + 1));
+                    messageBuilder.AppendFormat("\u00036\u0002{0}\u0002  ", UnoPlugin.RankString(realRank + 1));
 
                 if (e.Client.CaseMappingComparer.Equals(top[i].Name, e.Sender.Nickname))
                     messageBuilder.AppendFormat("\u000309{0}  \u000303{1:N0}", top[i].Name, value);
@@ -3827,7 +3808,7 @@ namespace UNO {
                     messageBuilder.AppendFormat("\u000312{0}  \u000302{1:N0}", top[i].Name, value);
             }
 
-            Bot.Say(e.Client, e.Channel, "\u000312\u0002{0} {1}\u0002{2}", title, periodMessage, messageBuilder.ToString());
+            e.Reply("\u000312\u0002{0} {1}\u0002{2}", title, periodMessage, messageBuilder.ToString());
 
             if (this.StatsPeriodEnd == default(DateTime) || list != this.ScoreboardCurrent) return;
             // Show the time remaining until the period ends.
@@ -3857,20 +3838,20 @@ namespace UNO {
                 }
                 timeMessage = string.Join(", ", timePart.Where(part => part != null));
             }
-            Bot.Say(e.Client, e.Channel, "This scoreboard resets in \u000312{0}\u000F.", timeMessage);
+            e.Reply("This scoreboard resets in \u000312{0}\u000F.", timeMessage);
         }
 
         public static List<PlayerStats> SortLeaderboard(IEnumerable<PlayerStats> list, LeaderboardMode sortKey) {
             List<PlayerStats> result = new List<PlayerStats>(list);
             if (sortKey <= LeaderboardMode.Unsorted) return result;
-            UNOPlugin.SortLeaderboardSub(result, sortKey, 0, result.Count - 1);
+            UnoPlugin.SortLeaderboardSub(result, sortKey, 0, result.Count - 1);
             return result;
         }
         private static void SortLeaderboardSub(List<PlayerStats> list, LeaderboardMode sortKey, int min, int max) {
             if (max <= min) return;
             PlayerStats swap;
             if (max - min == 1) {
-                if (UNOPlugin.Compare(list[min], list[max], sortKey) > 0) {
+                if (UnoPlugin.Compare(list[min], list[max], sortKey) > 0) {
                     swap = list[min];
                     list[min] = list[max];
                     list[max] = swap;
@@ -3882,7 +3863,7 @@ namespace UNO {
             int index = min;
 
             for (int i = min; i < max; ++i) {
-                if (UNOPlugin.Compare(list[i], pivot, sortKey) < 0) {
+                if (UnoPlugin.Compare(list[i], pivot, sortKey) < 0) {
                     if (i != index) {
                         // Swap this entry to the pointer position.
                         swap = list[index];
@@ -3899,13 +3880,13 @@ namespace UNO {
             list[max] = swap;
 
             // Recursively sort the list.
-            UNOPlugin.SortLeaderboardSub(list, sortKey, min, index - 1);
-            UNOPlugin.SortLeaderboardSub(list, sortKey, index + 1, max);
+            UnoPlugin.SortLeaderboardSub(list, sortKey, min, index - 1);
+            UnoPlugin.SortLeaderboardSub(list, sortKey, index + 1, max);
         }
         private static int Compare(PlayerStats value1, PlayerStats value2, LeaderboardMode sortKey) {
             switch (sortKey) {
                 case LeaderboardMode.SortedByName:
-                    return IRC.IRCStringComparer.ASCII.Compare(value1.Name, value2.Name);
+                    return IRC.IrcStringComparer.ASCII.Compare(value1.Name, value2.Name);
                 case LeaderboardMode.SortedByScore:
                     if (value1.Points > value2.Points) return -1;
                     if (value1.Points < value2.Points) return 1;
@@ -3977,22 +3958,22 @@ namespace UNO {
             }
 
             PlayerStats stats;
-            stats = this.GetStats(list, e.Client, e.Channel, target, false);
+            stats = this.GetStats(list, e.Client, e.Target.Target, target, false);
 
             if (stats == null) {
                 if (list == this.ScoreboardLast)
-                    Bot.Say(e.Client, e.Channel, "\u0002{0}\u0002 didn't play during the last period.", target);
+                    e.Reply("\u0002{0}\u0002 didn't play during the last period.", target);
                 else
-                    Bot.Say(e.Client, e.Channel, "\u0002{0}\u0002 hasn't played a game yet.", target);
+                    e.Reply("\u0002{0}\u0002 hasn't played a game yet.", target);
             } else {
                 // Display the stats.
                 string record;
                 if (stats.RecordPoints == 0L)
                     record = "none";
                 else
-                    record = string.Format("{0} \u00032(\u000312{1}\u00032)", stats.RecordPoints.ToString("N0"), UNOPlugin.GetShortTimeDifferenceString(stats.RecordTime));
+                    record = string.Format("{0} \u00032(\u000312{1}\u00032)", stats.RecordPoints.ToString("N0"), UnoPlugin.GetShortTimeDifferenceString(stats.RecordTime));
 
-                Bot.Say(e.Client, e.Channel, "\u000313\u0002{0}\u0002's stats{7} \u000315|\u00034 Total points\u000312 {1} \u000315|\u00034 Games entered\u000312 {2} \u000315|\u00034 Wins\u000312 {3} \u000315|\u00034 Losses\u000312 {4} \u000315|\u00034 Single-round record\u000312 {5} \u000315|\u00034 Challenge score\u000312 {6}",
+                e.Reply("\u000313\u0002{0}\u0002's stats{7} \u000315|\u00034 Total points\u000312 {1} \u000315|\u00034 Games entered\u000312 {2} \u000315|\u00034 Wins\u000312 {3} \u000315|\u00034 Losses\u000312 {4} \u000315|\u00034 Single-round record\u000312 {5} \u000315|\u00034 Challenge score\u000312 {6}",
                     stats.Name, stats.Points.ToString("N0"), stats.Plays.ToString("N0"), stats.Wins.ToString("N0"), stats.Losses.ToString("N0"), record, stats.ChallengePoints.ToString("N0"), periodMessage);
                 if (list == this.ScoreboardAllTime) {
                     string currentStreak; string bestStreak; string bestStreakLabel; string bestPeriodScore; string bestChallengeScore;
@@ -4019,7 +4000,7 @@ namespace UNO {
                             bestStreak = string.Format("{0} win", stats.BestStreak);
                         else
                             bestStreak = string.Format("{0} wins", stats.BestStreak);
-                        bestStreak = string.Format("{0} \u00032(\u000312{1}\u00032)", bestStreak, UNOPlugin.GetShortTimeDifferenceString(stats.BestStreakTime));
+                        bestStreak = string.Format("{0} \u00032(\u000312{1}\u00032)", bestStreak, UnoPlugin.GetShortTimeDifferenceString(stats.BestStreakTime));
 
                         if (stats.CurrentStreak > stats.BestStreak)
                             bestStreakLabel = "Former best";
@@ -4030,12 +4011,12 @@ namespace UNO {
                     if (stats.BestPeriodScore == 0L)
                         bestPeriodScore = "none";
                     else
-                        bestPeriodScore = string.Format("{0} \u00032(\u000312{1}\u00032)", stats.BestPeriodScore.ToString("N0"), UNOPlugin.GetShortTimeDifferenceString(stats.BestPeriodScoreTime));
+                        bestPeriodScore = string.Format("{0} \u00032(\u000312{1}\u00032)", stats.BestPeriodScore.ToString("N0"), UnoPlugin.GetShortTimeDifferenceString(stats.BestPeriodScoreTime));
 
                     if (stats.BestPeriodChallengeScore == 0L)
                         bestChallengeScore = "none";
                     else
-                        bestChallengeScore = string.Format("{0} \u00032(\u000312{1}\u00032)", stats.BestPeriodChallengeScore.ToString("N0"), UNOPlugin.GetShortTimeDifferenceString(stats.BestPeriodChallengeScoreTime));
+                        bestChallengeScore = string.Format("{0} \u00032(\u000312{1}\u00032)", stats.BestPeriodChallengeScore.ToString("N0"), UnoPlugin.GetShortTimeDifferenceString(stats.BestPeriodChallengeScoreTime));
 
                     for (int i = 0; i < 3; ++i) {
                         if (stats.Placed[i] == 1)
@@ -4044,7 +4025,7 @@ namespace UNO {
                             placed[i] = string.Format("{0} times", stats.Placed[i]);
                     }
 
-                    Bot.Say(e.Client, e.Channel, "\u000313\u0002{0}\u0002's stats all time \u000315|\u00034 Current streak\u000312 {1} \u000315|\u00034 {2}\u000312 {3} \u000315|\u00034 Best period score\u000312 {4} \u000315|\u00034 Best period challenge score\u000312 {5} \u000315| \u00034Placed \u000312\u00021st\u0002 {6} \u000315| \u00034\u00022nd\u0002 \u000312{7} \u000315| \u00039\u00023rd\u0002 \u000312{8}",
+                    e.Reply("\u000313\u0002{0}\u0002's stats all time \u000315|\u00034 Current streak\u000312 {1} \u000315|\u00034 {2}\u000312 {3} \u000315|\u00034 Best period score\u000312 {4} \u000315|\u00034 Best period challenge score\u000312 {5} \u000315| \u00034Placed \u000312\u00021st\u0002 {6} \u000315| \u00034\u00022nd\u0002 \u000312{7} \u000315| \u00039\u00023rd\u0002 \u000312{8}",
                         stats.Name, currentStreak, bestStreakLabel, bestStreak, bestPeriodScore, bestChallengeScore, placed[0], placed[1], placed[2]);
                 }
             }
@@ -4158,13 +4139,13 @@ namespace UNO {
             try {
                 using (StreamWriter writer = new StreamWriter(File.Open(this.Key + "-stats.json", FileMode.Create))) {
                     writer.Write("{\"version\":4,\"current\":[");
-                    UNOPlugin.WriteJSONList(writer, this.ScoreboardCurrent.Values, this.JSONLeaderboard);
+                    UnoPlugin.WriteJSONList(writer, this.ScoreboardCurrent.Values, this.JSONLeaderboard);
                     writer.Write("],\"last\":[");
-                    UNOPlugin.WriteJSONList(writer, this.ScoreboardLast.Values, this.JSONLeaderboard);
+                    UnoPlugin.WriteJSONList(writer, this.ScoreboardLast.Values, this.JSONLeaderboard);
                     writer.Write("],\"alltime\":[");
-                    UNOPlugin.WriteJSONList(writer, this.ScoreboardAllTime.Values, this.JSONLeaderboard);
+                    UnoPlugin.WriteJSONList(writer, this.ScoreboardAllTime.Values, this.JSONLeaderboard);
                     writer.Write("],\"periodend\":");
-                    UNOPlugin.WriteJSONString(writer, this.StatsPeriodEnd.ToUniversalTime().ToString("yyyy-mm-ddTHH:mm:ssZ"));
+                    UnoPlugin.WriteJSONString(writer, this.StatsPeriodEnd.ToUniversalTime().ToString("yyyy-mm-ddTHH:mm:ssZ"));
                     writer.Write("}");
                     writer.Close();
                 }
@@ -4174,14 +4155,14 @@ namespace UNO {
         }
         public static void WriteJSONList(StreamWriter writer, IEnumerable<PlayerStats> list, LeaderboardMode sortKey) {
             bool firstEntry = true;
-            List<PlayerStats> top = UNOPlugin.SortLeaderboard(list, sortKey);
+            List<PlayerStats> top = UnoPlugin.SortLeaderboard(list, sortKey);
             foreach (PlayerStats entry in top) {
                 if (firstEntry)
                     firstEntry = false;
                 else
                     writer.Write(",");
                 writer.Write("{\"name\":");
-                UNOPlugin.WriteJSONString(writer, entry.Name);
+                UnoPlugin.WriteJSONString(writer, entry.Name);
                 writer.Write(",\"points\":");
                 writer.Write(entry.Points);
                 writer.Write(",\"plays\":");

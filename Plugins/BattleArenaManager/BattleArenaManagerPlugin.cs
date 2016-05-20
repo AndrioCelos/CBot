@@ -18,11 +18,11 @@ using FileMode = System.IO.FileMode;
 using Timer = System.Timers.Timer;
 
 namespace BattleArenaManager {
-    [APIVersion(3, 2)]
+    [ApiVersion(3, 3)]
     public class BattleArenaManagerPlugin : Plugin {
         private GitHubClient client;
 
-        public IRCClient ArenaConnection;
+        public IrcClient ArenaConnection;
         public string ArenaChannel;
         public string ArenaNickname;
         public string ArenaDirectory;
@@ -49,11 +49,7 @@ namespace BattleArenaManager {
         public DateTime LastBattle { get; private set; }
         public bool BattleOff { get; private set; }
 
-        public override string Name {
-            get {
-                return "Battle Arena Manager";
-            }
-        }
+        public override string Name => "Battle Arena Manager";
 
         public override string[] Channels {
             get { return base.Channels; }
@@ -72,11 +68,11 @@ namespace BattleArenaManager {
                     fields = new string[] { null, fields[0] };
                 if (fields[1] == "*") continue;
                 foreach (ClientEntry clientEntry in Bot.Clients) {
-                    IRCClient client = clientEntry.Client;
+                    IrcClient client = clientEntry.Client;
                     if (client.Address == "!Console") continue;
                     if (fields[0] == null || fields[0] == "*" ||
-                        client.Address.Equals(fields[0], StringComparison.OrdinalIgnoreCase) ||
-                        (client.Extensions.NetworkName != null && client.Extensions.NetworkName.Equals(fields[0], StringComparison.OrdinalIgnoreCase))) {
+                        fields[0].Equals(clientEntry.Name, StringComparison.InvariantCultureIgnoreCase) ||
+                        fields[0].Equals(clientEntry.Address, StringComparison.InvariantCultureIgnoreCase)) {
                         if (client.Channels.Contains(fields[1])) {
                             this.ArenaConnection = client;
                             this.ArenaChannel = fields[1];
@@ -157,7 +153,7 @@ namespace BattleArenaManager {
         }
 
         public override bool OnChannelJoin(object sender, ChannelJoinEventArgs e) {
-            if (e.Sender.Nickname == ((IRCClient) sender).Me.Nickname) {
+            if (e.Sender.Nickname == ((IrcClient) sender).Me.Nickname) {
                 BattleOff = false;
                 if (this.ArenaConnection == null) this.CheckChannels();
             }
@@ -275,20 +271,20 @@ namespace BattleArenaManager {
         }
 
         public override bool OnChannelMessage(object sender, ChannelMessageEventArgs e) {
-            if (((IRCClient) sender).Address.EndsWith(".DCC") || (sender == this.ArenaConnection && ((IRCClient) sender).CaseMappingComparer.Equals(e.Channel, this.ArenaChannel) &&
-                                                                  ((IRCClient) sender).CaseMappingComparer.Equals(e.Sender.Nickname, this.ArenaNickname)))
-                this.RunArenaRegex((IRCClient) sender, e.Channel, e.Sender, e.Message);
+            if (((IrcClient) sender).Address.EndsWith(".DCC") || (sender == this.ArenaConnection && ((IrcClient) sender).CaseMappingComparer.Equals(e.Channel, this.ArenaChannel) &&
+                                                                  ((IrcClient) sender).CaseMappingComparer.Equals(e.Sender.Nickname, this.ArenaNickname)))
+                this.RunArenaRegex((IrcClient) sender, e.Channel, e.Sender, e.Message);
             return base.OnChannelMessage(sender, e);
         }
 
-        public bool RunArenaRegex(IRCClient connection, string channel, IRCUser sender, string message) {
+        public bool RunArenaRegex(IrcClient client, IrcMessageTarget channel, IrcUser sender, string message) {
             foreach (System.Reflection.MethodInfo method in this.GetType().GetMethods(System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.NonPublic)) {
                 foreach (Attribute attribute in method.GetCustomAttributes(typeof(ArenaRegexAttribute), false)) {
                     foreach (string expression in ((ArenaRegexAttribute) attribute).Expressions) {
                         Match match = Regex.Match(message, expression);
                         if (match.Success) {
                             try {
-                                method.Invoke(this, new object[] { this, new RegexEventArgs(connection, channel, sender, match) });
+                                method.Invoke(this, new object[] { this, new TriggerEventArgs(client, channel, sender, match) });
                             } catch (Exception ex) {
                                 this.LogError(method.Name, ex);
                             }
@@ -305,7 +301,7 @@ namespace BattleArenaManager {
         [ArenaRegex(@"^\x0314\x02The President of the Allied Forces\x02 has been \x02kidnapped by monsters\x02! Are you a bad enough dude to save the president\? \x034The rescue party will depart in(?: (\d+(?:\.\d+)?) ?min(?:ute)?\(?s?\)?)?(?: (\d+(?:\.\d+)?) ?sec(?:ond)?\(?s?\)?)?\. Type \x02!enter\x02 if you wish to join the battle!")]
         [ArenaRegex(@"^\x034An \x02evil treasure chest Mimic\x02 is ready to fight\S? The battle will begin in(?: (\d+(?:\.\d+)?) ?min(?:ute)?\(?s?\)?)?(?: (\d+(?:\.\d+)?) ?sec(?:ond)?\(?s?\)?)?\. Type \x02!enter\x02 if you wish to join the battle!")]
         [ArenaRegex(@"\x034A \x021 vs 1 AI Match\x02 is about to begin! The battle will begin in(?: (\d+(?:\.\d+)?) ?min(?:ute)?\(?s?\)?)?(?: (\d+(?:\.\d+)?) ?sec(?:ond)?\(?s?\)?)?\.")]
-        internal void OnBattleOpen(object sender, RegexEventArgs e) {
+        internal void OnBattleOpen(object sender, TriggerEventArgs e) {
             BattleOff = false;
             LastBattle = DateTime.Now;
             ConsoleUtils.WriteLine("[" + this.Key + "] A battle is starting.");
@@ -313,7 +309,7 @@ namespace BattleArenaManager {
 
         public override bool OnUserQuit(object sender, QuitEventArgs e) {
             if (Environment.OSVersion.Platform == PlatformID.Unix || Environment.OSVersion.Platform == PlatformID.MacOSX) {
-                if (this.ReviveBot && sender == this.ArenaConnection && ((IRCClient) sender).CaseMappingComparer.Equals(e.Sender.Nickname, this.ArenaNickname) &&
+                if (this.ReviveBot && sender == this.ArenaConnection && ((IrcClient) sender).CaseMappingComparer.Equals(e.Sender.Nickname, this.ArenaNickname) &&
                     e.Message.StartsWith("Ping timeout"))
                     // The bot has crashed. We'd better revive it.
                     Task.Run(new Action(this.ReviveArenaBot));
@@ -323,7 +319,7 @@ namespace BattleArenaManager {
 
         [ArenaRegex(new string[] { @"^\x034The Battle is Over!",
             @"^\x034There were no players to meet the monsters on the battlefield! \x02The battle is over\x02."})]
-        internal void OnBattleEnd(object sender, RegexEventArgs e) {
+        internal void OnBattleEnd(object sender, TriggerEventArgs e) {
             BattleOff = true;
             ConsoleUtils.WriteLine("[" + this.Key + "] A battle has ended.");
 

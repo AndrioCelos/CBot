@@ -11,7 +11,7 @@
             this.Highlight = HighlightOptions.Off;
             this.AllowDuelWithBot = true;
             this.Hints = true;
-            this.HintsSeen = new bool[UNOPlugin.Hints.Length];
+            this.HintsSeen = new bool[UnoPlugin.Hints.Length];
         }
 
         public bool IsDefault() {

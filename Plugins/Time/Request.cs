@@ -8,9 +8,9 @@ namespace Time {
         public DateTime RequestTime { get; }
         public Timer Timer { get; private set; }
 
-        public IRCClient Connection { get; }
+        public IrcClient Connection { get; }
         public string Channel { get; }
-        public IRCUser Sender { get; }
+        public IrcUser Sender { get; }
 
         public DateTime? Time { get; }
         public TimeSpan? Zone { get; }
@@ -19,7 +19,7 @@ namespace Time {
 
         public event ElapsedEventHandler Timeout;
 
-        public Request(IRCClient connection, string channel, IRCUser sender, DateTime? time, TimeSpan? zone, TimeSpan? targetZone, string zoneName) {
+        public Request(IrcClient connection, string channel, IrcUser sender, DateTime? time, TimeSpan? zone, TimeSpan? targetZone, string zoneName) {
             this.Connection = connection;
             this.Channel = channel;
             this.Sender = sender;

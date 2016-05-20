@@ -8,17 +8,11 @@ namespace CBot {
     /// Represents a user account.
     /// </summary>
 	public class Account {
-        /// <summary>
-        /// The user's password, or a hashed representation of it.
-        /// </summary>
+        /// <summary>The user's password, or a hashed representation of it.</summary>
 		public string Password;
-        /// <summary>
-        /// A HashType value specifying how the password is hashed.
-        /// </summary>
+        /// <summary>A HashType value specifying how the password is hashed.</summary>
         public HashType HashType;
-        /// <summary>
-        /// A list of permissions that the user is to be granted.
-        /// </summary>
+        /// <summary>A list of permissions that the user is to be granted.</summary>
 		public string[] Permissions;
 
         public void SetPassword(string password) {
@@ -54,6 +48,8 @@ namespace CBot {
                     if (password == null || this.Password == null) return false;
                     return SlowEquals(Encoding.UTF8.GetBytes(password), Encoding.UTF8.GetBytes(this.Password));
                 case HashType.SHA256Salted:
+                    if (password == null || this.Password == null) return false;
+
                     byte[] salt = new byte[32];
                     byte[] hash = new byte[32];
 
