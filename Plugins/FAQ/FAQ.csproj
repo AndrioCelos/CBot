@@ -55,7 +55,7 @@
   </ItemGroup>
   <ItemGroup>
     <Compile Include="Factoid.cs" />
-    <Compile Include="FAQPlugin.cs" />
+    <Compile Include="FaqPlugin.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
   </ItemGroup>
   <ItemGroup>

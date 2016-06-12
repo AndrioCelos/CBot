@@ -10,9 +10,9 @@ using IRC;
 
 namespace FAQ {
     [ApiVersion(3, 3)]
-    public class FAQPlugin : Plugin {
+    public class FaqPlugin : Plugin {
         public List<string> NoShortcutChannels;
-        public string LabelFormat = "\u00032[FAQ: {2}\u000312{3}\u00032]\u000F {4}";
+        public string LabelFormat = "{4}";
         public SortedDictionary<string, Factoid> Factoids;
         public SortedDictionary<string, string> Aliases;
         public SortedDictionary<string, string[]> Contexts;
@@ -20,7 +20,7 @@ namespace FAQ {
 
         public override string Name => "FAQ";
 
-        public FAQPlugin(string Key) {
+        public FaqPlugin(string Key) {
             this.NoShortcutChannels = new List<string>();
             this.Factoids = new SortedDictionary<string, Factoid>(StringComparer.InvariantCultureIgnoreCase);
             this.Contexts = new SortedDictionary<string, string[]>(StringComparer.InvariantCultureIgnoreCase);
@@ -58,6 +58,9 @@ namespace FAQ {
                         switch (section.ToUpper()) {
                             case "CONFIG":
                                 switch (field.ToUpper()) {
+                                    case "LABELFORMAT":
+                                        this.LabelFormat = value;
+                                        break;
                                     case "NOSHORTCUT":
                                         this.NoShortcutChannels = new List<string>(value.Split(new char[] { ',', ' ' }, StringSplitOptions.RemoveEmptyEntries));
                                         break;
@@ -75,6 +78,7 @@ namespace FAQ {
                 Directory.CreateDirectory("Config");
             StreamWriter writer = new StreamWriter(Path.Combine("Config", this.Key + ".ini"), false);
             writer.WriteLine("[Config]");
+            writer.WriteLine("LabelFormat={0}", string.Join(",", this.LabelFormat));
             writer.WriteLine("NoShortcut={0}", string.Join(",", this.NoShortcutChannels));
             writer.Close();
         }
@@ -237,7 +241,7 @@ namespace FAQ {
 
             foreach (KeyValuePair<string, Factoid> factoid in this.Factoids) {
                 if (factoid.Value.Expressions == null) continue;
-                bool match = false;
+                Match match = null;
                 bool specificChannel = false;  // If this is set to true, we'll show the factoid context name.
 
                 // Check the rate limit.
@@ -330,14 +334,17 @@ namespace FAQ {
                         if (action != "MSG") continue;
                         regex = expression;
                     }
-                    if (parameter == null || Regex.IsMatch(parameter, regex, RegexOptions.IgnoreCase | RegexOptions.ExplicitCapture)) {
-                        match = true;
-                        break;
+                    if (parameter == null) {
+                        Match m = Regex.Match(parameter, regex, RegexOptions.IgnoreCase | RegexOptions.ExplicitCapture);
+                        if (m.Success) {
+                            match = m;
+                            break;
+                        }
                     }
                 }
 
                 // Display the factoid.
-                if (match) {
+                if (match != null) {
                     Queue<DateTime> hitTimes;
                     if (factoid.Value.HitTimes.TryGetValue(userKey, out hitTimes)) {
                         if (hitTimes.Count >= factoid.Value.RateLimitCount)
@@ -348,6 +355,10 @@ namespace FAQ {
                         hitTimes.Enqueue(DateTime.Now);
                         factoid.Value.HitTimes.Add(userKey, hitTimes);
                     }
+
+                    string message = factoid.Value.Data;
+                    if (match.Groups["target"].Success) message = match.Groups["target"].Value + ": " + message;
+
                     this.DisplayFactoid(connection, factoid.Value.NoticeOnJoin && action == "JOIN" ? user.Nickname : channel, user.Nickname, fields[0], fields[1], factoid.Value.Data, factoid.Value.NoticeOnJoin && action == "JOIN", !factoid.Value.HideLabel, !specificChannel);
                 }
             }
@@ -360,7 +371,7 @@ namespace FAQ {
                 // Parse substitution codes.
                 int pos = 0; int pos2;
                 while (pos < line.Length) {
-                    pos2 = line.IndexOf('%', pos);
+                    pos2 = line.IndexOf('$', pos);
                     if (pos2 == -1) {
                         messageBuilder.Append(line.Substring(pos));
                         break;
@@ -375,11 +386,11 @@ namespace FAQ {
                     } else if (pos < line.Length - 2 && line.Substring(pos2 + 1, 2).Equals("me", StringComparison.InvariantCultureIgnoreCase)) {
                         messageBuilder.Append(connection.Me.Nickname);
                         pos = pos2 + 3;
-                    } else if (pos < line.Length - 1 && line[pos2 + 1] == '%') {
-                        messageBuilder.Append("%");
+                    } else if (pos < line.Length - 1 && line[pos2 + 1] == '$') {
+                        messageBuilder.Append('$');
                         pos = pos2 + 2;
                     } else {
-                        messageBuilder.Append("%");
+                        messageBuilder.Append('$');
                         ++pos;
                     }
                 }

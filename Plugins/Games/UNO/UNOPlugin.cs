@@ -1363,7 +1363,7 @@ namespace UNO {
 
         [Command(new string[] { "uhelp" }, 0, 1, "uhelp", "Gives information about the UNO game.")]
         public void CommandHelp(object sender, CommandEventArgs e) {
-            e.Whisper("For help with this UNO game, see " + (this.GuideURL ?? "http://questers-rest.andriocelos.ml/irc/uno/guide"));
+            e.Whisper("For help with this UNO game, see " + (this.GuideURL ?? "https://questers-rest.andriocelos.ml/irc/uno/guide"));
         }
 
 #region Preparation
@@ -2269,8 +2269,8 @@ namespace UNO {
                         message1 = "\u000312\u0002{0}\u0002 plays {1}\u000312";
                     } else {
                         game.WildColour = colour;
-                        if (goneOut) message1 = "\u000312\u0002{0}\u0002 plays {1}\u000312, chooses {2}";
-                        else message1 = "\u000312\u0002{0}\u0002 plays {1}\u000312 and chooses {2}";
+                        if (goneOut) message1 = "\u000312\u0002{0}\u0002 plays {1}\u000312, chooses {2}\u000312";
+                        else message1 = "\u000312\u0002{0}\u0002 plays {1}\u000312 and chooses {2}\u000312";
                     }
 
                     if (goneOut) message1 += " and \u0002goes out\u0002!";
@@ -2326,7 +2326,7 @@ namespace UNO {
                         Thread.Sleep(600);
                         Bot.Say(game.Connection, game.Channel, "\u000312\u0002{0}\u0002 draws {1} cards; play continues with \u0002{2}\u0002.", game.Players[game.Turn].Name, game.DrawCount, game.Players[game.NextPlayer()].Name);
                     } else {
-                        Bot.Say(game.Connection, game.Channel, "\u000312\u0002{0}\u0002 plays {1}\u000312 \u0002{2}\u0002 draws two cards; play continues with \u0002{3}\u0002.", game.Players[playerIndex].Name, UnoPlugin.ShowCard(card), game.Players[game.Turn].Name, game.Players[game.NextPlayer()].Name);
+                        Bot.Say(game.Connection, game.Channel, "\u000312\u0002{0}\u0002 plays {1}\u000312 \u0002{2}\u0002 draws {4} cards; play continues with \u0002{3}\u0002.", game.Players[playerIndex].Name, UnoPlugin.ShowCard(card), game.Players[game.Turn].Name, game.Players[game.NextPlayer()].Name, game.DrawCount);
                     }
                     Thread.Sleep(600);
                     this.DealCards(game, game.Turn, game.DrawCount, false);
@@ -2471,40 +2471,38 @@ namespace UNO {
                 this.IdleSkip(game, playerIndex);
                 if (game.Ended) return;
 
-                if (!game.Ended) {
-                    if (game.DrawCount > 0) {
-                        // The victim of a Wild Draw Four may enter the draw command if they don't want to challenge it.
-                        // We deal the four cards here.
-                        game.GameTimer.Stop();
-                        Bot.Say(game.Connection, game.Channel, "\u000312\u0002{0}\u0002 draws {1} cards.", game.Players[playerIndex].Name, game.DrawCount);
-                        Thread.Sleep(600);
-                        this.DealCards(game, playerIndex, game.DrawCount, false);
+                if (game.DrawCount > 0) {
+                    // The victim of a Wild Draw Four may enter the draw command if they don't want to challenge it.
+                    // We deal the four cards here.
+                    game.GameTimer.Stop();
+                    Bot.Say(game.Connection, game.Channel, "\u000312\u0002{0}\u0002 draws {1} cards.", game.Players[playerIndex].Name, game.DrawCount);
+                    Thread.Sleep(600);
+                    this.DealCards(game, playerIndex, game.DrawCount, false);
 
-                        game.DrawCount = 0;
-                        game.DrawFourChallenger = -1;
-                        game.DrawFourUser = -1;
-                        EndStack(game);
+                    game.DrawCount = 0;
+                    game.DrawFourChallenger = -1;
+                    game.DrawFourUser = -1;
+                    EndStack(game);
 
-                        if (!game.Ended) {
-                            game.Advance();
-                            Bot.Say(game.Connection, game.Channel, "\u000312Play continues with \u0002{0}\u0002.", game.Players[game.Turn].Name);
-                            this.ShowHand(game, game.Turn);
-                            this.StartGameTimer(game);
-                            this.AICheck(game);
-                        }
-                    } else {
-                        Bot.Say(game.Connection, game.Channel, "\u000312\u0002{0}\u0002 draws a card.", game.Players[playerIndex].Name);
-                        Thread.Sleep(600);
-                        game.DrawnCard = this.DealCards(game, playerIndex, 1, false)[0];
+                    if (!game.Ended) {
+                        game.Advance();
+                        Bot.Say(game.Connection, game.Channel, "\u000312Play continues with \u0002{0}\u0002.", game.Players[game.Turn].Name);
+                        this.ShowHand(game, game.Turn);
+                        this.StartGameTimer(game);
                         this.AICheck(game);
-
-                        PlayerSettings player;
-                        if (!this.PlayerSettings.TryGetValue(game.Players[playerIndex].Name, out player))
-                            this.PlayerSettings.Add(game.Players[playerIndex].Name, player = new PlayerSettings());
-                        else if (!player.Hints) return;
-                        if (!player.HintsSeen[5])
-                            this.ShowHint(game, game.Turn, 5, 15);
                     }
+                } else {
+                    Bot.Say(game.Connection, game.Channel, "\u000312\u0002{0}\u0002 draws a card.", game.Players[playerIndex].Name);
+                    Thread.Sleep(600);
+                    game.DrawnCard = this.DealCards(game, playerIndex, 1, false)[0];
+                    this.AICheck(game);
+
+                    PlayerSettings player;
+                    if (!this.PlayerSettings.TryGetValue(game.Players[playerIndex].Name, out player))
+                        this.PlayerSettings.Add(game.Players[playerIndex].Name, player = new PlayerSettings());
+                    else if (!player.Hints) return;
+                    if (!player.HintsSeen[5])
+                        this.ShowHint(game, game.Turn, 5, 15);
                 }
             }
         }
@@ -2681,27 +2679,28 @@ namespace UNO {
             if (success) {
                 Bot.Say(game.Connection, game.Channel, "\u000313The challenge succeeds.");
                 Thread.Sleep(600);
-                if (game.Players[game.DrawFourUser].Presence == PlayerPresence.Playing) {
-                    Bot.Say(game.Connection, game.Channel, "\u000312\u0002{0}\u0002 draws {2} cards; play continues with \u0002{1}\u0002.", game.Players[game.DrawFourUser].Name, game.Players[playerIndex].Name, game.DrawCount);
-                    this.DealCards(game, game.DrawFourUser, game.DrawCount, false);
-                    // That's right: you cop the entire accumulated penalty.
-                } else {
-                    Bot.Say(game.Connection, game.Channel, "\u000312Play continues with \u0002{0}\u0002.", game.Players[playerIndex].Name);
-                    this.DealCards(game, game.DrawFourUser, game.DrawCount, false, false);
-                }
+                if (game.Players[game.DrawFourUser].Presence == PlayerPresence.Playing)
+                    Bot.Say(game.Connection, game.Channel, "\u000312\u0002{0}\u0002 draws {1} cards.", game.Players[game.DrawFourUser].Name, game.DrawCount);
+
+                this.DealCards(game, game.DrawFourUser, game.DrawCount, false);
+                // That's right: you cop the entire accumulated penalty.
             } else {
                 Bot.Say(game.Connection, game.Channel, "\u000313The challenge fails.");
                 Thread.Sleep(600);
-                game.Advance();
-                Bot.Say(game.Connection, game.Channel, "\u000312\u0002{0}\u0002 draws {2} cards; play continues with \u0002{1}\u0002.", game.Players[playerIndex].Name, game.Players[game.Turn].Name, game.DrawCount + 2);
+                Bot.Say(game.Connection, game.Channel, "\u000312\u0002{0}\u0002 draws {1} cards.", game.Players[playerIndex].Name, game.DrawCount + 2);
                 this.DealCards(game, playerIndex, game.DrawCount + 2, false);
+                game.Advance();
             }
-            game.DrawCount = 0;
-            game.DrawFourChallenger = -1;
-            game.DrawFourUser = -1;
-            this.ShowHand(game, game.Turn);
-            this.StartGameTimer(game);
-            this.AICheck(game);
+            EndStack(game);
+            if (!game.Ended) {
+                Bot.Say(game.Connection, game.Channel, "\u000312Play continues with \u0002{0}\u0002.", game.Players[game.Turn].Name);
+                game.DrawCount = 0;
+                game.DrawFourChallenger = -1;
+                game.DrawFourUser = -1;
+                this.ShowHand(game, game.Turn);
+                this.StartGameTimer(game);
+                this.AICheck(game);
+            }
         }
 
         private void HintTimer_Elapsed(object sender, ElapsedEventArgs e) {
