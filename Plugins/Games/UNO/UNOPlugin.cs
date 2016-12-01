@@ -2259,7 +2259,7 @@ namespace UNO {
                         message3 = "\u000312Now waiting on \u0002{3}\u0002's response.";
                     } else {
                         // Deal the four-card punishment!
-                        message2 = "\u000312\u0002{3}\u0002 draws {4} cards. ";
+                        message2 = "\u000312\u0002{3}\u0002 draws {4} cards.";
                         draw = true;
                         message3 = "\u000312Play continues with \u0002{5}\u0002.";
                     }
@@ -2282,7 +2282,7 @@ namespace UNO {
 
                     Bot.Say(game.Connection, game.Channel, message1, game.Players[playerIndex].Name, ShowCard(card), colourMessage, game.Players[victim].Name, game.DrawCount, game.Players[game.Turn].Name);
                     Thread.Sleep(600);
-                    Bot.Say(game.Connection, game.Channel, message2 + message3, game.Players[playerIndex].Name, ShowCard(card), colourMessage, game.Players[victim].Name, game.DrawCount, game.Players[game.Turn].Name);
+                    Bot.Say(game.Connection, game.Channel, message2 + " " + message3, game.Players[playerIndex].Name, ShowCard(card), colourMessage, game.Players[victim].Name, game.DrawCount, game.Players[game.NextPlayer()].Name);
                     Thread.Sleep(600);
                     if (draw) {
                         DealCards(game, victim, game.DrawCount);
