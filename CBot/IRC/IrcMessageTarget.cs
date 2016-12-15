@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Text;
+using System.Threading.Tasks;
 
 namespace IRC {
     /// <summary>
@@ -48,16 +49,16 @@ namespace IRC {
         /// <param name="message">The message to send, which may include spaces.</param>
         public void Ctcp(string message) => this.Say(Colours.CTCP + message + Colours.CTCP);
         /// <summary>Sends a client-to-client protocol request to this entity.</summary>
-        /// <param name="command">The command to send.</param>
-        /// <param name="arg0">The parameter to the command.</param>
-        public void Ctcp(string command, string arg0) => this.Ctcp(command + " " + arg0);
+        /// <param name="request">The command to send.</param>
+        /// <param name="arg">The parameter to the command.</param>
+        public void Ctcp(string request, string arg) => this.Ctcp(arg != null ? request + " " + arg : request);
         /// <summary>Sends a client-to-client protocol request to this entity.</summary>
-        /// <param name="command">The command to send.</param>
+        /// <param name="request">The command to send.</param>
         /// <param name="args">The parameters to the command.</param>
-        public void Ctcp(string command, params string[] args) {
+        public void Ctcp(string request, params string[] args) {
             var builder = new StringBuilder();
             builder.Append(Colours.CTCP);
-            builder.Append(command);
+            builder.Append(request);
             foreach (var arg in args) {
                 builder.Append(' ');
                 builder.Append(arg);
@@ -66,9 +67,9 @@ namespace IRC {
             this.Say(builder.ToString());
         }
 
-        /// <summary>Sends a client-to-client protocol reply to this entity.</summary>
-        /// <param name="message">The message to send, which may include spaces.</param>
-        public void CtcpReply(string message) => this.Notice(Colours.CTCP + message + Colours.CTCP);
+		/// <summary>Sends a client-to-client protocol reply to this entity.</summary>
+		/// <param name="message">The message to send, which may include spaces.</param>
+		public void CtcpReply(string message) => this.Notice(Colours.CTCP + message + Colours.CTCP);
         /// <summary>Sends a client-to-client protocol reply to this entity.</summary>
         /// <param name="command">The command to acknowledge.</param>
         /// <param name="arg0">The parameter to the reply.</param>

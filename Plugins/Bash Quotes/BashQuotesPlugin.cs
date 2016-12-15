@@ -9,7 +9,7 @@ using System.Timers;
 using CBot;
 
 namespace BashQuotes {
-    [ApiVersion(3, 3)]
+    [ApiVersion(3, 5)]
     public class BashQuotesPlugin : Plugin {
         private System.Timers.Timer QuoteTimer;
         private Task getQuotesTask;

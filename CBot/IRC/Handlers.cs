@@ -3,6 +3,9 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Text.RegularExpressions;
+using System.Threading.Tasks;
+
+using static IRC.Replies;
 
 namespace IRC {
     /// <summary>
@@ -195,9 +198,7 @@ namespace IRC {
 
         [IrcMessageHandler(Replies.RPL_ENDOFWHOIS)]
         public static void HandleWhoisEnd(IrcClient client, IrcLine line) {  // 318
-            IrcUser user;
             client.accountKnown = false;
-            if (client.Users.TryGetValue(line.Parameters[1], out user)) user.GetAccountFinalize();
             client.OnWhoIsEnd(new WhoisEndEventArgs(line.Parameters[1], line.Parameters[2]));
         }
 
@@ -385,7 +386,7 @@ namespace IRC {
             client.OnNames(new ChannelNamesEventArgs(client.Channels.Get(line.Parameters[2]), line.Parameters[3]));
         }
 
-        [IrcMessageHandler(Replies.RPL_ENDOFNAMES)]
+        [IrcMessageHandler(RPL_ENDOFNAMES)]
         public static void HandleNamesEnd(IrcClient client, IrcLine line) {  // 366
             if (line.Parameters[1] != "*") {
                 IrcChannel channel; HashSet<string> pendingNames;
@@ -665,7 +666,7 @@ namespace IRC {
 
         [IrcMessageHandler("JOIN")]
         public static void HandleJoin(IrcClient client, IrcLine line) {
-            IrcUser user; IrcChannel channel;
+            IrcUser user; IrcChannel channel; Task namesTask;
             bool onChannel = client.Channels.TryGetValue(line.Parameters[0], out channel);
 
             if (line.Parameters.Length == 3) {
@@ -674,18 +675,25 @@ namespace IRC {
             } else
                 user = client.Users.Get(line.Prefix, onChannel);
 
-            if (!onChannel && client.CaseMappingComparer.Equals(user.Nickname, client.Me.Nickname)) {
+            if (!onChannel && user.IsMe) {
                 if (client.Users.Count == 0) client.Users.Add(client.Me);
 
                 channel = new IrcChannel(client, line.Parameters[0]);
                 channel.Users.Add(new IrcChannelUser(client, channel, user.Nickname) { JoinTime = DateTime.Now });
                 client.Channels.Add(channel);
+
+                var asyncRequest = new AsyncRequest.VoidAsyncRequest(client, null, RPL_ENDOFNAMES, new[] { null, line.Parameters[0] });
+                client.AddAsyncRequest(asyncRequest);
+                namesTask = asyncRequest.Task;
             } else {
-                if (channel == null) channel = new IrcChannel(client, line.Parameters[0]);
-                channel.Users.Add(new IrcChannelUser(client, channel, user.Nickname) { JoinTime = DateTime.Now });
-                user.Channels.Add(channel);
+                if (!user.Channels.Contains(line.Parameters[0])) {
+                    if (channel == null) channel = new IrcChannel(client, line.Parameters[0]);
+                    channel.Users.Add(new IrcChannelUser(client, channel, user.Nickname) { JoinTime = DateTime.Now });
+                    user.Channels.Add(channel);
+                }
+                namesTask = null;
             }
-            client.OnChannelJoin(new ChannelJoinEventArgs(user, channel));
+            client.OnChannelJoin(new ChannelJoinEventArgs(user, channel, namesTask));
         }
 
         [IrcMessageHandler("KICK")]
@@ -714,7 +722,7 @@ namespace IRC {
         [IrcMessageHandler("KILL")]
         public static void HandleKill(IrcClient client, IrcLine line) {
             var user = client.Users.Get(line.Prefix, false);
-            if (line.Parameters[0].Equals(client.Me.Nickname, StringComparison.OrdinalIgnoreCase)) {
+            if (client.CaseMappingComparer.Equals(line.Parameters[0], client.Me.Nickname)) {
                 client.OnKilled(new PrivateMessageEventArgs(user, client.Me.Nickname, line.Parameters[1]));
             }
         }

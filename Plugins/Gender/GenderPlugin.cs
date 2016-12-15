@@ -9,7 +9,7 @@ using CBot;
 using IRC;
 
 namespace Gender {
-    [ApiVersion(3, 3)]
+    [ApiVersion(3, 5)]
     public class GenderPlugin : Plugin {
         public Dictionary<string, IRC.Gender> Gender;
         public int CheckingConnection;
@@ -137,7 +137,7 @@ namespace Gender {
 
         [Command(new string[] { "setgender", "ircsetgender" }, 1, 2, "setgender [<hostmask>|=<nickname>] male|female|none|clear", "Sets a gender for the given user.",
             ".setgender")]
-        public void CommandSetGender(object sender, CommandEventArgs e) {
+        public async void CommandSetGender(object sender, CommandEventArgs e) {
             IRC.Gender gender = IRC.Gender.Unspecified;
             bool valid = false;
             string mask = null;
@@ -172,7 +172,7 @@ namespace Gender {
                     this.Gender[mask] = gender;
                 e.Sender.Gender = gender;
                 return;
-            } else if (Bot.UserHasPermission(e.Sender, this.Key + ".setgender.others")) {
+            } else if (await Bot.CheckPermissionAsync(e.Sender, this.Key + ".setgender.others")) {
                 if (e.Parameters.Length == 1 || e.Parameters[1].Equals("clear", StringComparison.InvariantCultureIgnoreCase) ||
                                                 e.Parameters[1].Equals("c", StringComparison.InvariantCultureIgnoreCase)) {
                     gender = IRC.Gender.Unspecified;

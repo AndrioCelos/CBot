@@ -9,7 +9,7 @@ using CBot;
 using IRC;
 
 namespace FAQ {
-    [ApiVersion(3, 3)]
+    [ApiVersion(3, 5)]
     public class FaqPlugin : Plugin {
         public List<string> NoShortcutChannels;
         public string LabelFormat = "{4}";
@@ -225,10 +225,10 @@ namespace FAQ {
                 if (fields2.Length == 1)
                     fields2 = new string[] { "*", fields2[0] };
 
-                if (fields2[0] == "*" || fields2[0].Equals(target.Client.Extensions.NetworkName, StringComparison.OrdinalIgnoreCase) || fields2[0].Equals(target.Client.Address, StringComparison.OrdinalIgnoreCase)) {
+                if (fields2[0] == "*" || fields2[0].Equals(target.Client.NetworkName, StringComparison.OrdinalIgnoreCase) || fields2[0].Equals(target.Client.Address, StringComparison.OrdinalIgnoreCase)) {
                     if (fields2[1] == "*" || ((fields2[1] == "#*" || fields2[1] == "*#") && target is IrcChannel)) {
                         return false;
-                    } else if (target.Client.CaseMappingComparer.Equals(fields2[1], target)) {
+                    } else if (target.Client.CaseMappingComparer.Equals(fields2[1], target.Target)) {
                         return false;
                     }
                 }
@@ -236,7 +236,7 @@ namespace FAQ {
             return true;
         }
 
-        public void ExpressionCheck(IrcClient connection, string channel, IrcUser user, string action, string parameter) {
+        public async void ExpressionCheckAsync(IrcClient connection, string channel, IrcUser user, string action, string parameter) {
             string userKey = connection.Extensions.NetworkName + "/" + user.Nickname;
 
             foreach (KeyValuePair<string, Factoid> factoid in this.Factoids) {
@@ -292,7 +292,8 @@ namespace FAQ {
                         fields3[0].Equals("KICK", StringComparison.InvariantCultureIgnoreCase) ||
                         fields3[0].Equals("QUIT", StringComparison.InvariantCultureIgnoreCase) ||
                         fields3[0].Equals("LEAVE", StringComparison.InvariantCultureIgnoreCase) ||
-                        fields3[0].Equals("NICK", StringComparison.InvariantCultureIgnoreCase)) {
+                        fields3[0].Equals("NICK", StringComparison.InvariantCultureIgnoreCase) ||
+                        fields3[0].Equals("INVITE", StringComparison.InvariantCultureIgnoreCase)) {
                         matchAction = fields3[0];
                         if (!matchAction.Equals(action, StringComparison.InvariantCultureIgnoreCase))
                             continue;
@@ -320,9 +321,9 @@ namespace FAQ {
                                     i = int.MaxValue;
                                     break;
                                 }
-                            } else {
+                            } else if (fields3[i] != "*") {
                                 permission = fields3[i];
-                                if (!Bot.UserHasPermission(user, permission)) {
+                                if (!await Bot.CheckPermissionAsync(user, permission)) {
                                     i = int.MaxValue;
                                     break;
                                 }
@@ -334,13 +335,14 @@ namespace FAQ {
                         if (action != "MSG") continue;
                         regex = expression;
                     }
-                    if (parameter == null) {
+                    if (parameter != null) {
                         Match m = Regex.Match(parameter, regex, RegexOptions.IgnoreCase | RegexOptions.ExplicitCapture);
                         if (m.Success) {
                             match = m;
                             break;
                         }
-                    }
+                    } else
+                        match = Regex.Match("", "");
                 }
 
                 // Display the factoid.
@@ -359,7 +361,7 @@ namespace FAQ {
                     string message = factoid.Value.Data;
                     if (match.Groups["target"].Success) message = match.Groups["target"].Value + ": " + message;
 
-                    this.DisplayFactoid(connection, factoid.Value.NoticeOnJoin && action == "JOIN" ? user.Nickname : channel, user.Nickname, fields[0], fields[1], factoid.Value.Data, factoid.Value.NoticeOnJoin && action == "JOIN", !factoid.Value.HideLabel, !specificChannel);
+                    this.DisplayFactoid(connection, factoid.Value.NoticeOnJoin && (action == "JOIN" || action == "INVITE") ? user.Nickname : channel, user.Nickname, fields[0], fields[1], factoid.Value.Data, factoid.Value.NoticeOnJoin && action == "JOIN", !factoid.Value.HideLabel, !specificChannel);
                 }
             }
         }
@@ -409,48 +411,53 @@ namespace FAQ {
 
         public override bool OnChannelMessage(object sender, ChannelMessageEventArgs e) {
             if (!IsActiveChannel(e.Channel)) return false;
-            this.ExpressionCheck((IrcClient) sender, e.Channel.Name, e.Sender, "MSG", e.Message);
-            return base.OnChannelMessage(sender, e);
+            this.ExpressionCheckAsync((IrcClient) sender, e.Channel.Name, e.Sender, "MSG", e.Message);
+            return false;
         }
 
         public override bool OnChannelAction(object sender, ChannelMessageEventArgs e) {
             if (!IsActiveChannel(e.Channel)) return false;
-            this.ExpressionCheck((IrcClient) sender, e.Channel.Name, e.Sender, "ACTION", e.Message);
-            return base.OnChannelAction(sender, e);
+            this.ExpressionCheckAsync((IrcClient) sender, e.Channel.Name, e.Sender, "ACTION", e.Message);
+            return false;
         }
 
         public override bool OnChannelJoin(object sender, ChannelJoinEventArgs e) {
             if (!IsActiveChannel(e.Channel)) return false;
-            this.ExpressionCheck((IrcClient) sender, e.Channel.Name, e.Sender, "JOIN", null);
-            return base.OnChannelJoin(sender, e);
+            this.ExpressionCheckAsync((IrcClient) sender, e.Channel.Name, e.Sender, "JOIN", null);
+            return false;
         }
 
         public override bool OnChannelPart(object sender, ChannelPartEventArgs e) {
             if (!IsActiveChannel(e.Channel)) return false;
-            this.ExpressionCheck((IrcClient) sender, e.Channel.Name, e.Sender, "PART", e.Message);
-            return base.OnChannelPart(sender, e);
+            this.ExpressionCheckAsync((IrcClient) sender, e.Channel.Name, e.Sender, "PART", e.Message);
+            return false;
         }
 
         public override bool OnChannelKick(object sender, ChannelKickEventArgs e) {
             if (!IsActiveChannel(e.Channel)) return false;
-            this.ExpressionCheck((IrcClient) sender, e.Channel.Name, e.Sender, "KICK", e.Target + ":" + e.Reason);
-            return base.OnChannelKick(sender, e);
+            this.ExpressionCheckAsync((IrcClient) sender, e.Channel.Name, e.Sender, "KICK", e.Target + ":" + e.Reason);
+            return false;
         }
 
         public override bool OnUserQuit(object sender, QuitEventArgs e) {
-            this.ExpressionCheck((IrcClient) sender, null, e.Sender, "QUIT", e.Message);
-            return base.OnUserQuit(sender, e);
+            this.ExpressionCheckAsync((IrcClient) sender, null, e.Sender, "QUIT", e.Message);
+            return false;
         }
 
         public override bool OnNicknameChange(object sender, NicknameChangeEventArgs e) {
-            this.ExpressionCheck((IrcClient) sender, null, e.Sender, "NICK", e.NewNickname);
-            return base.OnNicknameChange(sender, e);
+            this.ExpressionCheckAsync((IrcClient) sender, null, e.Sender, "NICK", e.NewNickname);
+            return false;
         }
 
         public override bool OnChannelLeave(object sender, ChannelPartEventArgs e) {
             if (!IsActiveChannel(e.Channel)) return false;
-            this.ExpressionCheck((IrcClient) sender, e.Channel.Name, e.Sender, "LEAVE", e.Message);
-            return base.OnChannelLeave(sender, e);
+            this.ExpressionCheckAsync((IrcClient) sender, e.Channel.Name, e.Sender, "LEAVE", e.Message);
+            return false;
+        }
+
+        public override bool OnInvite(object sender, InviteEventArgs e) {
+            this.ExpressionCheckAsync((IrcClient) sender, e.Channel, e.Sender, "INVITE", null);
+            return false;
         }
 
         public Factoid FindFactoid(IrcMessageTarget channel, IrcUser sender, ref string request) {
@@ -645,7 +652,7 @@ namespace FAQ {
         }
         [Command("faqlist", 0, 1, "faqlist [context]", "Displays a list of factoids.",
             ".list")]
-        public void CommandFactoidList(object sender, CommandEventArgs e) {
+        public async void CommandFactoidList(object sender, CommandEventArgs e) {
             if (e.Parameters.Length == 0) {
                 try {
                     string context = this.FindContext(e.Target);
@@ -663,11 +670,11 @@ namespace FAQ {
                     e.Whisper("That context isn't defined.");
                     return;
                 }
-                if (!Bot.UserHasPermission(e.Sender, this.Key + ".list." + e.Parameters[0].Replace('/', '.'))) {
+                if (!await Bot.CheckPermissionAsync(e.Sender, this.Key + ".list." + e.Parameters[0].Replace('/', '.'))) {
                     e.Whisper(string.Format("You don't have permission to list the context of \u0002{0}\u0002.", e.Parameters[0]));
                     return;
                 }
-                bool listHidden = Bot.UserHasPermission(e.Sender, this.Key + ".listhidden." + e.Parameters[0].Replace('/', '.'));
+                bool listHidden = await Bot.CheckPermissionAsync(e.Sender, this.Key + ".listhidden." + e.Parameters[0].Replace('/', '.'));
 
                 List<string> matches = new List<string>();
                 foreach (KeyValuePair<string, Factoid> factoid in this.Factoids) {
@@ -698,7 +705,7 @@ namespace FAQ {
             }));
         }
         [Command("faqadd", 2, 2, "faqadd <key> <data>", "Adds a factoid.")]
-        public void CommandFactoidAdd(object sender, CommandEventArgs e) {
+        public async void CommandFactoidAdd(object sender, CommandEventArgs e) {
             bool dotTarget = false; string userKey = null; string key;
             if (e.Parameters[0] == ".") {
                 dotTarget = true;
@@ -725,7 +732,7 @@ namespace FAQ {
                 }
             }
 
-            if (!Bot.UserHasPermission(e.Sender, this.Key + ".add." + fields[0].Replace('/', '.'))) {
+            if (!await Bot.CheckPermissionAsync(e.Sender, this.Key + ".add." + fields[0].Replace('/', '.'))) {
                 e.Whisper(string.Format("You don't have permission to add to the context of \u0002{0}\u0002.", fields[0]));
                 return;
             }
@@ -755,7 +762,7 @@ namespace FAQ {
             }));
         }
         [Command("faqaliasadd", 2, 2, "faqaliasadd <key> <target>", "Adds a factoid.")]
-        public void CommandAliasAdd(object sender, CommandEventArgs e) {
+        public async void CommandAliasAdd(object sender, CommandEventArgs e) {
             bool dotTarget = false; string userKey = null; string key; string target;
             if (e.Parameters[0] == ".") {
                 if (e.Parameters[1] == ".") {
@@ -797,7 +804,7 @@ namespace FAQ {
                 }
             }
 
-            if (!Bot.UserHasPermission(e.Sender, this.Key + ".add." + fields[0].Replace('/', '.'))) {
+            if (!await Bot.CheckPermissionAsync(e.Sender, this.Key + ".add." + fields[0].Replace('/', '.'))) {
                 e.Whisper(string.Format("You don't have permission to add to the context of \u0002{0}\u0002.", fields[0]));
                 return;
             }
@@ -851,7 +858,7 @@ namespace FAQ {
         }
         [Command("faqaliaslist", 0, 1, "faqaliaslist [key|context]", "List all aliases for a specified factoid, or in a specified context.",
             ".list")]
-        public void CommandAliasList(object sender, CommandEventArgs e) {
+        public async void CommandAliasList(object sender, CommandEventArgs e) {
             string target;  string displayKey; bool found; List<string> matches;
             if (e.Parameters.Length == 1) {
                 target = e.Parameters[0];
@@ -924,11 +931,11 @@ namespace FAQ {
                 }
             }
 
-            if (!Bot.UserHasPermission(e.Sender, this.Key + ".list." + target.Replace('/', '.'))) {
+            if (!await Bot.CheckPermissionAsync(e.Sender, this.Key + ".list." + target.Replace('/', '.'))) {
                 e.Whisper(string.Format("You don't have permission to list the context of \u0002{0}\u0002.", target));
                 return;
             }
-            bool listHidden = Bot.UserHasPermission(e.Sender, this.Key + ".listhidden." + target.Replace('/', '.'));
+            bool listHidden = await Bot.CheckPermissionAsync(e.Sender, this.Key + ".listhidden." + target.Replace('/', '.'));
 
             matches = new List<string>();
             foreach (KeyValuePair<string, string> alias in this.Aliases) {
@@ -962,7 +969,7 @@ namespace FAQ {
             }));
         }
         [Command("faqdelete", 1, 3, "faqdelete <key> [target][@|@@]", "Displays the named factoid.")]
-        public void CommandFactoidDelete(object sender, CommandEventArgs e) {
+        public async void CommandFactoidDelete(object sender, CommandEventArgs e) {
             string target = e.Parameters[0];
 
             Factoid factoid;
@@ -981,7 +988,7 @@ namespace FAQ {
                 return;
             }
             string[] fields = this.GetContextAndKey(target);
-            if (!Bot.UserHasPermission(e.Sender, this.Key + ".delete." + fields[0].Replace('/', '.'))) {
+            if (!await Bot.CheckPermissionAsync(e.Sender, this.Key + ".delete." + fields[0].Replace('/', '.'))) {
                 e.Whisper(string.Format("You don't have permission to delete from the context of \u0002{0}\u0002.", fields[0]));
                 return;
             }
@@ -1044,7 +1051,7 @@ namespace FAQ {
 
         [Command("faqset", 2, 3, "faqset <key> [setting] [value]", "Changes settings for a factoid.",
             ".faqset")]
-        public void CommandFactoidSet(object sender, CommandEventArgs e) {
+        public async void CommandFactoidSet(object sender, CommandEventArgs e) {
             string target = e.Parameters[0];
 
             Factoid factoid;
@@ -1063,7 +1070,7 @@ namespace FAQ {
                 return;
             }
             string[] fields = this.GetContextAndKey(target);
-            if (!Bot.UserHasPermission(e.Sender, this.Key + ".set." + fields[0].Replace('/', '.'))) {
+            if (!await Bot.CheckPermissionAsync(e.Sender, this.Key + ".set." + fields[0].Replace('/', '.'))) {
                 e.Whisper(string.Format("You don't have permission to modify factoids in the context of \u0002{0}\u0002.", fields[0]));
                 return;
             }
@@ -1252,7 +1259,7 @@ namespace FAQ {
                 e.Whisper(string.Format("\u0002{0}\u0002 hasn't been defined.", e.Parameters[0]));
         }
 
-        [Trigger(@"^\?=\s+(\S+)(?:\s+(\+?\d+)(?:\s+(.*))?)?")]
+        [Trigger(@"^\?=\s+(\S+)(?:\s+(\+?\d+))?(?:\s+(.*))?", ".edit")]
         public void RegexFactoidEdit(object sender, TriggerEventArgs e) {
             if (!this.ShortcutCheck(e.Target)) return;
             if (e.Match.Groups[2].Success) {
@@ -1265,6 +1272,10 @@ namespace FAQ {
                         e.Match.Groups[1].Value, e.Match.Groups[2].Value
                     }));
                 }
+            } else if (e.Match.Groups[3].Success) {
+                this.CommandFactoidEdit(sender, new CommandEventArgs(e.Client, e.Target, e.Sender, new string[] {
+                    e.Match.Groups[1].Value, e.Match.Groups[3].Value
+                }));
             } else {
                 this.CommandFactoidEdit(sender, new CommandEventArgs(e.Client, e.Target, e.Sender, new string[] {
                     e.Match.Groups[1].Value
@@ -1276,7 +1287,7 @@ namespace FAQ {
             "Specify the line number to replace it, or +number to insert a line.\r\n" +
             "You can omit the replacement line to delete a line.",
             ".edit")]
-        public void CommandFactoidEdit(object sender, CommandEventArgs e) {
+        public async void CommandFactoidEdit(object sender, CommandEventArgs e) {
             string target;
             Factoid factoid;
 
@@ -1300,7 +1311,7 @@ namespace FAQ {
 
             string[] lines = factoid.Data.Split(new string[] { "\r\n", "\n", "\r" }, StringSplitOptions.RemoveEmptyEntries);
             string[] fields = this.GetContextAndKey(target);
-            if (!Bot.UserHasPermission(e.Sender, this.Key + ".edit." + fields[0].Replace('/', '.'))) {
+            if (!await Bot.CheckPermissionAsync(e.Sender, this.Key + ".edit." + fields[0].Replace('/', '.'))) {
                 e.Whisper(string.Format("You don't have permission to edit factoids in the context of \u0002{0}\u0002.", fields[0]));
                 return;
             }
@@ -1314,12 +1325,14 @@ namespace FAQ {
             if (e.Parameters.Length == 1) {
                 e.Whisper(displayKey + ":");
                 for (int i = 0; i < lines.Length; ++i) {
-                    e.Whisper("\u000308" + i + "\u00037:\u000F " + lines[i]);
+                    e.Whisper("\u000308" + (i + 1) + "\u00037:\u000F " + lines[i]);
                     System.Threading.Thread.Sleep(600);
                 }
             } else if (e.Parameters.Length == 2) {
                 int line;
                 if (int.TryParse(e.Parameters[1], out line)) {
+                    --line;
+                    // Delete the line specified.
                     if (line >= 0 && line < lines.Length) {
                         factoid.Data = null;
                         for (int i = 0; i < lines.Length; ++i) {
@@ -1328,12 +1341,19 @@ namespace FAQ {
                                 factoid.Data += lines[i];
                             }
                         }
-                        e.Whisper(string.Format("Removed line {1} from {0}.", displayKey, e.Parameters[1]));
+                        e.Whisper(string.Format("Removed line {1} from {0}.", displayKey, line + 1));
                     } else {
-                        e.Whisper(string.Format("{0} has no line number {1}.", displayKey, e.Parameters[1]));
+                        e.Whisper(string.Format("{0} has no line number {1}.", displayKey, line + 1));
                     }
-                } else
-                    e.Whisper(string.Format("That's not a valid integer.", e.Parameters[1]));
+                } else {
+                    // If the line number is omitted and the factoid content is only one line, we will replace it.
+                    if (lines.Length == 1) {
+                        factoid.Data = e.Parameters[1];
+                        e.Whisper(string.Format("Changed the content of {0}.", displayKey, e.Parameters[1]));
+                    } else {
+                        e.Fail(string.Format("Because {0} has more than one line, you must specify a line number to affect after the factoid key.", displayKey));
+                    }
+                }
             } else {
                 string lineString = e.Parameters[1];
                 bool insert; int line;
@@ -1372,7 +1392,7 @@ namespace FAQ {
                                     factoid.Data += lines[i];
                                 }
                             }
-                            e.Whisper(string.Format("Changed line {1} to {0}.", displayKey, e.Parameters[1]));
+                            e.Whisper(string.Format("Changed line {1} in {0}.", displayKey, e.Parameters[1]));
                         }
                     } else {
                         e.Whisper(string.Format("{0} doesn't have a line number {1}.", displayKey, e.Parameters[1]));
@@ -1389,9 +1409,9 @@ namespace FAQ {
                 e.Match.Groups[1].Value, e.Match.Groups[2].Value
             }));
         }
-        [Command("faqregexadd", 2, 2, "faqregexadd <key> [[MSG:|ACTION:|JOIN:|PART:|QUIT:|KICK:|LEAVE:|NICK:]<user mask>:<channel mask>:<permission>]<regex>", "Assigns a regular expression to a FAQ entry. When someone sends a message to a channel within the FAQ's context that matches the regex, the FAQ data will be displayed in the channel.",
+        [Command("faqregexadd", 2, 2, "faqregexadd <key> [[MSG:|ACTION:|JOIN:|PART:|QUIT:|KICK:|LEAVE:|NICK:|INVITE:]<user mask>:<channel mask>:<permission>]<regex>", "Assigns a regular expression to a FAQ entry. When someone sends a message to a channel within the FAQ's context that matches the regex, the FAQ data will be displayed in the channel.",
             ".regex")]
-        public void CommandFactoidRegexAdd(object sender, CommandEventArgs e) {
+        public async void CommandFactoidRegexAdd(object sender, CommandEventArgs e) {
             string target;
             Factoid factoid;
 
@@ -1414,7 +1434,7 @@ namespace FAQ {
             }
 
             string[] fields = this.GetContextAndKey(target);
-            if (!Bot.UserHasPermission(e.Sender, this.Key + ".regex." + fields[0].Replace('/', '.'))) {
+            if (!await Bot.CheckPermissionAsync(e.Sender, this.Key + ".regex." + fields[0].Replace('/', '.'))) {
                 e.Whisper(string.Format("You don't have permission to assign expressions to factoids in the context of \u0002{0}\u0002.", fields[0]));
                 return;
             }
@@ -1438,7 +1458,7 @@ namespace FAQ {
         }
         [Command("faqregexlist", 2, 2, "faqregexlist <key> [page]", "Assigns a regular expression to a FAQ entry. When someone sends a message to a channel within the FAQ's context that matches the regex, the FAQ data will be displayed in the channel.",
             ".regex")]
-        public void CommandFactoidRegexList(object sender, CommandEventArgs e) {
+        public async void CommandFactoidRegexList(object sender, CommandEventArgs e) {
             string target;
             Factoid factoid;
 
@@ -1461,7 +1481,7 @@ namespace FAQ {
             }
 
             string[] fields = this.GetContextAndKey(target);
-            if (!Bot.UserHasPermission(e.Sender, this.Key + ".regex." + fields[0].Replace('/', '.'))) {
+            if (!await Bot.CheckPermissionAsync(e.Sender, this.Key + ".regex." + fields[0].Replace('/', '.'))) {
                 e.Whisper(string.Format("You don't have permission to assign expressions to factoids in the context of \u0002{0}\u0002.", fields[0]));
                 return;
             }
@@ -1512,7 +1532,7 @@ namespace FAQ {
         }
         [Command("faqregexedit", 1, 3, "faqregexedit <key> [number] [replacement]", "Allows you to edit a factoid's assigned regular expressions. With only a key, shows you the numbered expressions.",
             ".regex")]
-        public void CommandFactoidRegexEdit(object sender, CommandEventArgs e) {
+        public async void CommandFactoidRegexEdit(object sender, CommandEventArgs e) {
             string target;
             Factoid factoid;
 
@@ -1540,7 +1560,7 @@ namespace FAQ {
             }
 
             string[] fields = this.GetContextAndKey(target);
-            if (!Bot.UserHasPermission(e.Sender, this.Key + ".regex." + fields[0].Replace('/', '.'))) {
+            if (!await Bot.CheckPermissionAsync(e.Sender, this.Key + ".regex." + fields[0].Replace('/', '.'))) {
                 e.Whisper(string.Format("You don't have permission to assign expressions to factoids in the context of \u0002{0}\u0002.", fields[0]));
                 return;
             }
@@ -1590,7 +1610,7 @@ namespace FAQ {
         }
         [Command("faqregexdelete", 2, 2, "faqregexdelete <key> <number>", "Removes a regular expression from a factoid",
             ".regex")]
-        public void CommandFactoidRegexDelete(object sender, CommandEventArgs e) {
+        public async void CommandFactoidRegexDelete(object sender, CommandEventArgs e) {
             string target;
             Factoid factoid;
 
@@ -1618,7 +1638,7 @@ namespace FAQ {
             }
 
             string[] fields = this.GetContextAndKey(target);
-            if (!Bot.UserHasPermission(e.Sender, this.Key + ".regex." + fields[0].Replace('/', '.'))) {
+            if (!await Bot.CheckPermissionAsync(e.Sender, this.Key + ".regex." + fields[0].Replace('/', '.'))) {
                 e.Whisper(string.Format("You don't have permission to assign expressions to factoids in the context of \u0002{0}\u0002.", fields[0]));
                 return;
             }

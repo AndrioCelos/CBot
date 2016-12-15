@@ -4,6 +4,7 @@ using System.Collections.ObjectModel;
 using System.Net;
 using System.Net.Security;
 using System.Security.Cryptography.X509Certificates;
+using System.Threading.Tasks;
 
 namespace IRC {
     public class AwayEventArgs : EventArgs {
@@ -37,10 +38,17 @@ namespace IRC {
     public class ChannelJoinEventArgs : EventArgs {
         public IrcUser Sender { get; set; }
         public IrcChannel Channel { get; set; }
+        /// <summary>If the local user joined a channel, returns a <see cref="Task"/> that will complete when the NAMES list is received.</summary>
+        public Task NamesTask { get; }
 
         public ChannelJoinEventArgs(IrcUser sender, IrcChannel channel) {
             this.Sender = sender;
             this.Channel = channel;
+        }
+        public ChannelJoinEventArgs(IrcUser sender, IrcChannel channel, Task namesTask) {
+            this.Sender = sender;
+            this.Channel = channel;
+            this.NamesTask = namesTask;
         }
     }
 
@@ -314,9 +322,11 @@ namespace IRC {
 
     public class IrcLineEventArgs : RawLineEventArgs {
         public IrcLine Line { get; }
+        public bool MatchesAsyncRequests { get; }
 
-        public IrcLineEventArgs(string data, IrcLine line) : base(data) {
+        public IrcLineEventArgs(string data, IrcLine line, bool matchesAsyncRequests) : base(data) {
             this.Line = line;
+            this.MatchesAsyncRequests = matchesAsyncRequests;
         }
     }
 

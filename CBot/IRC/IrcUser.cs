@@ -1,14 +1,19 @@
 ﻿using System;
+using System.Collections.ObjectModel;
 using System.Threading;
 using System.Threading.Tasks;
+
+using static IRC.Replies;
 
 namespace IRC {
     /// <summary>
     /// Represents a user on IRC.
     /// </summary>
     public class IrcUser : IrcMessageTarget {
+        /// <summary>Returns the <see cref="IrcClient"/> that this user belongs to.</summary>
         public override IrcClient Client { get; }
 
+        /// <summary>Returns the user's nickname.</summary>
         public override string Target => this.Nickname;
 
         /// <summary>The user's nickname.</summary>
@@ -35,6 +40,8 @@ namespace IRC {
         /// <summary>True if the user is a server oper.</summary>
         public bool Oper { get; protected internal set; }
 
+        /// <summary>Returns true if this user is the local user for its <see cref="IrcClient"/> object.</summary>
+        public bool IsMe => (this.Client != null && this == this.Client.Me);
         /// <summary>Returns true if this user is in our watch list or in a common channel with us.</summary>
         public bool IsSeen => (this.Watched || this.Channels.Count != 0);
 
@@ -116,14 +123,11 @@ namespace IRC {
             this.id = Interlocked.Increment(ref nextId);
         }
 
-        internal protected void SetMask(string hostmask) {
+        protected internal void SetMask(string hostmask) {
             this.Nickname = Hostmask.GetNickname(hostmask);
             this.Ident = Hostmask.GetIdent(hostmask);
             this.Host = Hostmask.GetHost(hostmask);
         }
-
-        public override void Say(string message) => this.Client.Send("PRIVMSG " + this.Nickname + " " + message);
-        public override void Notice(string message) => this.Client.Send("NOTICE " + this.Nickname + " " + message);
 
         /// <summary>
         /// Returns ths hostmask of this <see cref="IrcUser"/>.
@@ -171,21 +175,71 @@ namespace IRC {
             return other is IrcUser && this == (IrcUser) other;
         }
 
-        internal TaskCompletionSource<object> getAccountTask;
-        public Task GetAccountAsync() {
-            if (this.Client.State != IrcClientState.Online) throw new InvalidOperationException("The client must be registered to perform this operation.");
-            if (this.getAccountTask != null) return this.getAccountTask.Task;
+		/// <summary>Waits for the next private PRIVMSG from this user.</summary>
+		public Task<string> ReadAsync() => this.ReadAsync(this.Client.Me);
+		/// <summary>Waits for the next PRIVMSG from this user to the specified target.</summary>
+		public Task<string> ReadAsync(IrcMessageTarget target) {
+			var asyncRequest = new AsyncRequest.MessageAsyncRequest(this, target, false);
+			this.Client.AddAsyncRequest(asyncRequest);
+			return (Task<string>)asyncRequest.Task;
+		}
 
-            var task = new TaskCompletionSource<object>();
-            this.getAccountTask = task;
-            this.Client.Send("WHOIS " + this.Nickname);
-            return task.Task;
-        }
-        internal void GetAccountFinalize() {
-            if (this.getAccountTask != null) {
-                this.getAccountTask.SetResult(null);
-                this.getAccountTask = null;
-            }
+		/// <summary>Waits for the next private NOTICE from this user.</summary>
+		public Task<string> ReadNoticeAsync() => this.ReadNoticeAsync(this.Client.Me);
+		/// <summary>Waits for the next NOTICE from this user to the specified target.</summary>
+		public Task<string> ReadNoticeAsync(IrcMessageTarget target) {
+			var asyncRequest = new AsyncRequest.MessageAsyncRequest(this, target, true);
+			this.Client.AddAsyncRequest(asyncRequest);
+			return (Task<string>) asyncRequest.Task;
+		}
+
+		/// <summary>Sends a CTCP request to this user and awaits a reply.</summary>
+		/// <param name="message">The CTCP request and parameters.</param>
+		/// <returns>
+		/// A <see cref="Task{TResult}"/> representing the status of the request.
+		/// The task will return the part of the response after the request token, or null if that part was not present.
+		/// </returns>
+		public Task<string> CtcpAsync(string message) {
+			var fields = message.Split(new[] { ' ' }, 2, StringSplitOptions.RemoveEmptyEntries);
+			return this.CtcpAsync(fields[0], fields.Length >= 2 ? fields[1] : null);
+		}
+		/// <summary>Sends a CTCP request to this user and awaits a reply.</summary>
+		/// <param name="request">The CTCP request token.</param>
+		/// <param name="arg">The parameter to the CTCP request..</param>
+		/// <returns>
+		/// A <see cref="Task{TResult}"/> representing the status of the request.
+		/// The task will return the part of the response after the request token, or null if that part was not present.
+		/// </returns>
+		public Task<string> CtcpAsync(string request, string arg) {
+			var asyncRequest = new AsyncRequest.CtcpAsyncRequest(this.Client, this.Nickname, request);
+			this.Client.AddAsyncRequest(asyncRequest);
+			this.Ctcp(request, arg);
+			return (Task<string>) asyncRequest.Task;
+		}
+		/// <summary>Sends a CTCP request to this user and awaits a reply.</summary>
+		/// <param name="request"></param>
+		/// <param name="args"></param>
+		/// <returns>
+		/// A <see cref="Task{TResult}"/> representing the status of the request.
+		/// The task will return the part of the response after the request token, or null if that part was not present.
+		/// </returns>
+		public Task<string> CtcpAsync(string request, params string[] args) {
+			var asyncRequest = new AsyncRequest.CtcpAsyncRequest(this.Client, this.Nickname, request);
+			this.Client.AddAsyncRequest(asyncRequest);
+			this.Ctcp(request, args);
+			return (Task<string>) asyncRequest.Task;
+		}
+
+		public Task<WhoisResponse> WhoisAsync() => this.Client.WhoisAsync(this.Nickname);
+
+		public Task<string> GetAccountAsync() => this.GetAccountAsync(false);
+		public async Task<string> GetAccountAsync(bool force) {
+            if (this.Client.State < IrcClientState.ReceivingServerInfo) throw new InvalidOperationException("The client must be registered to perform this operation.");
+
+            if (!force && this.Account != null) return this.Account;
+
+            var response = await this.WhoisAsync();
+            return response.Account;
         }
     }
 
@@ -202,10 +256,7 @@ namespace IRC {
             set {
                 if (this.Client?.State < IrcClientState.Registering)
                     base.Nickname = value;
-                else if (this.Client?.State == IrcClientState.Registering) {
-                    this.Client.Send("NICK " + value);
-                    base.Nickname = value;
-                } else
+                else
                     this.Client.Send("NICK " + value);
             }
         }
@@ -226,6 +277,20 @@ namespace IRC {
                 if (this.Client?.State >= IrcClientState.Registering) throw new InvalidOperationException("This property cannot be set after the client has registered.");
                 else base.FullName = value;
             }
+        }
+
+        public Task SetNicknameAsync(string newNickname) {
+            if (newNickname == null) throw new ArgumentNullException(nameof(newNickname));
+
+            if (this.Client?.State < IrcClientState.Registering) {
+                base.Nickname = newNickname;
+                return Task.FromResult<object>(null);
+            }
+
+            var request = new AsyncRequest.VoidAsyncRequest(this.client, this.Nickname, "NICK", null, ERR_NONICKNAMEGIVEN, ERR_ERRONEUSNICKNAME, ERR_NICKNAMEINUSE, ERR_NICKCOLLISION, ERR_UNAVAILRESOURCE, ERR_RESTRICTED);
+            this.client.AddAsyncRequest(request);
+            this.client.Send("NICK " + newNickname);
+            return request.Task;
         }
 
         /// <summary>Initializes a new <see cref="IrcLocalUser"/> with the specified identity data.</summary>

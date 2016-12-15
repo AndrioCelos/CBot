@@ -4,7 +4,7 @@ using CBot;
 using IRC;
 
 namespace BotControl {
-    [ApiVersion(3, 3)]
+    [ApiVersion(3, 5)]
     public class BotControlPlugin : Plugin {
         public override string Name => "Bot Control";
 
@@ -348,7 +348,7 @@ namespace BotControl {
 #if (DEBUG)
         [Command("whois", 1, 1, "whois <nickname>", "Tests asynchronous commands.", ".debug")]
         public async void CommandWhois(object sender, CommandEventArgs e) {
-            IrcUser user;
+			IrcUser user;
             if (e.Client.Users.TryGetValue(e.Parameters[0], out user)) {
                 await user.GetAccountAsync();
                 e.Reply(user.Account ?? "0");

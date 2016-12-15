@@ -5,7 +5,7 @@ using CBot;
 using IRC;
 
 namespace BombDefense {
-    [ApiVersion(3, 3)]
+    [ApiVersion(3, 5)]
     public class BombDefensePlugin : Plugin {
         private Timer DefuseTimer = new Timer() { AutoReset = false };
         private Timer RejoinTimer = new Timer(30e+3) { AutoReset = false };

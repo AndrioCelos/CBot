@@ -15,7 +15,7 @@ using IRC;
 using Timer = System.Timers.Timer;
 
 namespace BattleBot {
-    [ApiVersion(3, 3)]
+    [ApiVersion(3, 5)]
     public class BattleBotPlugin : Plugin {
         private List<ArenaTrigger> arenaTriggers = new List<ArenaTrigger>();
 
@@ -288,8 +288,8 @@ namespace BattleBot {
 
         public bool RunArenaRegex(IrcClient connection, IrcMessageTarget channel, IrcUser sender, string message) {
             foreach (var trigger in arenaTriggers) {
-                foreach (string expression in trigger.Attribute.Expressions) {
-                    Match match = Regex.Match(message, expression);
+                foreach (Regex expression in trigger.Attribute.Patterns) {
+                    Match match = expression.Match(message);
                     if (match.Success) {
                         try {
                             trigger.Handler.Invoke(this, new TriggerEventArgs(connection, channel, sender, match));
@@ -1283,7 +1283,7 @@ namespace BattleBot {
 
         [Command("control", 1, 1, "control <nickname>", "Instructs me to control another character",
             ".control", CommandScope.Channel)]
-        public void CommandControl(object sender, CommandEventArgs e) {
+        public async void CommandControl(object sender, CommandEventArgs e) {
             Character character;
             if (!this.Characters.TryGetValue(e.Parameters[0], out character))
                 // We can't recognise the turn of someone we don't know about.
@@ -1293,7 +1293,7 @@ namespace BattleBot {
                 e.Reply(string.Format("I'm already controlling {0}.", character.ShortName));
             // Check for a non-player.
             // TODO: Allow it for clones.
-            else if (character.Category != Category.Player && !Bot.UserHasPermission(e.Sender, this.Key + ".control.nonplayer"))
+            else if (character.Category != Category.Player && !await Bot.CheckPermissionAsync(e.Sender, this.Key + ".control.nonplayer"))
                 e.Reply(string.Format("You don't have permission to use this command on a non-player.", character.ShortName));
             // We'll need admin status to control non-players.
             else if (character.Category != Category.Player && !this.IsAdmin)
@@ -1332,11 +1332,11 @@ namespace BattleBot {
 
         [Command("stopcontrol", 0, 1, "stopcontrol [nickname]", "Instructs me to stop controlling someone, yourself by default",
             null, CommandScope.Channel)]
-        public void CommandControlStop(object sender, CommandEventArgs e) {
+        public async void CommandControlStop(object sender, CommandEventArgs e) {
             string target;
             if (e.Parameters.Length == 1) {
                 if (!e.Client.CaseMappingComparer.Equals(e.Parameters[0], e.Sender.Nickname) &&
-                    !Bot.UserHasPermission(e.Sender, this.Key + ".control")) {
+                    !await Bot.CheckPermissionAsync(e.Sender, this.Key + ".control")) {
                     e.Whisper("You don't have permission to use that command on others.");
                     return;
                 }

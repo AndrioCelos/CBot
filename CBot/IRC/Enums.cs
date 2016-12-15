@@ -3,22 +3,28 @@
     /// Specifies the reason a join command failed.
     /// </summary>
     public enum ChannelJoinDeniedReason {
+        /// <summary>The join failed for some other reason.</summary>
+        Other,
         /// <summary>The join failed because the channel has reached its population limit.</summary>
-        Limit = 1,
+        Limit,
         /// <summary>The join failed because the channel is invite only.</summary>
         InviteOnly,
         /// <summary>The join failed because we are banned.</summary>
         Banned,
         /// <summary>The join failed because we did not give the correct key.</summary>
-        KeyFailure,
-        /// <summary>The join failed for some other reason.</summary>
-        Other = -1
+        KeyFailure
     }
 
     /// <summary>
     /// Specifies the cause of a disconnection from a server.
     /// </summary>
     public enum DisconnectReason {
+        /// <summary>No reason was specified or no disconnection occurred.</summary>
+        /// <remarks>
+        ///     This value may be returned by the in the <see cref="AsyncRequestDisconnectedException.DisconnectReason"/> property
+        ///     if the connection was not lost but the server did not respond as expected.
+        /// </remarks>
+        Unknown,
         /// <summary>The <see cref="IrcClient.Disconnect"/> method was called.</summary>
         ClientDisconnected,
         /// <summary>The server is closing the connection as a result of a QUIT command from the client.</summary>
@@ -27,7 +33,7 @@
         PingTimeout,
         /// <summary>The server is closing the connection unexpectedly.</summary>
         ServerDisconnected,
-        /// <summary>An exception occurred while receiving data.</summary>
+        /// <summary>An exception occurred while reading data.</summary>
         Exception,
         /// <summary>The TLS authentication failed.</summary>
         SslAuthenticationFailed,

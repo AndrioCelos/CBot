@@ -1,4 +1,6 @@
 ﻿using System;
+using System.Linq;
+using System.Text.RegularExpressions;
 using CBot;
 
 namespace BattleBot {
@@ -90,7 +92,11 @@ namespace BattleBot {
         NPC,
         President,
         PvP,
-        Siege
+        Siege,
+        Assault,
+        Dungeon,
+        DragonHunt,
+        Torment
     }
 
     public enum TechniqueType : short {
@@ -122,12 +128,26 @@ namespace BattleBot {
 
     [AttributeUsage(AttributeTargets.Method)]
     public class ArenaRegexAttribute : Attribute {
-        public string[] Expressions;
+        public Regex[] Patterns { get; set; }
+        public bool StripFormats { get; set; }
 
-        public ArenaRegexAttribute(string expression)
-            : this(new string[] { expression }) { }
-        public ArenaRegexAttribute(string[] expressions) {
-            this.Expressions = expressions;
+        public ArenaRegexAttribute(string pattern)
+            : this(pattern, RegexOptions.IgnoreCase | RegexOptions.Compiled) { }
+        public ArenaRegexAttribute(string pattern, RegexOptions options)
+            : this(new[] { new Regex(pattern, options) }) { }
+        public ArenaRegexAttribute(string pattern, bool stripFormats)
+            : this(new[] { new Regex(pattern, RegexOptions.IgnoreCase | RegexOptions.Compiled) }, stripFormats) { }
+        public ArenaRegexAttribute(string pattern, RegexOptions options, bool stripFormats)
+            : this(new[] { new Regex(pattern, options) }, stripFormats) { }
+        public ArenaRegexAttribute(string[] pattern)
+            : this(pattern.Select(p => new Regex(p, RegexOptions.IgnoreCase | RegexOptions.Compiled)).ToArray()) { }
+        public ArenaRegexAttribute(string[] pattern, bool stripFormats)
+            : this(pattern.Select(p => new Regex(p, RegexOptions.IgnoreCase | RegexOptions.Compiled)).ToArray(), stripFormats) { }
+        public ArenaRegexAttribute(Regex[] patterns)
+            : this(patterns, false) { }
+        public ArenaRegexAttribute(Regex[] patterns, bool stripFormats) {
+            this.Patterns = patterns;
+            this.StripFormats = stripFormats;
         }
     }
 

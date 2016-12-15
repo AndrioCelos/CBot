@@ -54,11 +54,8 @@ namespace CBot {
         /// <summary>Contains the data used to deal with nickname services.</summary>
         public NickServSettings NickServ;
 
-        // Remembers what command someone was trying to use when performing a WHOIS on them.
-        internal Dictionary<string, CommandRequest> commandCallbacks = new Dictionary<string, CommandRequest>();
-
         // Diagnostic information.
-        public Plugin CurrentProcedurePlugin { get; internal set; }
+        public Plugin CurrentPlugin { get; internal set; }
         public MethodInfo CurrentProcedure { get; internal set; }
 
         public ClientEntry(string name) {

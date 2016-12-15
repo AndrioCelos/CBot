@@ -40,7 +40,7 @@ namespace IRC {
             if (allowTags && c == '@') {
                 // The line has IRCv3.2 tags.
                 tags = new Dictionary<string, string>();
-                for ( ; i < line.Length; ++i) {
+                for (i = 1; i < line.Length; ++i) {
                     string tag; string value;
 
                     for ( ; i < line.Length; ++i) {
@@ -52,7 +52,7 @@ namespace IRC {
 
                     if (i < line.Length && c == '=') {
                         builder.Clear();
-                        for (; i < line.Length; ++i) {
+                        for (++i; i < line.Length; ++i) {
                             c = line[i];
                             if (c == ';' || c == ' ') break;
                             if (c == '\\') {  // Escape sequence

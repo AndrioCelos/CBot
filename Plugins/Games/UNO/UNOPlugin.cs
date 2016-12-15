@@ -13,9 +13,10 @@ using IRC;
 using Demot.RandomOrgApi;
 
 using Timer = System.Timers.Timer;
+using System.Threading.Tasks;
 
 namespace UNO {
-    [ApiVersion(3, 3)]
+    [ApiVersion(3, 5)]
     public class UnoPlugin : Plugin {
         public static readonly string[] Hints = new string[] {
             /*  0 */ "It's your turn. Enter \u0002!play \u001Fcard\u000F to play a card from your hand with a matching colour, number or symbol. Here, you can play a {0} card, a {1} or a Wild card. If you have none, enter \u0002!draw\u0002.",
@@ -860,7 +861,7 @@ namespace UNO {
 #endregion
 
         [Command(new string[] { "set", "uset" }, 1, 2, "set <property> <value>", "Changes settings for this plugin.")]
-        public void CommandSet(object sender, CommandEventArgs e) {
+        public async void CommandSet(object sender, CommandEventArgs e) {
             string property = e.Parameters[0];
             string value = e.Parameters.Length == 1 ? null : e.Parameters[1];
             int value2; bool value3;
@@ -868,7 +869,7 @@ namespace UNO {
 
             switch (property.Replace(" ", "").Replace("-", "").ToUpperInvariant()) {
                 case "AI":
-                    if (!SetPermissionCheck(e)) return;
+                    if (!await SetPermissionCheckAsync(e)) return;
                     if (value == null) {
                         if (this.AIEnabled)
                             e.Reply("I \u00039will\u000F join UNO games.");
@@ -883,7 +884,7 @@ namespace UNO {
                         e.Whisper(string.Format("I don't recognise '{0}' as a Boolean value. Please enter 'on' or 'off'.", value));
                     break;
                 case "ALLOUT":
-                    if (!SetPermissionCheck(e)) return;
+                    if (!await SetPermissionCheckAsync(e)) return;
                     if (value == null) {
                         if (this.OutLimit == int.MaxValue)
                             e.Reply("The game will end only when one player remains.");
@@ -903,7 +904,7 @@ namespace UNO {
                         e.Whisper(string.Format("I don't recognise '{0}' as a Boolean value. Please enter 'on' or 'off'.", value));
                     break;
                 case "OUTLIMIT":
-                    if (!SetPermissionCheck(e)) return;
+                    if (!await SetPermissionCheckAsync(e)) return;
                     if (value == null) {
                         if (this.OutLimit == int.MaxValue)
                             e.Reply("The game will end only when one player remains.");
@@ -934,7 +935,7 @@ namespace UNO {
                 case "WD":
                 case "WDF":
                 case "WD4":
-                    if (!SetPermissionCheck(e)) return;
+                    if (!await SetPermissionCheckAsync(e)) return;
                     if (value == null) {
                         if (this.WildDrawFour == WildDrawFourRule.Free)
                             e.Reply("\u0002Wild Draw Four\u0002 is \u000312freely playable\u000F.");
@@ -961,7 +962,7 @@ namespace UNO {
                 case "SHOWCHALLENGE":
                 case "SHC":
                 case "SC":
-                    if (!SetPermissionCheck(e)) return;
+                    if (!await SetPermissionCheckAsync(e)) return;
                     if (value == null) {
                         if (this.ShowHandOnChallenge)
                             e.Reply("Cards \u00039must\u000F be shown for a Wild Draw Four challenge.");
@@ -979,7 +980,7 @@ namespace UNO {
                 case "ENTRYPERIOD":
                 case "STARTTIME":
                 case "ENTRY":
-                    if (!SetPermissionCheck(e)) return;
+                    if (!await SetPermissionCheckAsync(e)) return;
                     if (value == null) {
                         e.Reply("The entry period is \u0002{0}\u0002 seconds.", this.EntryTime);
                     } else if (int.TryParse(value, out value2)) {
@@ -992,7 +993,7 @@ namespace UNO {
                         e.Whisper(string.Format("That isn't a valid integer.", value));
                     break;
                 case "ENTRYWAITLIMIT":
-                    if (!SetPermissionCheck(e)) return;
+                    if (!await SetPermissionCheckAsync(e)) return;
                     if (value == null) {
                         e.Reply("The entry period may be extended to \u0002{0}\u0002 seconds.", this.EntryWaitLimit);
                     } else if (int.TryParse(value, out value2)) {
@@ -1008,7 +1009,7 @@ namespace UNO {
                 case "TIMELIMIT":
                 case "IDLETIME":
                 case "TIME":
-                    if (!SetPermissionCheck(e)) return;
+                    if (!await SetPermissionCheckAsync(e)) return;
                     if (value == null) {
                         if (this.TurnTime == 0)
                             e.Reply("The turn time limit is disabled.", this.TurnTime);
@@ -1030,7 +1031,7 @@ namespace UNO {
                         e.Whisper(string.Format("That isn't a valid integer.", value));
                     break;
                 case "TURNWAITLIMIT":
-                    if (!SetPermissionCheck(e)) return;
+                    if (!await SetPermissionCheckAsync(e)) return;
                     if (value == null) {
                         e.Reply("The turn time limit may be extended to \u0002{0}\u0002 seconds.", this.TurnWaitLimit);
                     } else if (int.TryParse(value, out value2)) {
@@ -1045,7 +1046,7 @@ namespace UNO {
                 case "VICTORYBONUS":
                 case "WINBONUS":
                 case "VICTORY":
-                    if (!SetPermissionCheck(e)) return;
+                    if (!await SetPermissionCheckAsync(e)) return;
                     if (value == null) {
                         if (this.VictoryBonus)
                             e.Reply("Victory bonuses are \u00039enabled\u000F.");
@@ -1060,7 +1061,7 @@ namespace UNO {
                         e.Whisper(string.Format("I don't recognise '{0}' as a Boolean value. Please enter 'on' or 'off'.", value));
                     break;
                 case "HANDBONUS":
-                    if (!SetPermissionCheck(e)) return;
+                    if (!await SetPermissionCheckAsync(e)) return;
                     if (value == null) {
                         if (this.HandBonus)
                             e.Reply("Hand bonuses are \u00039enabled\u000F.");
@@ -1079,7 +1080,7 @@ namespace UNO {
                 case "WINBONUSLASTPLACE":
                 case "WINBONUSLAST":
                 case "VICTORYLAST":
-                    if (!SetPermissionCheck(e)) return;
+                    if (!await SetPermissionCheckAsync(e)) return;
                     if (value == null) {
                         if (this.VictoryBonusLastPlace)
                             e.Reply("A victory bonus \u00039will\u000F be awarded to the last place player.");
@@ -1096,7 +1097,7 @@ namespace UNO {
                 case "VICTORYBONUSREPEAT":
                 case "WINBONUSREPEAT":
                 case "VICTORYREPEAT":
-                    if (!SetPermissionCheck(e)) return;
+                    if (!await SetPermissionCheckAsync(e)) return;
                     if (value == null) {
                         if (this.VictoryBonus)
                             e.Reply("A victory bonus \u00039will\u000F be awarded to all above last place.");
@@ -1113,7 +1114,7 @@ namespace UNO {
                 case "PARTICIPATIONBONUS":
                 case "PLAYBONUS":
                 case "PLAY":
-                    if (!SetPermissionCheck(e)) return;
+                    if (!await SetPermissionCheckAsync(e)) return;
                     if (value == null) {
                         if (this.ParticipationBonus == 0)
                             e.Reply("The participation bonus is disabled.", this.ParticipationBonus);
@@ -1135,7 +1136,7 @@ namespace UNO {
                 case "QUITPENALTY":
                 case "LEAVEPENALTY":
                 case "QUIT":
-                    if (!SetPermissionCheck(e)) return;
+                    if (!await SetPermissionCheckAsync(e)) return;
                     if (value == null) {
                         if (this.QuitPenalty == 0)
                             e.Reply("The quit penalty is disabled.", this.QuitPenalty);
@@ -1160,7 +1161,7 @@ namespace UNO {
                 case "WINBONUSPOINTS":
                 case "VICTORYVALUE":
                 case "VICTORYPOINTS":
-                    if (!SetPermissionCheck(e)) return;
+                    if (!await SetPermissionCheckAsync(e)) return;
                     if (value == null) {
                         if (this.VictoryBonusValue.Length == 1)
                             e.Reply("The victory bonus is \u0002{0}\u0002.", this.VictoryBonusValue[0]);
@@ -1191,7 +1192,7 @@ namespace UNO {
                 case "ALLOWMIDGAMEJOIN":
                 case "MIDGAMEENTRY":
                 case "ALLOWMIDGAMEENTRY":
-                    if (!SetPermissionCheck(e)) return;
+                    if (!await SetPermissionCheckAsync(e)) return;
                     if (value == null) {
                         if (this.AllowMidGameJoin)
                             e.Reply("Players \u00039may\u000F join during a game.");
@@ -1207,7 +1208,7 @@ namespace UNO {
                     break;
                 case "PROGRESSIVE":
                 case "STACKING":
-                    if (!SetPermissionCheck(e)) return;
+                    if (!await SetPermissionCheckAsync(e)) return;
                     if (value == null) {
                         if (this.Progressive)
                             e.Reply("Progressive rules are \u00039enabled\u000F.");
@@ -1223,7 +1224,7 @@ namespace UNO {
                     break;
                 case "PROGRESSIVECAP":
                 case "STACKINGCAP":
-                    if (!SetPermissionCheck(e)) return;
+                    if (!await SetPermissionCheckAsync(e)) return;
                     if (value == null) {
                         if (this.ProgressiveCap == int.MaxValue)
                             e.Reply("There is no stack cap.", this.ProgressiveCap);
@@ -1354,8 +1355,8 @@ namespace UNO {
             }
         }
 
-        internal bool SetPermissionCheck(CommandEventArgs e) {
-            if (Bot.UserHasPermission(e.Sender, this.Key + ".set"))
+        internal async Task<bool> SetPermissionCheckAsync(CommandEventArgs e) {
+            if (await Bot.CheckPermissionAsync(e.Sender, this.Key + ".set"))
                 return true;
             e.Reply("You don't have access to that setting.");
             return false;
@@ -1445,7 +1446,7 @@ namespace UNO {
 
         [Command(new string[] { "ustart", "start" }, 0, 0, "ustart", "Starts the game immediately.",
             ".start", CommandScope.Channel)]
-        public void CommandStart(object sender, CommandEventArgs e) {
+        public async void CommandStart(object sender, CommandEventArgs e) {
             Game game;
             string key = e.Client.NetworkName + "/" + e.Target;
             if (!this.Games.TryGetValue(key, out game))
@@ -1470,7 +1471,7 @@ namespace UNO {
                             break;
                         }
                     }
-                    if (!OK && !Bot.UserHasPermission(e.Sender, this.Key + ".start.botduel")) {
+                    if (!OK && !await Bot.CheckPermissionAsync(e.Sender, this.Key + ".start.botduel")) {
                         e.Whisper("At least two non-bot players must be present.");
                         return;
                     }

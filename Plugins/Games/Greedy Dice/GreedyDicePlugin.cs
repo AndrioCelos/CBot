@@ -5,13 +5,14 @@ using System.Linq;
 using System.Text;
 using System.Text.RegularExpressions;
 using System.Threading;
+using System.Threading.Tasks;
 using System.Timers;
 
 using CBot;
 using IRC;
 
 namespace GreedyDice {
-    [ApiVersion(3, 3)]
+    [ApiVersion(3, 5)]
     public class GreedyDicePlugin : Plugin {
         private static readonly int[] RollValues = new int[] { 0, 0, 50, 50, 100, 150 };
         private static readonly string[] RollFaces = new string[] { "\u00031,8 X ", "\u00031,8 X ", "\u000313,6 ♥ ", "\u00039,3 * ", "\u00034,5* *", "\u000312,2***" };
@@ -128,14 +129,14 @@ namespace GreedyDice {
         #endregion
 
         [Command(new string[] { "set", "dset" }, 1, 2, "set <property> <value>", "Changes settings for this plugin.")]
-        public void CommandSet(object sender, CommandEventArgs e) {
+        public async void CommandSet(object sender, CommandEventArgs e) {
             string property = e.Parameters[0];
             string value = e.Parameters.Length == 1 ? null : e.Parameters[1];
             int value2; bool value3;
 
             switch (property.Replace(" ", "").Replace("-", "").ToUpperInvariant()) {
                 case "AI":
-                    if (!SetPermissionCheck(e)) return;
+                    if (!await SetPermissionCheckAsync(e)) return;
                     if (value == null) {
                         if (this.AIEnabled)
                             e.Reply("I \u00039will\u000F join Greedy Dice games.");
@@ -153,7 +154,7 @@ namespace GreedyDice {
                 case "ENTRYPERIOD":
                 case "STARTTIME":
                 case "ENTRY":
-                    if (!SetPermissionCheck(e)) return;
+                    if (!await SetPermissionCheckAsync(e)) return;
                     if (value == null) {
                         e.Reply("The entry period is \u0002{0}\u0002 seconds.", this.EntryTime);
                     } else if (int.TryParse(value, out value2)) {
@@ -166,7 +167,7 @@ namespace GreedyDice {
                         e.Whisper(string.Format("That isn't a valid integer.", value));
                     break;
                 case "ENTRYWAITLIMIT":
-                    if (!SetPermissionCheck(e)) return;
+                    if (!await SetPermissionCheckAsync(e)) return;
                     if (value == null) {
                         e.Reply("The entry period may be extended to \u0002{0}\u0002 seconds.", this.EntryWaitLimit);
                     } else if (int.TryParse(value, out value2)) {
@@ -182,7 +183,7 @@ namespace GreedyDice {
                 case "TIMELIMIT":
                 case "IDLETIME":
                 case "TIME":
-                    if (!SetPermissionCheck(e)) return;
+                    if (!await SetPermissionCheckAsync(e)) return;
                     if (value == null) {
                         if (this.TurnTime == 0)
                             e.Reply("The turn time limit is disabled.", this.TurnTime);
@@ -204,7 +205,7 @@ namespace GreedyDice {
                         e.Whisper(string.Format("That isn't a valid integer.", value));
                     break;
                 case "TURNWAITLIMIT":
-                    if (!SetPermissionCheck(e)) return;
+                    if (!await SetPermissionCheckAsync(e)) return;
                     if (value == null) {
                         e.Reply("The turn time limit may be extended to \u0002{0}\u0002 seconds.", this.TurnWaitLimit);
                     } else if (int.TryParse(value, out value2)) {
@@ -222,8 +223,8 @@ namespace GreedyDice {
             }
         }
 
-        internal bool SetPermissionCheck(CommandEventArgs e) {
-            if (Bot.UserHasPermission(e.Sender, this.Key + ".set"))
+        internal async Task<bool> SetPermissionCheckAsync(CommandEventArgs e) {
+            if (await Bot.CheckPermissionAsync(e.Sender, this.Key + ".set"))
                 return true;
             e.Reply("You don't have access to that setting.");
             return false;

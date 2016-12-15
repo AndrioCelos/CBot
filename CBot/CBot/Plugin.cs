@@ -5,6 +5,7 @@ using System.Linq;
 using System.Reflection;
 using System.Text;
 using System.Text.RegularExpressions;
+using System.Threading.Tasks;
 using IRC;
 
 namespace CBot {
@@ -135,57 +136,65 @@ namespace CBot {
             return false;
         }
 
-        public virtual bool CheckCommands(IrcUser sender, IrcMessageTarget target, string message) {
+        public virtual async Task<bool> CheckCommands(IrcUser sender, IrcMessageTarget target, string message) {
             // Check commands.
             if (this.Commands.Count != 0) {
-                string command; string prefix; string label; string parameters;
-                if (Bot.IsCommand(target, message, out command, out prefix)) {
-                    int pos = command.IndexOf(' ');
+                string commandString; string prefix; string label; string parameters;
+                if (Bot.IsCommand(target, message, out commandString, out prefix)) {
+                    int pos = commandString.IndexOf(' ');
                     if (pos == -1) {
-                        label = command;
+                        label = commandString;
                         parameters = null;
                     } else {
-                        label = command.Substring(0, pos);
-                        parameters = command.Substring(pos + 1);
+                        label = commandString.Substring(0, pos);
+                        parameters = commandString.Substring(pos + 1);
                     }
 
-                    if (!label.Contains(":")) {
-                        if (this.RunCommand(sender, target, label, parameters, false)) return true;
-                    }
+					var command = this.GetCommand(target, label);
+					if (command != null) {
+						await this.RunCommand(sender, target, command, parameters, false);
+						return true;
+					}
                 }
             }
 
             // Check triggers.
             if (this.Triggers.Count != 0) {
-                Match match = Regex.Match(message, @"^" + Regex.Escape(target.Client.Me.Nickname) + @"\.*[:,-]? ", RegexOptions.IgnoreCase);
-                if (match.Success) {  // The bot was highlighted.
-                    if (this.RunTrigger(sender, target, message.Substring(match.Length), true)) return true;
-                } else {
-                    if (this.RunTrigger(sender, target, message, false)) return true;
-                }
+				var trigger = this.GetTrigger(target, message, out Match match);
+				if (trigger != null) {
+					await this.RunTrigger(sender, target, trigger, match);
+					return true;
+				}
             }
 
             return false;
         }
 
-        /// <summary>
-        /// Processes a command line and runs a matching command if one exists and the user has access to it.
-        /// </summary>
-        /// <param name="sender">The user sending the command.</param>
-        /// <param name="target">The channel in which the command was sent, or the sender nickname if it was in a private message.</param>
-        /// <param name="label">The command label that was entered.</param>
-        /// <param name="parameters">The part of the command after the label.</param>
-        /// <param name="globalCommand">True if the global command syntax was used; false otherwise.</param>
-        /// <returns>True if a command was matched (even if it was denied); false otherwise.</returns>
-        public bool RunCommand(IrcUser sender, IrcMessageTarget target, string label, string parameters, bool globalCommand = false) {
-            string alias = label.Split(new char[] { ' ' })[0];
-            Command command;
-            if (!this.Commands.TryGetValue(alias, out command)) return false;
+		/// <summary>Returns the command that matches the specified label and target, if any; otherwise, returns null.</summary>
+		public Command GetCommand(IrcMessageTarget target, string label) => this.GetCommand(target, label, false);
+		/// <summary>Returns the command that matches the specified label and target, if any; otherwise, returns null.</summary>
+		public Command GetCommand(IrcMessageTarget target, string label, bool globalCommand) {
+			string alias = label.Split(new char[] { ' ' })[0];
+			Command command;
+			if (!this.Commands.TryGetValue(alias, out command)) return null;
 
-            // Check the scope.
-            if ((command.Attribute.Scope & CommandScope.PM) == 0 && !(target is IrcChannel)) return false;
-            if ((command.Attribute.Scope & CommandScope.Channel) == 0 && target is IrcChannel) return false;
+			// Check the scope.
+			if ((command.Attribute.Scope & CommandScope.PM) == 0 && !(target is IrcChannel)) return null;
+			if ((command.Attribute.Scope & CommandScope.Channel) == 0 && target is IrcChannel) return null;
 
+			return command;
+		}
+
+		/// <summary>
+		/// Processes a command line and runs a matching command if one exists and the user has access to it.
+		/// </summary>
+		/// <param name="sender">The user sending the command.</param>
+		/// <param name="target">The channel in which the command was sent, or the sender nickname if it was in a private message.</param>
+		/// <param name="command">The command that is being used.</param>
+		/// <param name="parameters">The part of the command after the label.</param>
+		/// <param name="globalCommand">True if the global command syntax was used; false otherwise.</param>
+		/// <returns>True if a command was matched (even if it was denied); false otherwise.</returns>
+		public async Task RunCommand(IrcUser sender, IrcMessageTarget target, Command command, string parameters, bool globalCommand = false) {
             // Check for permissions.
             string permission;
             if (command.Attribute.Permission == null)
@@ -195,76 +204,72 @@ namespace CBot {
             else
                 permission = command.Attribute.Permission;
 
-            if (permission != null && !Bot.UserHasPermission(sender, permission)) {
-                // If the user's account name is unknown, they might actually have permission.
-                // We'll need to send a WHOIS request asynchronously to check for this, though.
-                if (Bot.commandCallbackNeeded && sender.Account == null) {
-                    Bot.GetClientEntry(sender.Client).commandCallbacks[sender.Nickname] = new CommandRequest() {
-                        IsTrigger = false, Plugin = this, Sender = sender, Channel = target, Label = label, Parameters = parameters,
-                        GlobalCommand = globalCommand, FailureMessage = command.Attribute.NoPermissionsMessage
-                    };
-                    sender.Client.Send("WHOIS " + sender.Nickname);
-                    return true;
-                }
+			try {
+				if (permission != null && !await Bot.CheckPermissionAsync(sender, permission)) {
+					if (command.Attribute.NoPermissionsMessage != null) Bot.Say(sender.Client, sender.Nickname, command.Attribute.NoPermissionsMessage);
+					return;
+				}
 
-                if (command.Attribute.NoPermissionsMessage != null) Bot.Say(sender.Client, sender.Nickname, command.Attribute.NoPermissionsMessage);
-                return true;
-            }
+				// Parse the parameters.
+				string[] fields = parameters?.Split((char[]) null, command.Attribute.MaxArgumentCount, StringSplitOptions.RemoveEmptyEntries)
+									  ?? new string[0];
+				if (fields.Length < command.Attribute.MinArgumentCount) {
+					Bot.Say(sender.Client, sender.Nickname, "Not enough parameters.");
+					Bot.Say(sender.Client, sender.Nickname, string.Format("The correct syntax is \u000312{0}\u000F.", command.Attribute.Syntax.ReplaceCommands(sender.Client, target.Target)));
+					return;
+				}
 
-            // Parse the parameters.
-            string[] fields = parameters?.Split((char[]) null, command.Attribute.MaxArgumentCount, StringSplitOptions.RemoveEmptyEntries)
-                                  ?? new string[0];
-            if (fields.Length < command.Attribute.MinArgumentCount) {
-                Bot.Say(sender.Client, sender.Nickname, "Not enough parameters.");
-                Bot.Say(sender.Client, sender.Nickname, string.Format("The correct syntax is \u000312{0}\u000F.", command.Attribute.Syntax.ReplaceCommands(sender.Client, target.Target)));
-                return true;
-            }
+				// Run the command.
+				// TODO: Run it on a separate thread?
+				var entry = Bot.GetClientEntry(sender.Client);
+				try {
+					entry.CurrentPlugin = this;
+					entry.CurrentProcedure = command.Handler.GetMethodInfo();
+					CommandEventArgs e = new CommandEventArgs(sender.Client, target, sender, fields);
+					command.Handler.Invoke(this, e);
+				} catch (Exception ex) {
+					Bot.LogError(this.Key, command.Handler.GetMethodInfo().Name, ex);
+					while (ex is TargetInvocationException || ex is AggregateException) ex = ex.InnerException;
+					Bot.Say(sender.Client, target.Target, "\u00034The command failed. This incident has been logged. ({0})", ex.Message.Replace('\n', ' '));
+				}
+				entry.CurrentPlugin = null;
+				entry.CurrentProcedure = null;
+			} catch (AsyncRequestDisconnectedException) {
+			} catch (AsyncRequestErrorException ex) {
+				sender.Say("\u00034There was a problem looking up your account name: " + ex.Message);
+			}
+		}
 
-            // Run the command.
-            // TODO: Run it on a separate thread.
-            var entry = Bot.GetClientEntry(sender.Client);
-            try {
-                entry.CurrentProcedurePlugin = this; 
-                entry.CurrentProcedure = command.Handler.GetMethodInfo();
-                CommandEventArgs e = new CommandEventArgs(sender.Client, target, sender, fields);
-                command.Handler.Invoke(this, e);
-            } catch (Exception ex) {
-                Bot.LogError(this.Key, command.Handler.GetMethodInfo().Name, ex);
-                while (ex is TargetInvocationException || ex is AggregateException) ex = ex.InnerException;
-                Bot.Say(sender.Client, target.Target, "\u00034The command failed. This incident has been logged. ({0})", ex.Message.Replace('\n', ' '));
-            }
-            entry.CurrentProcedurePlugin = null;
-            entry.CurrentProcedure = null;
-            return true;
-        }
+		/// <summary>Returns the command that matches the specified label and target, if any; otherwise, returns null.</summary>
+		public Trigger GetTrigger(IrcMessageTarget target, string message, out Match match) {
+			var highlightMatch = Regex.Match(message, @"^" + Regex.Escape(target.Client.Me.Nickname) + @"\.*[:,-]? ", RegexOptions.IgnoreCase);
+			if (highlightMatch.Success) message = message.Substring(highlightMatch.Length);
 
-        /// <summary>
-        /// Processes a command line and runs any matching triggers that the user has access to.
-        /// </summary>
-        /// <param name="sender">The user sending the command.</param>
-        /// <param name="target">The channel in which the command was sent, or the sender's nickname if it was in a private message.</param>
-        /// <param name="message">The message text, excluding the bot's nickname if it started with such.</param>
-        /// <param name="usedMyNickname">True if the message was prefixed with the bot's nickname; false otherwise.</param>
-        /// <returns>True if a command was matched (even if it was denied); false otherwise.</returns>
-        public bool RunTrigger(IrcUser sender, IrcMessageTarget target, string message, bool usedMyNickname) {
-            Match match = null; Trigger trigger = null;
+			foreach (var trigger in this.Triggers) {
+				if (trigger.Attribute.MustUseNickname && !highlightMatch.Success) continue;
 
-            foreach (var trigger2 in this.Triggers) {
-                foreach (Regex regex in trigger2.Attribute.Expressions) {
-                    match = regex.Match(message);
-                    if (match.Success) {
-                        trigger = trigger2;
-                        break;
-                    }
-                }
-                if (trigger != null) break;
-            }
-            if (trigger == null) return false;
+				foreach (Regex regex in trigger.Attribute.Expressions) {
+					match = regex.Match(message);
+					if (match.Success) {
+						// Check the scope.
+						if ((trigger.Attribute.Scope & CommandScope.PM) == 0 && !(target is IrcChannel)) continue;
+						if ((trigger.Attribute.Scope & CommandScope.Channel) == 0 && target is IrcChannel) continue;
 
-            // Check the scope.
-            if ((trigger.Attribute.Scope & CommandScope.PM) == 0 && !(target is IrcChannel)) return false;
-            if ((trigger.Attribute.Scope & CommandScope.Channel) == 0 && target is IrcChannel) return false;
+						return trigger;
+					}
+				}
+			}
+			match = null;
+			return null;
+		}
 
+		/// <summary>Processes a command line and runs any matching triggers that the user has access to.</summary>
+		/// <param name="sender">The user sending the command.</param>
+		/// <param name="target">The channel in which the command was sent, or the sender's nickname if it was in a private message.</param>
+		/// <param name="trigger">The trigger that triggered.</param>
+		/// <param name="match">The <see cref="Match"/> object that describes the match.</param>
+		/// <returns>True if a command was matched (even if it was denied); false otherwise.</returns>
+		public async Task RunTrigger(IrcUser sender, IrcMessageTarget target, Trigger trigger, Match match) {
             // Check for permissions.
             string permission;
             if (trigger.Attribute.Permission == null)
@@ -274,37 +279,30 @@ namespace CBot {
             else
                 permission = trigger.Attribute.Permission;
 
-            if (permission != null && !Bot.UserHasPermission(sender, permission)) {
-                // If the user's account name is unknown, they might actually have permission.
-                // We'll need to send a WHOIS request asynchronously to check for this, though.
-                if (Bot.commandCallbackNeeded && sender.Account == null) {
-                    Bot.GetClientEntry(sender.Client).commandCallbacks[sender.Nickname] = new CommandRequest() {
-                        IsTrigger = true, Plugin = this, Sender = sender, Channel = target, Parameters = message,
-                        GlobalCommand = usedMyNickname, FailureMessage = trigger.Attribute.NoPermissionsMessage
-                    };
-                    sender.Client.Send("WHOIS " + sender.Nickname);
-                    return true;
-                }
+			try {
+				if (permission != null && !await Bot.CheckPermissionAsync(sender, permission)) {
+					if (trigger.Attribute.NoPermissionsMessage != null) Bot.Say(sender.Client, sender.Nickname, trigger.Attribute.NoPermissionsMessage);
+					return;
+				}
 
-                if (trigger.Attribute.NoPermissionsMessage != null) Bot.Say(sender.Client, sender.Nickname, trigger.Attribute.NoPermissionsMessage);
-                return true;
-            }
-
-            // Run the command.
-            // TODO: Run it on a separate thread.
-            var entry = Bot.GetClientEntry(sender.Client);
-            try {
-                entry.CurrentProcedurePlugin = this;
-                entry.CurrentProcedure = trigger.Handler.GetMethodInfo();
-                trigger.Handler.Invoke(this, new TriggerEventArgs(sender.Client, target, sender, match));
-            } catch (Exception ex) {
-                Bot.LogError(this.Key, trigger.Handler.GetMethodInfo().Name, ex);
-                while (ex is TargetInvocationException || ex is AggregateException) ex = ex.InnerException;
-                Bot.Say(sender.Client, target.Target, "\u00034The command failed. This incident has been logged. ({0})", ex.Message);
-            }
-            entry.CurrentProcedurePlugin = null;
-            entry.CurrentProcedure = null;
-            return true;
+				// Run the command.
+				// TODO: Run it on a separate thread.
+				var entry = Bot.GetClientEntry(sender.Client);
+				try {
+					entry.CurrentPlugin = this;
+					entry.CurrentProcedure = trigger.Handler.GetMethodInfo();
+					trigger.Handler.Invoke(this, new TriggerEventArgs(sender.Client, target, sender, match));
+				} catch (Exception ex) {
+					Bot.LogError(this.Key, trigger.Handler.GetMethodInfo().Name, ex);
+					while (ex is TargetInvocationException || ex is AggregateException) ex = ex.InnerException;
+					Bot.Say(sender.Client, target.Target, "\u00034The command failed. This incident has been logged. ({0})", ex.Message);
+				}
+				entry.CurrentPlugin = null;
+				entry.CurrentProcedure = null;
+			} catch (AsyncRequestDisconnectedException) {
+			} catch (AsyncRequestErrorException ex) {
+				sender.Say("\u00034There was a problem looking up your account name: " + ex.Message);
+			}
         }
 
         /// <summary>

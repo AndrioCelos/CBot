@@ -3,7 +3,7 @@ using CBot;
 using IRC;
 
 namespace IdentifyPlugin {
-    [ApiVersion(3, 3)]
+    [ApiVersion(3, 5)]
     public class IdentifyPlugin : Plugin {
         public override string Name => "Identify";
 

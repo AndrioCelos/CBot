@@ -8,7 +8,7 @@ using CBot;
 using IRC;
 
 namespace PluginManager {
-    [ApiVersion(3, 3)]
+    [ApiVersion(3, 5)]
     public class PluginManagerPlugin : Plugin {
         public override string Name => "Plugin Manager";
 
@@ -153,9 +153,9 @@ namespace PluginManager {
             } else {
                 var attribute = method.GetCustomAttributes<CommandAttribute>().FirstOrDefault();
                 if (attribute != null) {
-                    e.Reply(string.Format("\u0002{0}\u0002's read thread is in \u0002{1}\u0002 – !\u0002{2}\u0002.", e.Parameters[0], Bot.GetClientEntry(client).CurrentProcedurePlugin.Key, attribute.Names[0]));
+                    e.Reply(string.Format("\u0002{0}\u0002's read thread is in \u0002{1}\u0002 – !\u0002{2}\u0002.", e.Parameters[0], Bot.GetClientEntry(client).CurrentPlugin.Key, attribute.Names[0]));
                 } else {
-                    e.Reply(string.Format("\u0002{0}\u0002's read thread is in \u0002{1}\u0002 – !\u0002{2}\u0002.", e.Parameters[0], Bot.GetClientEntry(client).CurrentProcedurePlugin.Key, method.Name));
+                    e.Reply(string.Format("\u0002{0}\u0002's read thread is in \u0002{1}\u0002 – !\u0002{2}\u0002.", e.Parameters[0], Bot.GetClientEntry(client).CurrentPlugin.Key, method.Name));
                 }
             }
         }

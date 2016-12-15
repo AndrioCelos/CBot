@@ -18,7 +18,7 @@ using FileMode = System.IO.FileMode;
 using Timer = System.Timers.Timer;
 
 namespace BattleArenaManager {
-    [ApiVersion(3, 3)]
+    [ApiVersion(3, 5)]
     public class BattleArenaManagerPlugin : Plugin {
         private GitHubClient client;
 
@@ -357,7 +357,7 @@ namespace BattleArenaManager {
             CommitRequest request = new CommitRequest();
             if (this.LastUpdate != DateTime.MinValue) request.Since = this.LastUpdate;
 
-            var commits = await this.client.Repository.Commits.GetAll(this.RepositoryOwner, this.RepositoryName, request);
+            var commits = await this.client.Repository.Commit.GetAll(this.RepositoryOwner, this.RepositoryName, request);
             if (commits.Count == 0) {
                 if (forceAnnounce) Bot.Say(this.ArenaConnection, this.ArenaChannel, this.GetMessage("UpToDate", null, this.ArenaChannel, commits.Count, null));
                 return;

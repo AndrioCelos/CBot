@@ -8,7 +8,7 @@ using CBot;
 using IRC;
 
 namespace ChannelNotifier {
-    [ApiVersion(3, 3)]
+    [ApiVersion(3, 5)]
     public class ChannelNotifierPlugin : Plugin {
         public List<string> Targets;
 
@@ -67,7 +67,7 @@ namespace ChannelNotifier {
             writer.Close();
         }
 
-        public void SendCheck(string message, IrcClient originConnection, IrcMessageTarget origin) {
+        public async void SendCheck(string message, IrcClient originConnection, IrcMessageTarget origin) {
             foreach (string channelName in this.Targets) {
                 string[] fields = channelName.Split(new char[] { '/' }, 2);
                 if (fields.Length == 1)
@@ -95,7 +95,7 @@ namespace ChannelNotifier {
                         client.Send("PRIVMSG " + fields[1] + " :" + message);
                     } else {
                         IrcUser user;
-                        if ((client != originConnection || !client.CaseMappingComparer.Equals(fields[1], origin)) && client.Users.TryGetValue(fields[1], out user) && Bot.UserHasPermission(user, this.Key + ".receive"))
+                        if ((client != originConnection || !client.CaseMappingComparer.Equals(fields[1], origin)) && client.Users.TryGetValue(fields[1], out user) && await Bot.CheckPermissionAsync(user, this.Key + ".receive"))
                             client.Send("PRIVMSG " + fields[1] + " :" + message);
                     }
                 }

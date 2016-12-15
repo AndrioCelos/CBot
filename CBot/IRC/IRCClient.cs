@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Collections.ObjectModel;
 using System.IO;
 using System.Linq;
 using System.Net;
@@ -12,9 +13,13 @@ using System.Security.Cryptography.X509Certificates;
 using System.Text;
 using System.Text.RegularExpressions;
 using System.Threading;
+using System.Threading.Tasks;
 using System.Timers;
 
 using Timer = System.Timers.Timer;
+
+using static IRC.Replies;
+using System.Diagnostics;
 
 namespace IRC {
     /// <summary>Represents a method that handles a client-bound IRC message.</summary>
@@ -280,6 +285,16 @@ namespace IRC {
             this.Users.Clear();
             this.UserModes.Clear();
             this.Disconnected?.Invoke(this, e);
+
+            // Fail async requests.
+            this.asyncRequestTimer?.Stop();
+            lock (this.asyncRequests) {
+				if (this.readAsyncTaskSource != null) this.readAsyncTaskSource.SetException(new AsyncRequestDisconnectedException(e.Reason, e.Exception));
+				foreach (var asyncRequest in this.asyncRequests) {
+                    asyncRequest.OnFailure(new AsyncRequestDisconnectedException(e.Reason, e.Exception));
+                }
+                this.asyncRequests.Clear();
+            }
         }
         protected internal virtual void OnException(ExceptionEventArgs e) => this.Exception?.Invoke(this, e);
         protected internal virtual void OnExemptList(ChannelModeListEventArgs e) => this.ExemptList?.Invoke(this, e);
@@ -383,6 +398,7 @@ namespace IRC {
                 this.OnStateChanged(new StateEventArgs(oldState, value));
             }
         }
+        public bool DataAvailable => this.tcpClient?.GetStream()?.DataAvailable ?? false;
 
         /// <summary>Contains SHA-256 hashes of TLS certificates that should be accepted.</summary>
         public List<string> TrustedCertificates { get; private set; } = new List<string>();
@@ -392,6 +408,11 @@ namespace IRC {
 
         /// <summary>Returns or sets the text encoding used to interpret data.</summary>
         public Encoding Encoding { get; set; }
+
+        private List<AsyncRequest> asyncRequests = new List<AsyncRequest>();
+        public ReadOnlyCollection<AsyncRequest> AsyncRequests;
+        private Timer asyncRequestTimer;
+		private TaskCompletionSource<IrcLine> readAsyncTaskSource;
 
         private TcpClient tcpClient;
         private bool ssl;
@@ -406,7 +427,7 @@ namespace IRC {
         private object Lock = new object();
 
         private IrcClientState state;
-        internal DisconnectReason disconnectReason;
+        protected internal DisconnectReason disconnectReason;
         internal bool accountKnown;  // Some servers send both 330 and 307 in WHOIS replies. We need to ignore the 307 in that case.
         internal Dictionary<string, HashSet<string>> pendingNames = new Dictionary<string, HashSet<string>>();
 
@@ -435,8 +456,9 @@ namespace IRC {
             this.Extensions = new IrcExtensions(this, networkName);
             this.Users = new IrcUserCollection(this);
             this.Encoding = encoding ?? new UTF8Encoding(false, false);
+            this.AsyncRequests = this.asyncRequests.AsReadOnly();
 
-            Me = localUser;
+            this.Me = localUser;
             localUser.client = this;
             localUser.Channels = new IrcChannelCollection(this);
 
@@ -621,6 +643,33 @@ namespace IRC {
             this.State = IrcClientState.Disconnected;
         }
 
+        /// <summary>Starts the specified <see cref="AsyncRequest"/> on this client.</summary>
+        public void AddAsyncRequest(AsyncRequest request) {
+            lock (this.asyncRequests) {
+                this.asyncRequests.Add(request);
+                if (request.CanTimeout) {
+                    if (this.asyncRequestTimer == null) {
+                        this.asyncRequestTimer = new Timer(30e+3) { AutoReset = false };
+                        this.asyncRequestTimer.Elapsed += asyncRequestTimer_Elapsed;
+                        this.asyncRequestTimer.Start();
+                    } else {
+                        this.asyncRequestTimer.Stop();
+                        this.asyncRequestTimer.Start();
+                    }
+                }
+            }
+        }
+
+        private void asyncRequestTimer_Elapsed(object sender, ElapsedEventArgs e) {
+            // Time out async requests.
+            lock (this.asyncRequests) {
+                foreach (var asyncRequest in this.asyncRequests) {
+                    if (asyncRequest.CanTimeout) asyncRequest.OnFailure(new TimeoutException());
+                }
+                this.asyncRequests.Clear();
+            }
+        }
+
         protected virtual void ReadLoop() {
             while (this.State >= IrcClientState.Registering) {
                 string line;
@@ -666,20 +715,65 @@ namespace IRC {
         public virtual void ReceivedLine(string data) {
             lock (this.receiveLock) {
                 var line = IrcLine.Parse(data);
-                this.OnRawLineReceived(new IrcLineEventArgs(data, line));
+
+				int i; bool found = false;
+				lock (this.asyncRequests) {
+					for (i = 0; i < this.asyncRequests.Count; ++i) {
+						if (asyncRequestCheck(line, this.asyncRequests[i])) {
+							found = true;
+							break;
+						}
+					}
+				}
+
+				this.OnRawLineReceived(new IrcLineEventArgs(data, line, found));
+				if (this.readAsyncTaskSource != null) this.readAsyncTaskSource.SetResult(line);
 
                 IrcMessageHandler handler;
                 if (this.MessageHandlers.TryGetValue(line.Message, out handler))
                     handler?.Invoke(this, line);
                 else
-                    this.OnRawLineUnhandled(new IrcLineEventArgs(data, line));
+                    this.OnRawLineUnhandled(new IrcLineEventArgs(data, line, found));
+
+                if (found) {
+                    lock (this.asyncRequests) {
+						var skipTypes = new HashSet<Type>();
+                        for (; i < this.asyncRequests.Count; ++i) {
+                            var asyncRequest = this.asyncRequests[i];
+							if (!skipTypes.Contains(asyncRequest.GetType()) && asyncRequestCheck(line, asyncRequest, out bool final)) {
+								var result = asyncRequest.OnReply(line, ref final);
+								if (result) skipTypes.Add(asyncRequest.GetType());
+
+                                if (final) {
+                                    this.asyncRequests.RemoveAt(i);
+                                    --i;
+                                    if (this.asyncRequests.Count == 0)
+                                        this.asyncRequestTimer.Stop();
+                                }
+                            }
+                        }
+                    }
+                }
             }
         }
 
-        /// <summary>Sends a raw message to the IRC server.</summary>
-        /// <param name="data">The message to send.</param>
-        /// <exception cref="InvalidOperationException">The client is not connected to a server.</exception>
-        public virtual void Send(string data) {
+		private bool asyncRequestCheck(IrcLine line, AsyncRequest asyncRequest) => this.asyncRequestCheck(line, asyncRequest, out bool _);
+		private bool asyncRequestCheck(IrcLine line, AsyncRequest asyncRequest, out bool final) {
+			if (asyncRequest.Replies.TryGetValue(line.Message, out final)) {
+				if (asyncRequest.Parameters == null) return true;
+				for (int i = asyncRequest.Parameters.Count - 1; i >= 0; --i) {
+					if (asyncRequest.Parameters[i] != null && !this.CaseMappingComparer.Equals(asyncRequest.Parameters[i], line.Parameters[i]))
+						return false;
+				}
+				return true;
+			}
+			return false;
+		}
+
+		/// <summary>Sends a raw message to the IRC server.</summary>
+		/// <param name="data">The message to send.</param>
+		/// <exception cref="InvalidOperationException">The client is not connected to a server.</exception>
+		public virtual void Send(string data) {
             lock (this.Lock) {
                 if (!tcpClient.Connected) throw new InvalidOperationException("The client is not connected.");
 
@@ -1003,5 +1097,73 @@ namespace IRC {
             if (target == null || target == "") return false;
             return this.Extensions.ChannelTypes.Contains(target[0]);
         }
+
+		#region Async methods
+		/// <summary>Waits for the next line from the server.</summary>
+		public Task<IrcLine> ReadAsync() {
+			if (this.readAsyncTaskSource == null)
+				this.readAsyncTaskSource = new TaskCompletionSource<IrcLine>();
+			return this.readAsyncTaskSource.Task;
+		}
+
+		/// <summary>Sends a PING message to the server and measures the ping time.</summary>
+		public async Task<TimeSpan> PingAsync() {
+			var request = new AsyncRequest.VoidAsyncRequest(this, null, "PONG", null);
+			this.AddAsyncRequest(request);
+
+			var stopwatch = Stopwatch.StartNew();
+			this.Send("PING :" + this.ServerName);
+			await request.Task;
+			return stopwatch.Elapsed;
+		}
+
+		/// <summary>Attempts to oper up the local user. The returned Task object completes only if the command is accepted.</summary>
+		public Task OperAsync(string name, string password) {
+            if (this.state < IrcClientState.ReceivingServerInfo) throw new InvalidOperationException("The client must be registered to oper up.");
+
+            var request = new AsyncRequest.VoidAsyncRequest(this, this.Me.Nickname, RPL_YOUREOPER, null, ERR_NEEDMOREPARAMS, ERR_NOOPERHOST, ERR_PASSWDMISMATCH);
+            this.AddAsyncRequest(request);
+            this.Send("OPER " + name + " " + password);
+            return request.Task;
+        }
+
+		/// <summary>Attempts to join the specified channel. The returned Task object completes only if the join is successful.</summary>
+		public Task JoinAsync(string channel) => this.JoinAsync(channel, null);
+		/// <summary>Attempts to join the specified channel. The returned Task object completes only if the join is successful.</summary>
+		public Task JoinAsync(string channel, string key) {
+            if (channel == null) throw new ArgumentNullException(nameof(channel));
+            if (this.state < IrcClientState.ReceivingServerInfo) throw new InvalidOperationException("The client must be registered to join channels.");
+
+            var request = new AsyncRequest.VoidAsyncRequest(this, this.Me.Nickname, "JOIN", new[] { channel }, ERR_NEEDMOREPARAMS, ERR_BANNEDFROMCHAN, ERR_INVITEONLYCHAN, ERR_BADCHANNELKEY, ERR_CHANNELISFULL, ERR_BADCHANMASK, ERR_NOSUCHCHANNEL, ERR_TOOMANYCHANNELS, ERR_TOOMANYTARGETS, ERR_UNAVAILRESOURCE);
+            this.AddAsyncRequest(request);
+
+            if (key != null) this.Send("JOIN " + channel + " " + key);
+            else this.Send("JOIN " + channel);
+
+            return request.Task;
+        }
+
+        /// <summary>Performs a WHO request.</summary>
+        public Task<ReadOnlyCollection<WhoResponse>> WhoAsync(string query) {
+            if (this.state < IrcClientState.ReceivingServerInfo) throw new InvalidOperationException("The client must be registered to perform a WHO request.");
+
+            var request = new AsyncRequest.WhoAsyncRequest(this, query);
+            this.AddAsyncRequest(request);
+            this.Send("WHO " + query);
+            return (Task<ReadOnlyCollection<WhoResponse>>) request.Task;
+        }
+
+        /// <summary>Performs a WHOIS request on a nickname.</summary>
+        /// <returns>A <see cref="Task"/> representing the status of the request. The <see cref="Task{TResult}.Result"/> represents the response to the request.</returns>
+        public Task<WhoisResponse> WhoisAsync(string nickname) {
+            if (nickname == null) throw new ArgumentNullException(nameof(nickname));
+            if (this.state < IrcClientState.ReceivingServerInfo) throw new InvalidOperationException("The client must be registered to perform a WHOIS request.");
+
+            var request = new AsyncRequest.WhoisAsyncRequest(this, nickname);
+            this.AddAsyncRequest(request);
+            this.Send("WHOIS " + nickname);
+            return (Task<WhoisResponse>) request.Task;
+        }
+        #endregion
     }
 }
