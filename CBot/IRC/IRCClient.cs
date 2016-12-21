@@ -1025,6 +1025,11 @@ namespace IRC {
         public IEnumerable<IrcChannelUser> FindMatchingUsers(string channel, string hostmask)
             => this.Channels[channel].Users.Matching(hostmask);
 
+		private static HashSet<char> breakingCharacters = new HashSet<char>() {
+			'\t', ' ', '\u1680', '\u180E', '\u2000', '\u2001', '\u2002', '\u2003', '\u2004', '\u2005',
+			'\u2006', '\u2008', '\u2009', '\u200A', '\u200B', '\u200C', '\u200D', '\u205F', '\u3000'
+		};
+
         /// <summary>Splits a message that is too long to fit in one line into multiple lines, using this <see cref="IrcClient"/>'s encoding.</summary>
         /// <param name="message">The message to split.</param>
         /// <param name="maxLength">The maximum size, in bytes, of each part.</param>
@@ -1051,42 +1056,45 @@ namespace IRC {
                 yield break;
             }
 
-            int messageStart = 0, pos = 0;
+            int messageStart = 0, pos = 0, pos2 = 0;
             while (messageStart < message.Length) {
                 string part = null;
-                while (pos < message.Length) {
-                    // Find the next whitespace character.
-                    for (; pos < message.Length; ++pos) {
-                        if (char.IsWhiteSpace(message[pos])) break;
-                    }
+				pos = messageStart + 1;
+				do {
+					// Find the next breaking character.
+					for (; pos < message.Length; ++pos) {
+						if (breakingCharacters.Contains(message[pos])) break;
+					}
 
-                    string part2 = message.Substring(messageStart, pos - messageStart);
+					string part2 = message.Substring(messageStart, pos - messageStart);
 
-                    // Skip repeated whitespace characters.
-                    for (++pos; pos < message.Length; ++pos) {
-                        if (!char.IsWhiteSpace(message[pos])) break;
-                    }
+					// Skip repeated breaking characters.
+					for (++pos; pos < message.Length; ++pos) {
+						if (!breakingCharacters.Contains(message[pos])) break;
+					}
 
-                    // Are we over the limit?
-                    if (encoding.GetByteCount(part2) > maxLength) {
-                        if (part == null) {
-                            // If a single word exceeds the limit, we must break it up.
-                            for (pos = messageStart; pos < message.Length; ++pos) {
-                                part2 = message.Substring(messageStart, pos - messageStart);
-                                if (encoding.GetByteCount(part2) > maxLength) break;
-                                part = part2;
-                            }
-                            if (part == null) throw new InvalidOperationException("Can't even fit a single character in a message?!");
-                        }
-                        break;
-                    }
+					// Are we over the limit?
+					if (encoding.GetByteCount(part2) > maxLength) {
+						if (part == null) {
+							// If a single word exceeds the limit, we must break it up.
+							for (pos = messageStart + 1; pos < message.Length; ++pos) {
+								part2 = message.Substring(messageStart, pos - messageStart);
+								if (encoding.GetByteCount(part2) > maxLength) break;
+								part = part2;
+							}
+							if (part == null) throw new InvalidOperationException("Can't even fit a single character in a message?!");
+							pos2 = pos - 1;
+						}
+						break;
+					}
 
-                    // No.
-                    part = part2;
-                }
+					// No.
+					part = part2;
+					pos2 = pos;
+				} while (pos < message.Length);
 
                 yield return part;
-                messageStart = pos;
+                messageStart = pos2;
             }
         }
 
