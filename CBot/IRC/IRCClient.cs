@@ -1167,9 +1167,12 @@ namespace IRC {
             if (nickname == null) throw new ArgumentNullException(nameof(nickname));
             if (this.state < IrcClientState.ReceivingServerInfo) throw new InvalidOperationException("The client must be registered to perform a WHOIS request.");
 
-            var request = new AsyncRequest.WhoisAsyncRequest(this, nickname);
-            this.AddAsyncRequest(request);
-            this.Send("WHOIS " + nickname);
+			var request = this.AsyncRequests.FirstOrDefault(r => r is AsyncRequest.WhoisAsyncRequest && this.CaseMappingComparer.Equals(((AsyncRequest.WhoisAsyncRequest) r).Target, nickname));
+			if (request == null) {
+				request = new AsyncRequest.WhoisAsyncRequest(this, nickname);
+				this.AddAsyncRequest(request);
+				this.Send("WHOIS " + nickname);
+			}
             return (Task<WhoisResponse>) request.Task;
         }
         #endregion

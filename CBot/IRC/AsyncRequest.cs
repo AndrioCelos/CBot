@@ -301,12 +301,12 @@ namespace IRC {
             private IrcLine error;
 
             private TaskCompletionSource<WhoisResponse> taskSource { get; } = new TaskCompletionSource<WhoisResponse>();
-            private string target;
+            public string Target { get; }
             public override Task Task => this.taskSource.Task;
 
             public WhoisAsyncRequest(IrcClient client, string target) : base(replies, new[] { null, target }) {
                 this.client = client;
-                this.target = target;
+                this.Target = target;
                 this.response = new WhoisResponse(client);
             }
 
