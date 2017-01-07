@@ -43,7 +43,8 @@ namespace IRC {
                 for (i = 1; i < line.Length; ++i) {
                     string tag; string value;
 
-                    for ( ; i < line.Length; ++i) {
+					builder.Clear();
+					for ( ; i < line.Length; ++i) {
                         c = line[i];
                         if (c == '=' || c == ';' || c == ' ') break;
                         builder.Append(c);
