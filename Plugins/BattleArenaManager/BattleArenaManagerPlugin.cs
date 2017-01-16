@@ -16,6 +16,7 @@ using IRC;
 
 using FileMode = System.IO.FileMode;
 using Timer = System.Timers.Timer;
+using System.Globalization;
 
 namespace BattleArenaManager {
     [ApiVersion(3, 5)]
@@ -42,8 +43,9 @@ namespace BattleArenaManager {
 
         private Thread logListenThread;
 
-        public DateTime LastUpdate = DateTime.Now;
+        public DateTime LastCommitTime = DateTime.Now;
         private Timer checkTimer;
+		private IReadOnlyList<GitHubCommit> commits;
         public bool UpdateNextBattle { get; private set; }
 
         public DateTime LastBattle { get; private set; }
@@ -188,7 +190,7 @@ namespace BattleArenaManager {
                                 break;
                             case "LASTUPDATE":
                                 if (DateTime.TryParse(value, out value2)) {
-                                    this.LastUpdate = value2;
+                                    this.LastCommitTime = value2;
                                 } else ConsoleUtils.WriteLine("[{0}] Problem loading the configuration (line {1}): the value is not recognised as a valid date.", this.Key, lineNumber);
                                 break;
                             case "CHECKFORUPDATES":
@@ -241,7 +243,7 @@ namespace BattleArenaManager {
         public void LoadData() {
             if (File.Exists(Path.Combine("data", this.Key, "LastUpdate.txt"))) {
                 var text = File.ReadAllText(Path.Combine("data", this.Key, "LastUpdate.txt"));
-                this.LastUpdate = DateTime.Parse(text);
+                this.LastCommitTime = DateTime.Parse(text, CultureInfo.InvariantCulture, DateTimeStyles.AdjustToUniversal);
             }
         }
 
@@ -267,11 +269,11 @@ namespace BattleArenaManager {
 
         public void SaveData() {
             Directory.CreateDirectory(Path.Combine("data", this.Key));
-            File.WriteAllText(Path.Combine("data", this.Key, "LastUpdate.txt"), this.LastUpdate.ToString("u"));
+            File.WriteAllText(Path.Combine("data", this.Key, "LastUpdate.txt"), this.LastCommitTime.ToString("u"));
         }
 
         public override bool OnChannelMessage(object sender, ChannelMessageEventArgs e) {
-            if (((IrcClient) sender).Address.EndsWith(".DCC") || (sender == this.ArenaConnection && ((IrcClient) sender).CaseMappingComparer.Equals(e.Channel, this.ArenaChannel) &&
+            if (((IrcClient) sender).Address.EndsWith(".DCC") || (sender == this.ArenaConnection && ((IrcClient) sender).CaseMappingComparer.Equals(e.Channel.Name, this.ArenaChannel) &&
                                                                   ((IrcClient) sender).CaseMappingComparer.Equals(e.Sender.Nickname, this.ArenaNickname)))
                 this.RunArenaRegex((IrcClient) sender, e.Channel, e.Sender, e.Message);
             return base.OnChannelMessage(sender, e);
@@ -319,15 +321,18 @@ namespace BattleArenaManager {
 
         [ArenaRegex(new string[] { @"^\x034The Battle is Over!",
             @"^\x034There were no players to meet the monsters on the battlefield! \x02The battle is over\x02."})]
-        internal void OnBattleEnd(object sender, TriggerEventArgs e) {
+        internal async void OnBattleEnd(object sender, TriggerEventArgs e) {
             BattleOff = true;
             ConsoleUtils.WriteLine("[" + this.Key + "] A battle has ended.");
 
             if (this.UpdateNextBattle) {
                 this.UpdateNextBattle = false;
 
-                Task task = new Task(new Action(async () => await ApplyUpdate()));
-                task.Start();
+				try {
+					await this.ApplyUpdate();
+				} catch (Exception ex) {
+					this.LogError("ApplyUpdate", ex);
+				}
 
                 this.checkTimer.Start();
             }
@@ -342,24 +347,30 @@ namespace BattleArenaManager {
 
         [Command("update", 0, 0, "!update", "Updates the Battle Arena bot.",
             ".update")]
-        public void CommandUpdate(object sender, CommandEventArgs e) {
-            Task task = new Task(new Action(async () => await ApplyUpdate()));
-            task.Start();
+        public async void CommandUpdate(object sender, CommandEventArgs e) {
+			try {
+				await this.ApplyUpdate();
+			} catch (Exception ex) {
+				this.LogError("ApplyUpdate", ex);
+			}
         }
 
 
-        private void checkTimer_Elapsed(object sender, ElapsedEventArgs e) {
-            Task task = new Task(new Action(async () => await CheckUpdate(false)));
-            task.Start();
+        private async void checkTimer_Elapsed(object sender, ElapsedEventArgs e) {
+			try {
+				await this.CheckUpdate();
+			} catch (Exception ex) {
+				this.LogError("CheckUpdate", ex);
+			}
         }
 
         public async Task CheckUpdate(bool forceAnnounce = false) {
-            CommitRequest request = new CommitRequest();
-            if (this.LastUpdate != DateTime.MinValue) request.Since = this.LastUpdate;
+            var request = new CommitRequest();
+            if (this.LastCommitTime != DateTime.MinValue) request.Since = this.LastCommitTime.AddSeconds(1);
 
             var commits = await this.client.Repository.Commit.GetAll(this.RepositoryOwner, this.RepositoryName, request);
             if (commits.Count == 0) {
-                if (forceAnnounce) Bot.Say(this.ArenaConnection, this.ArenaChannel, this.GetMessage("UpToDate", null, this.ArenaChannel, commits.Count, null));
+				if (forceAnnounce) Bot.Say(this.ArenaConnection, this.ArenaChannel, this.GetMessage("UpToDate", null, this.ArenaChannel, commits.Count, null));
                 return;
             }
 
@@ -379,6 +390,8 @@ namespace BattleArenaManager {
                 Bot.Say(this.ArenaConnection, this.ArenaChannel, this.GetMessage("NewCommits", null, this.ArenaChannel, commits.Count, commitMessage));
             }
 
+			this.commits = commits;
+
             // Should we update now?
             if (BattleOff) {
                 if ((DateTime.Now - this.LastBattle).TotalMinutes >= 15) {
@@ -397,7 +410,21 @@ namespace BattleArenaManager {
         }
 
         public async Task ApplyUpdate() {
-            this.LastUpdate = DateTime.UtcNow;
+			// Get the last commit timestamp.
+			IReadOnlyList<GitHubCommit> commits;
+			if (this.commits != null) {
+				commits = this.commits;
+				this.commits = null;
+			} else {
+				// If the command was called without already getting a list of commits, the Arena will be updated to eh latest commit,
+				// whatever that is.
+				commits = await this.client.Repository.Commit.GetAll(this.RepositoryOwner, this.RepositoryName);
+			}
+
+			if (commits.Count > 0)
+				this.LastCommitTime = commits[0].Commit.Committer.Date.UtcDateTime;
+			else
+				this.LastCommitTime = default(DateTime);
             this.SaveData();
 
             Process process; string file;
