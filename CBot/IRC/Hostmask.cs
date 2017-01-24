@@ -2,7 +2,13 @@
 using System.Text.RegularExpressions;
 
 namespace IRC {
+	/// <summary>
+	/// Provides methods that help deal with hostmasks.
+	/// </summary>
     public static class Hostmask {
+		/// <summary>Determines whether the specified string matches the specified glob pattern case-insensitively.</summary>
+		/// <param name="input">The string to check.</param>
+		/// <param name="pattern">The pattern to match against. '*' matches any sequence of zero or more characters, and '?' matches any single character.</param>
         // TODO: Use the actual case mapping comparer from the IRC client.
         public static bool Matches(string input, string pattern) {
             StringBuilder regexBuilder = new StringBuilder();
@@ -21,13 +27,15 @@ namespace IRC {
             return Regex.IsMatch(input, regexBuilder.ToString(), RegexOptions.IgnoreCase);
         }
 
+		/// <summary>Returns the nickname part of the specified hostmask.</summary>
         public static string GetNickname(string mask) {
             var pos = mask.IndexOf('!');
             if (pos == -1) return mask;
             return mask.Substring(0, pos);
         }
 
-        public static string GetIdent(string mask) {
+		/// <summary>Returns the ident part of the specified hostmask.</summary>
+		public static string GetIdent(string mask) {
             var pos = mask.IndexOf('!');
             if (pos == -1 || pos == mask.Length - 1) return "*";
             ++pos;
@@ -37,7 +45,8 @@ namespace IRC {
             return mask.Substring(pos, pos2 - pos);
         }
 
-        public static string GetHost(string mask) {
+		/// <summary>Returns the host part of the specified hostmask.</summary>
+		public static string GetHost(string mask) {
             var pos = mask.IndexOf('!');
             if (pos == -1 || pos == mask.Length - 1) return "*";
             ++pos;

@@ -14,7 +14,7 @@ namespace IRC {
     }
 
     /// <summary>
-    /// Provides <see cref="StringComparer"/>s that make case-insensitive comparisons as defined by the IRC protocol.
+    /// Provides <see cref="StringComparer"/> instances that make case-insensitive comparisons as defined by the IRC protocol.
     /// </summary>
     public class IrcStringComparer : StringComparer {
         private char maxUppercase;
@@ -42,7 +42,7 @@ namespace IRC {
                     maxLowercase = '}';
                     break;
                 default:
-                    throw new ArgumentException("mode is not a valid case mapping mode.", "mode");
+                    throw new ArgumentException(nameof(mode) + " is not a valid case mapping mode.", nameof(mode));
             }
         }
 
@@ -119,6 +119,5 @@ namespace IRC {
                 chars[i] = ToLower(chars[i]);
             return new string(chars);
         }
-
     }
 }

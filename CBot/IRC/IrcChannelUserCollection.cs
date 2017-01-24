@@ -14,8 +14,6 @@ namespace IRC {
         /// <summary>Returns the underlying dictionary of this <see cref="IrcChannelUserCollection"/>.</summary>
         protected Dictionary<string, IrcChannelUser> Users { get; }
 
-        internal int nextOrder;
-
         /// <summary>Initializes a new <see cref="IrcChannelUserCollection"/> belonging to the specified <see cref="IrcClient"/>.</summary>
         protected internal IrcChannelUserCollection(IrcClient client) {
             this.Client = client;

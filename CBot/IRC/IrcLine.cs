@@ -3,11 +3,19 @@ using System.Collections.Generic;
 using System.Text;
 
 namespace IRC {
+	/// <summary>
+	/// Represents an IRC message, and provides methods to help parse them.
+	/// </summary>
     public class IrcLine {
+		/// <summary>A dictionary of IRCv3 tags in this message, or null if no tag list is present.</summary>
         public Dictionary<string, string> Tags { get; }
+		/// <summary>The prefix or sender of this message, or null if no prefix is present.</summary>
         public string Prefix;
+		/// <summary>The message or command.</summary>
         public string Message;
+		/// <summary>The list of parameters in this message.</summary>
         public string[] Parameters;
+		/// <summary>Indicates whether the final parameter had a trail prefix.</summary>
         public bool HasTrail;
 
         public IrcLine(string message, string[] parameters) {
@@ -136,6 +144,7 @@ namespace IRC {
             return new IrcLine(tags, prefix, command, parameters, hasTrail);
         }
 
+		/// <summary>Returns a new string from the specified string with certain characters escaped, for use as an IRCv3 tag value.</summary>
         public static string EscapeTag(string value) {
             StringBuilder builder = new StringBuilder(value.Length + value.Length / 4);
             foreach (char c in value) {
@@ -157,10 +166,14 @@ namespace IRC {
             return builder.ToString();
         }
 
-        public static string UnescapeTag(string value) {
+		/// <summary>Returns a new string from the specified string with IRCv3 tag escape codes parsed.</summary>
+		public static string UnescapeTag(string value) {
             return UnescapeTag(value, false);
         }
-        public static string UnescapeTag(string value, bool strict) {
+		/// <summary>Returns a new string from the specified string with IRCv3 tag escape codes parsed.</summary>
+		/// <param name="strict">If true, this method will throw an exception if an invalid escape sequence is encountered instead of copying it verbatim.</param>
+		/// <exception cref="FormatException"><paramref name="strict"/> is true, and there is an invalid escape sequence in <paramref name="value"/>.</exception>
+		public static string UnescapeTag(string value, bool strict) {
             StringBuilder builder = new StringBuilder(value.Length);
 
             for (int i = 0; i < value.Length; ++i) {
@@ -194,6 +207,7 @@ namespace IRC {
             return builder.ToString();
         }
 
+		/// <summary>Returns the string representation of this <see cref="IrcLine"/>, as specified by the IRC protocol.</summary>
         public override string ToString() {
             StringBuilder builder = new StringBuilder(128);
             if (this.Tags != null) {

@@ -52,16 +52,29 @@ namespace IRC {
         }
     }
 
-    public class WhoResponse {
-        public string Channel { get; internal set; }
-        public string Ident { get; internal set; }
-        public string Host { get; internal set; }
-        public string Server { get; internal set; }
-        public string Nickname { get; internal set; }
+	/// <summary>
+	/// Represents the response to a WHO command.
+	/// </summary>
+	public class WhoResponse {
+		/// <summary>Returns one of the channels the local user shares with this user, or "*".</summary>
+		public string Channel { get; internal set; }
+		/// <summary>Returns the user's ident username.</summary>
+		public string Ident { get; internal set; }
+		/// <summary>Returns the user's hostname.</summary>
+		public string Host { get; internal set; }
+		/// <summary>Returns the name of the server that the user is connected to.</summary>
+		public string Server { get; internal set; }
+		/// <summary>Returns the user's nickname.</summary>
+		public string Nickname { get; internal set; }
+		/// <summary>Returns a value indicating whether the user is marked as away.</summary>
         public bool Away { get; internal set; }
-        public bool Oper { get; internal set; }
+		/// <summary>Returns a value indicating whether the user is a server operator.</summary>
+		public bool Oper { get; internal set; }
+		/// <summary>Returns a <see cref="ChannelStatus"/> object representing the status the user has on the channel specified by <see cref="Channel"/>.</summary>
         public ChannelStatus ChannelStatus { get; internal set; }
-        public int HopCount { get; internal set; }
-        public string FullName { get; internal set; }
+		/// <summary>Returns the number of 'hops' between this server and the user's server.</summary>
+		public int HopCount { get; internal set; }
+		/// <summary>Returns the user's full name.</summary>
+		public string FullName { get; internal set; }
     }
 }

@@ -11,9 +11,10 @@ namespace IRC {
     /// </summary>
     /// <remarks>
     ///     <para>For more information, see https://tools.ietf.org/html/draft-brocklesby-irc-isupport-03 </para>
-    ///     <para>This class is implemented as a <c>ReadOnlyDictionary&lt;string, string&gt;</c>.</para>
+    ///     <para>This class is implemented as a <see cref="ReadOnlyDictionary{TKey, TValue}"/> of <see cref="string"/>, <see cref="string"/>.</para>
     /// </remarks>
     public class IrcExtensions : ReadOnlyDictionary<string, string> {
+		/// <summary>Returns the <see cref="IrcClient"/> that this <see cref="IrcExtensions"/> list belongs to.</summary>
         public IrcClient Client { get; }
 
         /// <summary>The RPL_ISUPPORT specification of the case mapping this server uses to compare nicknames and channel names.</summary>

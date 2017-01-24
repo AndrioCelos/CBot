@@ -7,10 +7,14 @@ namespace IRC {
     /// <summary>
     /// Represents a read-only set of IRC modes and parameters.
     /// </summary>
+	/// <remarks>
+	/// This class is not suitable for storing mode lists or status modes, as up to one parameter is allowed per mode.
+	/// </remarks>
     public class ModeSet : ISet<char>, IReadOnlyCollection<char> {
         private HashSet<char> modes = new HashSet<char>();
         private Dictionary<char, string> parameters = new Dictionary<char, string>(8);
 
+		/// <summary>Returns the number of modes in this set.</summary>
         public int Count => this.modes.Count;
 
         internal void Add(char mode) => this.modes.Add(mode);
@@ -27,8 +31,10 @@ namespace IRC {
             this.parameters.Clear();
         }
 
+		/// <summary>Determines whether the specified mode character is present in this set.</summary>
         public bool Contains(char item) => this.modes.Contains(item);
 
+		/// <summary>Returns the parameter associated with the specified mode.</summary>
         public string GetParameter(char mode) => this.parameters[mode];
         internal string SetParameter(char mode, string parameter) => this.parameters[mode] = parameter;
 
@@ -36,7 +42,8 @@ namespace IRC {
 
         public IEnumerator<char> GetEnumerator() => this.modes.GetEnumerator();
 
-        public override string ToString() {
+		/// <summary>Returns a string representation of the modes in this set, prefixed with a '+'.</summary>
+		public override string ToString() {
             StringBuilder builder = new StringBuilder("+");
             StringBuilder builder2 = new StringBuilder();
 
@@ -75,9 +82,13 @@ namespace IRC {
         #endregion
     }
 
+	/// <summary>Represents a single mode change.</summary>
     public struct ModeChange {
+		/// <summary>True if a mode was set; false if one was removed.</summary>
         public bool Direction;
+		/// <summary>The mode character of the mode that was changed.</summary>
         public char Mode;
+		/// <summary>The parameter of the mode change, or null if there was no parameter.</summary>
         public string Parameter;
     }
 }

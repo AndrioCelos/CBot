@@ -68,25 +68,25 @@ namespace IRC {
             standardModes[5].Add('q');
         }
 
-        /// <summary>Creates a new empty <see cref="ChannelStatus"/> set associated with no <see cref="IrcClient"/>.</summary>
-        public ChannelStatus() : this(null) { }
-        /// <summary>Creates a new empty <see cref="ChannelStatus"/> set associated with the given <see cref="IrcClient"/>.</summary>
-        /// <param name="client">The <see cref="IrcClient"/> object to which the new object is relevant.</param>
-        public ChannelStatus(IrcClient client) {
+		/// <summary>Initializes a new empty <see cref="ChannelStatus"/> set associated with no <see cref="IrcClient"/>.</summary>
+		public ChannelStatus() : this(null) { }
+		/// <summary>Initializes a new empty <see cref="ChannelStatus"/> set associated with the given <see cref="IrcClient"/>.</summary>
+		/// <param name="client">The <see cref="IrcClient"/> object to which the new object is relevant.</param>
+		public ChannelStatus(IrcClient client) {
             this.Client = client;
             this.modes = new HashSet<char>();
         }
-        /// <summary>Creates a new <see cref="ChannelStatus"/> object associated with the given <see cref="IrcClient"/> and with the given set of channel modes.</summary>
-        /// <param name="client">The <see cref="IrcClient"/> object to which the new object is relevant.</param>
-        /// <param name="modes">An <c>IEnumerable&lt;char&gt;</c> containing channel modes to add to the set.</param>
-        public ChannelStatus(IrcClient client, IEnumerable<char> modes) {
+		/// <summary>Initializes a new <see cref="ChannelStatus"/> object associated with the given <see cref="IrcClient"/> and with the given set of channel modes.</summary>
+		/// <param name="client">The <see cref="IrcClient"/> object to which the new object is relevant.</param>
+		/// <param name="modes">An <see cref="IEnumerable{T}"/> of <see cref="char"/> containing channel modes to add to the set.</param>
+		public ChannelStatus(IrcClient client, IEnumerable<char> modes) {
             this.Client = client;
             this.modes = new HashSet<char>(modes);
         }
 
-        /// <summary>Creates a new ChannelStatus object associated with the given <see cref="IrcClient"/> and with the given status prefix.</summary>
+        /// <summary>Initializes a new ChannelStatus object associated with the given <see cref="IrcClient"/> and with the given status prefixes.</summary>
         /// <param name="client">The <see cref="IrcClient"/> object to which the new object is relevant.</param>
-        /// <param name="prefixes">The prefixes to add to the set.</param>
+        /// <param name="prefixes">The prefixes to add to the set. Unrecognizes prefixes are ignored.</param>
         public static ChannelStatus FromPrefix(IrcClient client, IEnumerable<char> prefixes) {
 			var extensions = client?.Extensions ?? IrcExtensions.Default;
             var prefixTable = extensions.StatusPrefix;
@@ -120,22 +120,24 @@ namespace IRC {
         /// </summary>
         public bool Equals(ChannelStatus other) => (this == other);
 
-        /// <summary>
-        ///     Compares this <see cref="ChannelStatus"/> object with another <see cref="ChannelStatus"/> object and returns a value indicating their relative power level.
-        ///     <para>Two sets with the same highest ranking mode are considered equal regardless of lower-ranking modes.</para>
-        /// </summary>
-        /// <returns>
-        ///     Less than zero if this <see cref="ChannelStatus"/> object represents lower status than the other;
-        ///     zero if this <see cref="ChannelStatus"/> object represents equal status to the other;
-        ///     greater than zero if this <see cref="ChannelStatus"/> object represents higher status than the other, or the other is null.
-        /// </returns>
-        /// <remarks>
-        ///     <para>This method takes into consideration all status modes listed in the RPL_ISUPPORT reply,
-        ///     plus modes mentioned by the static fields of <see cref="ChannelStatus"/>, even if the IRC network doesn't support those modes.</para>
-        ///     <para>For example, on networks that don't have halfops,
-        ///         <c>user.Status >= <see cref="Halfop"/></c> is equivalent to <c>user.Status > <see cref="Voice"/></c>.</para>
-        /// </remarks>
-        public int CompareTo(ChannelStatus other) {
+		/// <summary>
+		///     Compares this <see cref="ChannelStatus"/> object with another <see cref="ChannelStatus"/> object and returns a value indicating their relative power level.
+		///     <para>Two sets with the same highest ranking mode are considered equal regardless of lower-ranking modes.</para>
+		/// </summary>
+		/// <returns>
+		///		<list type="bullet">
+		///			<item><description>Less than zero if this <see cref="ChannelStatus"/> object represents lower status than the other;</description></item>
+		///			<item><description>Zero if this <see cref="ChannelStatus"/> object represents equal status to the other;</description></item>
+		///			<item><description>Greater than zero if this <see cref="ChannelStatus"/> object represents higher status than the other, or the other is null.</description></item>
+		///		</list>
+		/// </returns>
+		/// <remarks>
+		///     <para>This method takes into consideration all status modes listed in the RPL_ISUPPORT reply,
+		///     plus modes mentioned by the static fields of <see cref="ChannelStatus"/>, even if the IRC network doesn't support those modes.</para>
+		///     <para>For example, on networks that don't have halfops,
+		///         <c>user.Status >= <see cref="Halfop"/></c> is equivalent to <c>user.Status > <see cref="Voice"/></c>.</para>
+		/// </remarks>
+		public int CompareTo(ChannelStatus other) {
             if ((object) other == null) return 1;
 
 			var extensions = this.Client?.Extensions ?? other.Client?.Extensions ?? IrcExtensions.Default;
@@ -146,9 +148,9 @@ namespace IRC {
             return 0;
         }
 
-        /// <summary>Returns the status prefixes represented by this ChannelStatus object.</summary>
-        public string GetPrefixes() {
-            StringBuilder builder = new StringBuilder(this.Count);
+		/// <summary>Returns the status prefixes represented by this <see cref="ChannelStatus"/> object.</summary>
+		public string GetPrefixes() {
+            var builder = new StringBuilder(this.Count);
 
 			var extensions = this.Client?.Extensions ?? IrcExtensions.Default;
 			foreach (var prefix in extensions.StatusPrefix) {
@@ -164,53 +166,56 @@ namespace IRC {
         /// <summary>Returns the channel modes represented by this ChannelStatus object.</summary>
         public override string ToString() => new string(this.modes.ToArray());
 
-        /// <summary>
-        /// Compares this ChannelStatus object with another object and returns true if they are equal.
-        /// <para>Two sets with the same highest ranking mode are considered equal regardless of lower-ranking modes.</para>
-        /// </summary>
-        public static bool operator ==(ChannelStatus v1, ChannelStatus v2)
+		/// <summary>
+		/// Compares this <see cref="ChannelStatus"/> object with another object and returns true if they are equal.
+		/// <para>Two sets with the same highest ranking mode are considered equal regardless of lower-ranking modes.</para>
+		/// </summary>
+		public static bool operator ==(ChannelStatus v1, ChannelStatus v2)
             => ((object) v1 == null ? (object) v2 == null : v1.CompareTo(v2) == 0);
 
-        /// <summary>
-        /// Compares this ChannelStatus object with another object and returns true if they are not equal.
-        /// <para>Two sets with the same highest ranking mode are considered equal regardless of lower-ranking modes.</para>
-        /// </summary>
-        public static bool operator !=(ChannelStatus v1, ChannelStatus v2)
+		/// <summary>
+		/// Compares this <see cref="ChannelStatus"/> object with another object and returns true if they are not equal.
+		/// <para>Two sets with the same highest ranking mode are considered equal regardless of lower-ranking modes.</para>
+		/// </summary>
+		public static bool operator !=(ChannelStatus v1, ChannelStatus v2)
             => ((object) v1 == null ? (object) v2 != null : v1.CompareTo(v2) != 0);
 
 
         /// <summary>
-        /// Returns true if v1 represents a lower status than v2.
+        /// Returns true if <paramref name="v1"/> represents a lower status than <paramref name="v2"/>.
         /// <para>Two sets with the same highest ranking mode are considered equal regardless of lower-ranking modes.</para>
         /// </summary>
         public static bool operator <(ChannelStatus v1, ChannelStatus v2)
             => ((object) v1 == null ? v2 != (object) null : v1.CompareTo(v2) < 0);
 
         /// <summary>
-        /// Returns true if v1 represents a lower or equal status to v2.
+        /// Returns true if <paramref name="v1"/> represents a lower or equal status to <paramref name="v2"/>.
         /// <para>Two sets with the same highest ranking mode are considered equal regardless of lower-ranking modes.</para>
         /// </summary>
         public static bool operator <=(ChannelStatus v1, ChannelStatus v2)
             => ((object) v1 == null || v1.CompareTo(v2) <= 0);
 
         /// <summary>
-        /// Returns true if v1 represents a higher or equal status to v2.
+        /// Returns true if <paramref name="v1"/> represents a higher or equal status to <paramref name="v2"/>.
         /// <para>Two sets with the same highest ranking mode are considered equal regardless of lower-ranking modes.</para>
         /// </summary>
         public static bool operator >=(ChannelStatus v1, ChannelStatus v2)
             => ((object) v1 == null ? (object) v2 == null : v1.CompareTo(v2) >= 0);
 
         /// <summary>
-        /// Returns true if v1 represents a higher status than v2.
+        /// Returns true if <paramref name="v1"/> represents a higher status than <paramref name="v2"/>.
         /// <para>Two sets with the same highest ranking mode are considered equal regardless of lower-ranking modes.</para>
         /// </summary>
         public static bool operator >(ChannelStatus v1, ChannelStatus v2)
             => ((object) v1 != null && v1.CompareTo(v2) > 0);
 
         #region Set methods
+		/// <summary>Returns the number of modes in this set.</summary>
         public int Count => this.modes.Count;
+		/// <summary>Returns true, indicating that <see cref="ChannelStatus"/> is read-only.</summary>
         public bool IsReadOnly => true;
 
+		/// <summary>Determines whether the specified mode character is present in this set.</summary>
         public bool Contains(char item) => this.modes.Contains(item);
         public void CopyTo(char[] array, int arrayIndex) => this.modes.CopyTo(array, arrayIndex);
         public IEnumerator<char> GetEnumerator() => this.modes.GetEnumerator();

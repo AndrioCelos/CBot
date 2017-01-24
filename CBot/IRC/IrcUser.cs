@@ -123,6 +123,7 @@ namespace IRC {
             this.id = Interlocked.Increment(ref nextId);
         }
 
+		/// <summary>Sets the <see cref="Nickname"/>, <see cref="Ident"/> and <see cref="Host"/> properties according to the specified hostmask.</summary>
         protected internal void SetMask(string hostmask) {
             this.Nickname = Hostmask.GetNickname(hostmask);
             this.Ident = Hostmask.GetIdent(hostmask);
@@ -230,9 +231,14 @@ namespace IRC {
 			return (Task<string>) asyncRequest.Task;
 		}
 
+		/// <summary>Sends a WHOIS request to look up this user and awaits a reply.</summary>
 		public Task<WhoisResponse> WhoisAsync() => this.Client.WhoisAsync(this.Nickname);
 
+		/// <summary>Asynchronously looks up the services account name of the specified user.</summary>
+		// TODO: WHOX support
 		public Task<string> GetAccountAsync() => this.GetAccountAsync(false);
+		/// <summary>Asynchronously looks up the services account name of the specified user.</summary>
+		/// <param name="force">If true, a request will be sent even if an account name is already known.</param>
 		public async Task<string> GetAccountAsync(bool force) {
             if (this.Client.State < IrcClientState.ReceivingServerInfo) throw new InvalidOperationException("The client must be registered to perform this operation.");
 
@@ -279,6 +285,7 @@ namespace IRC {
             }
         }
 
+		/// <summary>Attempts to change the local user's nickname and awaits a response from the server.</summary>
         public Task SetNicknameAsync(string newNickname) {
             if (newNickname == null) throw new ArgumentNullException(nameof(newNickname));
 

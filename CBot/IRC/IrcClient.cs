@@ -398,6 +398,7 @@ namespace IRC {
                 this.OnStateChanged(new StateEventArgs(oldState, value));
             }
         }
+		/// <summary>Returns true if additional messages has been received that are not yet being processed.</summary>
         public bool DataAvailable => this.tcpClient?.GetStream()?.DataAvailable ?? false;
 
         /// <summary>Contains SHA-256 hashes of TLS certificates that should be accepted.</summary>
@@ -410,6 +411,7 @@ namespace IRC {
         public Encoding Encoding { get; set; }
 
         private List<AsyncRequest> asyncRequests = new List<AsyncRequest>();
+		/// <summary>Returns the list of pending async requests for this <see cref="IrcClient"/>.</summary>
         public ReadOnlyCollection<AsyncRequest> AsyncRequests;
         private Timer asyncRequestTimer;
 		private TaskCompletionSource<IrcLine> readAsyncTaskSource;
@@ -427,6 +429,7 @@ namespace IRC {
         private object Lock = new object();
 
         private IrcClientState state;
+		/// <summary>Stores <see cref="DisconnectReason"/> values that don't cause the connection to be closed immediately.</summary>
         protected internal DisconnectReason disconnectReason;
         internal bool accountKnown;  // Some servers send both 330 and 307 in WHOIS replies. We need to ignore the 307 in that case.
         internal Dictionary<string, HashSet<string>> pendingNames = new Dictionary<string, HashSet<string>>();
@@ -549,6 +552,7 @@ namespace IRC {
             this.pinged = false;
         }
 
+		/// <summary>Called when the TCP connection attempt has completed.</summary>
         protected virtual void onConnected(IAsyncResult result) {
             try {
                 this.tcpClient.EndConnect(result);
@@ -605,7 +609,12 @@ namespace IRC {
             }
         }
 
-        protected virtual bool validateCertificate(object sender, X509Certificate certificate, X509Chain chain, SslPolicyErrors sslPolicyErrors) {
+		/// <summary>Decides whether to accept an invalid TLS certificate.</summary>
+		/// <param name="certificate">The certificate presented by the server.</param>
+		/// <param name="chain">The chain of certificate authorities associated with the server's certificate.</param>
+		/// <param name="sslPolicyErrors">A value indicating why the certificate is invalid.</param>
+		/// <returns>True if the connection should continue; false if it should be terminated.</returns>
+		protected virtual bool validateCertificate(object sender, X509Certificate certificate, X509Chain chain, SslPolicyErrors sslPolicyErrors) {
             bool valid = false;
             if (this.AllowInvalidCertificate)
                 valid = true;
@@ -626,7 +635,8 @@ namespace IRC {
             this.OnValidateCertificate(e);
             return e.Valid;
         }
-
+		
+		/// <summary>Registers the local user to the IRC server. May also initiate IRCv3 capability negotiation.</summary>
         protected virtual void Register() {
             if (this.Password != null)
                 this.Send("PASS :" + this.Password);
@@ -670,6 +680,7 @@ namespace IRC {
             }
         }
 
+		/// <summary>Reads and processes messages from the server.</summary>
         protected virtual void ReadLoop() {
             while (this.State >= IrcClientState.Registering) {
                 string line;
@@ -808,11 +819,13 @@ namespace IRC {
             return message;
         }
 
+		/// <summary>Sets the <see cref="IrcExtensions.ChanModes"/> property of <see cref="Extensions"/> to the default value.</summary>
         protected virtual void SetDefaultChannelModes() {
             this.Extensions.ChanModes = ChannelModes.RFC1459;
         }
 
-        protected virtual void SetDefaultUserModes() {
+		/// <summary>Sets the contents of <see cref="SupportedUserModes"/> to the defaults.</summary>
+		protected virtual void SetDefaultUserModes() {
             this.SupportedUserModes.Clear();
             this.SupportedUserModes.Add('i');
             this.SupportedUserModes.Add('o');
@@ -820,6 +833,12 @@ namespace IRC {
             this.SupportedUserModes.Add('w');
         }
 
+		/// <summary>Handles a channel mode message.</summary>
+		/// <param name="sender">If this is a mode change, the user who made the change.</param>
+		/// <param name="channel">The channel whose modes are affected.</param>
+		/// <param name="modes">The list of mode characters in the message.</param>
+		/// <param name="parameters">The list of parameters in the message.</param>
+		/// <param name="modeMessage">True if this is a mode change; false if this is a notification of current modes.</param>
         protected internal void HandleChannelModes(IrcUser sender, IrcChannel channel, string modes, IEnumerable<string> parameters, bool modeMessage) {
             var enumerator = parameters.GetEnumerator();
             bool direction = true;
@@ -889,10 +908,12 @@ namespace IRC {
             else this.OnChannelModesGet(new ChannelModesSetEventArgs(sender, channel, changes));
         }
 
+		/// <summary>Handles a list mode change.</summary>
         protected internal void HandleChannelModeList(IrcUser sender, IrcChannel channel, bool direction, char mode, string parameter, bool events) {
             // TODO: implement internal mode lists.
         }
-        protected internal void HandleChannelModeStatus(IrcUser sender, IrcChannel channel, bool direction, char mode, string parameter, bool events) {
+		/// <summary>Handles a status mode change.</summary>
+		protected internal void HandleChannelModeStatus(IrcUser sender, IrcChannel channel, bool direction, char mode, string parameter, bool events) {
             IrcChannelUser user;
             if (channel != null && channel.Users.TryGetValue(parameter, out user)) {
                 if (direction) user.Status.Add(mode);

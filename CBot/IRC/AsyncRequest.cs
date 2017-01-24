@@ -73,7 +73,7 @@ namespace IRC {
         protected AsyncRequest(IDictionary<string, bool> replies) : this(replies, null) { }
 		/// <summary>Initializes a new <see cref="AsyncRequest"/> waiting for the specified list of replies and parameters.</summary>
 		/// <param name="replies">A dictionary with the replies waited on as keys. For each, if the corresponding value is true, the reply is considered a final reply.</param>
-		/// <param name="parameters">A list of parameters that the reply must have. See <see cref="Parameters"/> for more details.</param>
+		/// <param name="parameters">If not null, a list of parameters that must be present in the reply for this <see cref="AsyncRequest"/> to be triggered. Null values match anything.</param>
 		protected AsyncRequest(IDictionary<string, bool> replies, IList<string> parameters) {
 			this.RepliesSource = replies;
 			this.Replies = new ReadOnlyDictionary<string, bool>(replies);
@@ -94,6 +94,7 @@ namespace IRC {
         /// Represents an <see cref="AsyncRequest"/> whose task does not return a value, and completes when a final response is received.
         /// </summary>
         public class VoidAsyncRequest : AsyncRequest {
+			/// <summary>Returns a <see cref="TaskCompletionSource{TResult}"/> that can be used to affect the <see cref="Task"/> property.</summary>
             protected TaskCompletionSource<object> TaskSource { get; } = new TaskCompletionSource<object>();
             /// <summary>Returns a <see cref="Task"/> object representing the status of this <see cref="AsyncRequest"/>.</summary>
             /// <remarks>This task will complete when a final response is received.</remarks>
@@ -105,10 +106,26 @@ namespace IRC {
             private string nickname;
             private HashSet<string> errors;
 
-            public VoidAsyncRequest(IDictionary<string, bool> replies, IList<string> parameters) : base(replies, parameters) {
+			/// <summary>Initializes a new <see cref="VoidAsyncRequest"/> that listens for the specified replies with the specified list of parameters.</summary>
+			/// <param name="replies">The set of replies to listen for.</param>
+			/// <param name="parameters">If not null, a list of parameters that must be present in the reply for this <see cref="AsyncRequest"/> to be triggered. Null values match anything.</param>
+			public VoidAsyncRequest(IDictionary<string, bool> replies, IList<string> parameters) : base(replies, parameters) {
 				this.CanTimeout = true;
 			}
+			/// <summary>Initializes a new <see cref="VoidAsyncRequest"/> that listens for the specified replies with the specified list of parameters.</summary>
+			/// <param name="client">The <see cref="IrcClient"/> that this <see cref="AsyncRequest"/> belongs to.</param>
+			/// <param name="nickname">If not null, the entity sending the message must have the specified nickname.</param>
+			/// <param name="successReply">A reply that is considered a successful reply.</param>
+			/// <param name="parameters">If not null, a list of parameters that must be present in the reply for this <see cref="AsyncRequest"/> to be triggered. Null values match anything.</param>
+			/// <param name="errors">A list of replies that are considered error replies, and will cause this <see cref="AsyncRequest"/> to throw an <see cref="AsyncRequestErrorException"/>.</param>
 			public VoidAsyncRequest(IrcClient client, string nickname, string successReply, IList<string> parameters, params string[] errors) : this(client, nickname, successReply, parameters, true, errors) { }
+			/// <summary>Initializes a new <see cref="VoidAsyncRequest"/> that listens for the specified replies with the specified list of parameters.</summary>
+			/// <param name="client">The <see cref="IrcClient"/> that this <see cref="AsyncRequest"/> belongs to.</param>
+			/// <param name="nickname">If not null, the entity sending the message must have the specified nickname.</param>
+			/// <param name="successReply">A reply that is considered a successful reply.</param>
+			/// <param name="parameters">If not null, a list of parameters that must be present in the reply for this <see cref="AsyncRequest"/> to be triggered. Null values match anything.</param>
+			/// <param name="canTimeout">Specifies whether this <see cref="AsyncRequest"/> can time out.</param>
+			/// <param name="errors">A list of replies that are considered error replies, and will cause this <see cref="AsyncRequest"/> to throw an <see cref="AsyncRequestErrorException"/>.</param>
 			public VoidAsyncRequest(IrcClient client, string nickname, string successReply, IList<string> parameters, bool canTimeout, params string[] errors) : base(getReplies(successReply, errors), parameters) {
                 this.client = client;
                 this.nickname = nickname;
@@ -145,43 +162,12 @@ namespace IRC {
 		}
 
 		/// <summary>
-		/// An <see cref="AsyncRequest"/> that listenes for a user's account name.
+		/// An <see cref="AsyncRequest"/> that listens for a WHO response.
 		/// </summary>
 		/// <remarks>
-		/// This class does not send a WHOIS or any other command to the server; that must be done by the caller.
+		///	The task, if successful, returns all the data provided by the server in a <see cref="ReadOnlyCollection{WhoResponse}"/> object.
 		/// </remarks>
-		public class AccountAsyncRequest : AsyncRequest {
-            private static Dictionary<string, bool> replies = new Dictionary<string, bool>(StringComparer.OrdinalIgnoreCase) {
-                { RPL_ENDOFWHOIS, false }, { RPL_WHOISACCOUNT, false }
-            };
-
-            private TaskCompletionSource<string> taskSource { get; } = new TaskCompletionSource<string>();
-            /// <summary>Returns the <see cref="IrcUser"/> this <see cref="AccountAsyncRequest"/> is tracking.</summary>
-            public IrcUser User { get; }
-            /// <summary>Returns a <c>Task&lt;string&gt;</c> that follows the status of this <see cref="AsyncRequest"/> and returns the account name.</summary>
-            public override Task Task => this.taskSource.Task;
-
-            public AccountAsyncRequest(IrcUser user) : base(replies) {
-                this.User = user;
-            }
-
-            protected internal override bool OnReply(IrcLine line, ref bool final) {
-                if (this.User.Client.CaseMappingComparer.Equals(line.Parameters[1], this.User.Nickname)) {
-                    this.taskSource.SetResult(this.User.Account);
-                    final = true;
-                }
-                return false;
-            }
-
-            protected internal override void OnFailure(Exception exception) {
-                this.taskSource.SetException(exception);
-            }
-        }
-
-        /// <summary>
-        /// An <see cref="AsyncRequest"/> that listens for a WHOIS response.
-        /// </summary>
-        public class WhoAsyncRequest : AsyncRequest {
+		public class WhoAsyncRequest : AsyncRequest {
             private static Dictionary<string, bool> replies = new Dictionary<string, bool>(StringComparer.OrdinalIgnoreCase) {
                 // Successful replies
                 { RPL_WHOREPLY, false },
@@ -199,8 +185,10 @@ namespace IRC {
 
             private TaskCompletionSource<ReadOnlyCollection<WhoResponse>> taskSource { get; } = new TaskCompletionSource<ReadOnlyCollection<WhoResponse>>();
             private string target;
-            public override Task Task => this.taskSource.Task;
+			/// <summary>Returns a <see cref="Task{TResult}"/> of <see cref="ReadOnlyCollection{T}"/> of <see cref="WhoResponse"/> representing the status of the request.</summary>
+			public override Task Task => this.taskSource.Task;
 
+			/// <summary>Initializes a new <see cref="WhoAsyncRequest"/> for the specified channel, associated with the specified <see cref="IrcClient"/>.</summary>
             public WhoAsyncRequest(IrcClient client, string target) : base(replies, new[] { null, target }) {
                 this.client = client;
                 this.target = target;
@@ -268,6 +256,9 @@ namespace IRC {
 		/// <summary>
 		/// An <see cref="AsyncRequest"/> that listens for a WHOIS response.
 		/// </summary>
+		/// <remarks>
+		///	The task, if successful, returns all of the data provided by the server in a <see cref="WhoisResponse"/> object.
+		/// </remarks>
 		public class WhoisAsyncRequest : AsyncRequest {
             private static Dictionary<string, bool> replies = new Dictionary<string, bool>(StringComparer.OrdinalIgnoreCase) {
                 // Successful replies
@@ -302,9 +293,11 @@ namespace IRC {
 
             private TaskCompletionSource<WhoisResponse> taskSource { get; } = new TaskCompletionSource<WhoisResponse>();
             public string Target { get; }
-            public override Task Task => this.taskSource.Task;
+			/// <summary>Returns a <see cref="Task{TResult}"/> of <see cref="WhoisResponse"/> representing the status of the request.</summary>
+			public override Task Task => this.taskSource.Task;
 
-            public WhoisAsyncRequest(IrcClient client, string target) : base(replies, new[] { null, target }) {
+			/// <summary>Initializes a new <see cref="WhoisAsyncRequest"/> for the specified nickname, associated with the specified <see cref="IrcClient"/>.</summary>
+			public WhoisAsyncRequest(IrcClient client, string target) : base(replies, new[] { null, target }) {
                 this.client = client;
                 this.Target = target;
                 this.response = new WhoisResponse(client);
@@ -374,6 +367,12 @@ namespace IRC {
 			protected internal override void OnFailure(Exception exception) => this.taskSource.SetException(exception);
 		}
 
+		/// <summary>
+		/// An <see cref="AsyncRequest"/> that listens for CTCP reply from a user.
+		/// </summary>
+		/// <remarks>
+		///	The task, if successful, returns the parameters in the reply as a string.
+		/// </remarks>
 		public class CtcpAsyncRequest : AsyncRequest {
 			private static Dictionary<string, bool> replies = new Dictionary<string, bool>(StringComparer.OrdinalIgnoreCase) {
                 // Successful replies
@@ -392,6 +391,7 @@ namespace IRC {
 			private TaskCompletionSource<string> taskSource { get; } = new TaskCompletionSource<string>();
 			private string target;
 			private string request;
+			/// <summary>Returns a <see cref="Task{TResult}"/> of <see cref="string"/> representing the status of the request.</summary>
 			public override Task Task => this.taskSource.Task;
 
 			public CtcpAsyncRequest(IrcClient client, string target, string request) : base(replies) {
@@ -437,8 +437,7 @@ namespace IRC {
 			};
 
 			protected TaskCompletionSource<string> TaskSource { get; } = new TaskCompletionSource<string>();
-			/// <summary>Returns a <see cref="Task"/> object representing the status of this <see cref="AsyncRequest"/>.</summary>
-			/// <remarks>This task will complete when a final response is received.</remarks>
+			/// <summary>Returns a <see cref="Task{TResult}"/> of <see cref="string"/> representing the status of the request.</summary>
 			public override Task Task => this.TaskSource.Task;
 
 			public override bool CanTimeout => false;
@@ -446,6 +445,10 @@ namespace IRC {
 			private IrcUser user;
 			private IrcMessageTarget target;
 
+			/// <summary>Initializes a new <see cref="MessageAsyncRequest"/> waiting for the specified type of message from the specified user to the specified target.</summary>
+			/// <param name="user">The user to listen for a message from.</param>
+			/// <param name="target">The entity to listen for a message to, which should be either the local user or a channel.</param>
+			/// <param name="notice">Specifies whether to listen for a NOTICE instead of a PRIVMSG.</param>
 			public MessageAsyncRequest(IrcUser user, IrcMessageTarget target, bool notice) : base(notice ? repliesNotice : repliesPrivmsg) {
 				this.user = user;
 				this.target = target;
@@ -464,8 +467,12 @@ namespace IRC {
 		}
 	}
 
+	/// <summary>
+	/// The exception that is thrown on an <see cref="AsyncRequest"/> when an error reply is received from the server.
+	/// </summary>
 	[Serializable]
     public class AsyncRequestErrorException : Exception {
+		/// <summary>Returns the error reply that was received.</summary>
         public IrcLine Line { get; }
 
         public AsyncRequestErrorException(IrcLine line) : base(line.Parameters[line.Parameters.Length - 1]) {

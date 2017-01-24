@@ -31,8 +31,13 @@ namespace IRC {
         internal bool Remove(IrcUser user) => this.Users.Remove(user.Nickname);
         internal void Clear() => this.Users.Clear();
 
-        internal IrcUser Get(string mask, bool add) => this.Get(mask, null, null, add);
-        internal IrcUser Get(string mask, string account, string fullName, bool add) {
+		/// <summary>Returns the <see cref="IrcUser"/> object representing the channel with the specified name, creating one if necessary.</summary>
+		internal IrcUser Get(string mask, bool add) => this.Get(mask, null, null, add);
+		/// <summary>
+		/// Returns the <see cref="IrcUser"/> object representing the channel with the specified name, creating one if necessary,
+		/// and sets its details to the specified ones (from extended-join).
+		/// </summary>
+		internal IrcUser Get(string mask, string account, string fullName, bool add) {
             IrcUser user;
             string nickname; string ident; string host;
 

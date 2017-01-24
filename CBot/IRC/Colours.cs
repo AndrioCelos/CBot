@@ -70,7 +70,7 @@ namespace IRC {
         /// <param name="colours">An array containing colour indices to use on the text.</param>
         /// <returns>An array with two elements, consisting of the foreground and background colour for the given string, in that order.</returns>
         public static int[] NicknameColourIndex(string nickname, int[] colours) => NicknameColourIndex(nickname, transformColourArray(colours));
-        /// <summary>Returns a colour code that can be used to colour the given string using the specified list of text and background colours.</summary>
+        /// <summary>Returns a colour index that can be used to colour the given string using the specified list of text and background colours.</summary>
         /// <param name="nickname">The string to colour.</param>
         /// <param name="colours">
         ///     A two-dimensional array containing colour indices to use on the text.
@@ -120,7 +120,7 @@ namespace IRC {
         Magenta,
         DarkGray,
         Gray,
-        /// <summary>A colour code that resets the background colour.</summary>
+        /// <summary>A colour code that resets the background colour. In some clients, it can also reset the foreground colour.</summary>
         Default = 99
     }
 }

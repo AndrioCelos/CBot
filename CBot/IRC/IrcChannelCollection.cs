@@ -45,6 +45,7 @@ namespace IRC {
         /// <summary>Copies all of the <see cref="IrcChannel"/>s in this list to the specified array, starting at the specified index in the target array.</summary>
         public void CopyTo(IrcChannel[] array, int startIndex) => this.Channels.Values.CopyTo(array, startIndex);
 
+		/// <summary>Returns the <see cref="IrcChannel"/> object representing the channel with the specified name, creating one if necessary.</summary>
         internal IrcChannel Get(string name) {
             IrcChannel channel;
             if (this.TryGetValue(name, out channel)) return channel;

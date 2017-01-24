@@ -31,7 +31,7 @@
         Quit,
         /// <summary>The server did not respond to a ping.</summary>
         PingTimeout,
-        /// <summary>The server is closing the connection unexpectedly.</summary>
+        /// <summary>The server closed the connection unexpectedly.</summary>
         ServerDisconnected,
         /// <summary>An exception occurred while reading data.</summary>
         Exception,
@@ -59,7 +59,7 @@
         Disconnected,
         /// <summary>The client is establishing a TCP connection.</summary>
         Connecting,
-        /// <summary>The client is making an SSL handshake before logging in.</summary>
+        /// <summary>The client is making an TLS handshake before logging in.</summary>
         SslHandshaking,
         /// <summary>The client is registering to IRC.</summary>
         Registering,
