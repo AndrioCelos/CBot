@@ -1,3 +1,14 @@
+Version 1.12 – 25 January 2017
+------------------------------
+
+* Internal reorganisations.
+* **Fix**: You no longer need to choose a colour if you go out with a Wild card.
+
+Version 1.11 – 10 January 2016
+------------------------------
+
+* Added progressive rules, which allow Draw cards to be stacked on other cards of the same rank.
+
 Version 1.10 – 20 January 2015
 ------------------------------
 

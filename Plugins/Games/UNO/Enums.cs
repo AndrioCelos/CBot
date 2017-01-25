@@ -1,36 +1,12 @@
 ﻿namespace UNO {
-    public enum Colour : byte {
-        Red = 0,
-        Yellow = 16,
-        Green = 32,
-        Blue = 48,
-        Pending = 64,
-        None = 128
-    }
-
-    public enum Rank : byte {
-        Zero,
-        One,
-        Two,
-        Three,
-        Four,
-        Five,
-        Six,
-        Seven,
-        Eight,
-        Nine,
-        Reverse,
-        Skip,
-        DrawTwo,
-        Wild = 64,
-        WildDrawFour
-    }
-
-    public enum WildDrawFourRule : short {
+    public enum WildDrawFourRule {
+		/// <summary>A Wild Draw Four may not be played if the player has a matching colour card.</summary>
         DisallowBluffing,
-        AllowBluffing,
-        Free
-    }
+		/// <summary>A Wild Draw Four may be played if the player has a matching colour card, but will be penalised if challenged.</summary>
+		AllowBluffing,
+		/// <summary>A Wild Draw Four may be played without penalty if the player has a matching colour card.</summary>
+		Free
+	}
 
     public enum LeaderboardMode {
         None,

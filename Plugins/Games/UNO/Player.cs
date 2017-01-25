@@ -7,7 +7,7 @@ namespace UNO {
         public PlayerPresence Presence;
         public int BasePoints;
         public int HandPoints;
-        public List<byte> Hand;
+        public List<Card> Hand;
         public short IdleCount;
         internal string StreakMessage;
         public bool CanMove;
@@ -16,58 +16,32 @@ namespace UNO {
 
         public Player(string name) {
             this.Name = name;
-            this.Hand = new List<byte>(10);
+            this.Hand = new List<Card>(10);
         }
 
         public void SortHandByColour() {
             Player.SortHandByColour(this.Hand);
         }
-        public static void SortHandByColour(List<byte> hand) {
-            Player.SortHand(hand, (x, p) => x > p);
+        public static void SortHandByColour(List<Card> hand) {
+			hand.Sort((v1, v2) => (byte) v1 - (byte) v2);
         }
         public void SortHandByRank() {
             Player.SortHandByRank(this.Hand);
         }
-        public static void SortHandByRank(List<byte> hand) {
-            Player.SortHand(hand, delegate(byte x, byte p) {
-                if ((p & 64) == 64)  // Wild pivot
-                    return x > p;
-                if ((x & 64) == 64)  // Wild parameter
-                    return true;
-                if ((x & 15) > (p & 15))
-                    return true;
-                if ((x & 15) < (p & 15))
-                    return false;
-                return x > p;
-            });
-        }
-        public static void SortHand(List<byte> hand, Func<byte, byte, bool> predicate) {
-            if (hand == null) throw new ArgumentNullException("hand");
-            if (hand.Count < 2) return;
-
-            List<byte> l1 = new List<byte>(hand.Count);
-            List<byte> l2 = new List<byte>(hand.Count);
-            byte pivot = hand[0];
-
-            for (int i = 1; i < hand.Count; i++)
-                if (predicate(hand[i], pivot))
-                    l2.Add(hand[i]);
-                else
-                    l1.Add(hand[i]);
-
-            Player.SortHand(l1, predicate);
-            Player.SortHand(l2, predicate);
-
-            hand.Clear();
-            hand.AddRange(l1);
-            hand.Add(pivot);
-            hand.AddRange(l2);
+        public static void SortHandByRank(List<Card> hand) {
+			hand.Sort((v1, v2) => (
+				v2.IsWild ? (byte) v1 - (byte) v2 :
+				v1.IsWild ? 1 :
+				v1.Colour != v2.Colour ? v1.Colour - v2.Colour :
+					(byte) v1 - (byte) v2
+			));
         }
     }
 
     public enum PlayerPresence {
         Playing,
         Left,
-        Out
+        Out,
+		OutByDefault
     }
 }

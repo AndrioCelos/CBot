@@ -38,8 +38,8 @@ namespace UNO {
         internal List<string> RecordBreakers;
 
         public bool IsReversed;
-        public byte DrawnCard;
-        public byte DrawFourBadColour;
+        public Card DrawnCard;
+        public Colour DrawFourBadColour;
         public int DrawFourUser;
         public int DrawFourChallenger;
         public int DrawCount;
@@ -47,10 +47,10 @@ namespace UNO {
         public short CardsPlayed;
         public short TurnNumber;
 
-        internal List<byte> Deck;
-        internal List<byte> Discards;
+        internal List<Card> Deck;
+        internal List<Card> Discards;
         private int cardsDrawn;
-        internal byte WildColour;
+        internal Colour WildColour;
 
         internal GameRecord record = new GameRecord();
 
@@ -58,21 +58,23 @@ namespace UNO {
         internal object Lock = new object();
         internal static object LockShuffle = new object();  // Avoid multiple concurrent requests.
 
-        public Game(UnoPlugin plugin, IrcClient connection, string channel, int entryTime) {
+		public Card UpCard => this.Discards[this.Discards.Count - 1];
+
+		public Game(UnoPlugin plugin, IrcClient connection, string channel, int entryTime) {
             this.index = plugin.GameCount;
             ++plugin.GameCount;
 
             this.Plugin = plugin;
             this.Players = new List<Player>(10);
-            this.DrawnCard = 255;
-            this.DrawFourBadColour = (byte) Colour.None;
-            this.Deck = new List<byte>(108);
-            this.Discards = new List<byte>(108);
-            this.WildColour = (byte) Colour.None;
+            this.DrawnCard = Card.None;
+            this.DrawFourBadColour = Colour.None;
+            this.Deck = new List<Card>(108);
+            this.Discards = new List<Card>(108);
+            this.WildColour = Colour.None;
             this.RecordBreakers = new List<string>(4);
             this.DrawFourChallenger = -1;
             this.DrawFourUser = -1;
-            this.DrawFourBadColour = 128;
+            this.DrawFourBadColour = Colour.None;
 
             this.record = new GameRecord() { shuffles = new List<object>(), duration = TimeSpan.Zero, time = DateTime.UtcNow };
 
@@ -82,40 +84,40 @@ namespace UNO {
             this.HintTimer = new Timer() { AutoReset = false };
 
             // Populate the cards.
-            this.Discards.AddRange(new byte[] {
-                 0,  1,  1,  2,  2,  3,  3,  4,  4,  5,  5,  6,  6,  7,  7,  8,  8,  9,  9, 10, 10, 11, 11, 12, 12,
-                16, 17, 17, 18, 18, 19, 19, 20, 20, 21, 21, 22, 22, 23, 23, 24, 24, 25, 25, 26, 26, 27, 27, 28, 28,
-                32, 33, 33, 34, 34, 35, 35, 36, 36, 37, 37, 38, 38, 39, 39, 40, 40, 41, 41, 42, 42, 43, 43, 44, 44,
-                48, 49, 49, 50, 50, 51, 51, 52, 52, 53, 53, 54, 54, 55, 55, 56, 56, 57, 57, 58, 58, 59, 59, 60, 60,
-                64, 64, 64, 64, 65, 65, 65, 65
-            });
+            this.Discards.AddRange(new Card[] {
+				(Card)  0, (Card)  1, (Card)  1, (Card)  2, (Card)  2, (Card)  3, (Card)  3, (Card)  4, (Card)  4, (Card)  5, (Card)  5, (Card)  6, (Card)  6, (Card)  7, (Card)  7, (Card)  8, (Card)  8, (Card)  9, (Card)  9, (Card) 10, (Card) 10, (Card) 11, (Card) 11, (Card) 12, (Card) 12,
+				(Card) 16, (Card) 17, (Card) 17, (Card) 18, (Card) 18, (Card) 19, (Card) 19, (Card) 20, (Card) 20, (Card) 21, (Card) 21, (Card) 22, (Card) 22, (Card) 23, (Card) 23, (Card) 24, (Card) 24, (Card) 25, (Card) 25, (Card) 26, (Card) 26, (Card) 27, (Card) 27, (Card) 28, (Card) 28,
+				(Card) 32, (Card) 33, (Card) 33, (Card) 34, (Card) 34, (Card) 35, (Card) 35, (Card) 36, (Card) 36, (Card) 37, (Card) 37, (Card) 38, (Card) 38, (Card) 39, (Card) 39, (Card) 40, (Card) 40, (Card) 41, (Card) 41, (Card) 42, (Card) 42, (Card) 43, (Card) 43, (Card) 44, (Card) 44,
+				(Card) 48, (Card) 49, (Card) 49, (Card) 50, (Card) 50, (Card) 51, (Card) 51, (Card) 52, (Card) 52, (Card) 53, (Card) 53, (Card) 54, (Card) 54, (Card) 55, (Card) 55, (Card) 56, (Card) 56, (Card) 57, (Card) 57, (Card) 58, (Card) 58, (Card) 59, (Card) 59, (Card) 60, (Card) 60,
+				(Card) 64, (Card) 64, (Card) 64, (Card) 64, (Card) 65, (Card) 65, (Card) 65, (Card) 65
+			});
 
             // Shuffle the cards.
-            var thread = new System.Threading.Thread(this.shuffle);
+            var thread = new System.Threading.Thread(p => this.shuffle((bool) p));
             thread.Start(true);
         }
 
         public void Shuffle() {
             this.shuffle(false);
         }
-        private void shuffle(object initial) {
+        private void shuffle(bool initial) {
             lock (LockShuffle) {
                 object deal = null; bool localShuffle = (this.Plugin.RandomOrgAPIKey == null);
 
                 // Remove the up-card; this shouldn't be shuffled in.
-                byte upcard = 128;
-                if (!(bool) initial) {
-                    upcard = this.Discards[this.Discards.Count - 1];
+                var upcard = default(Card);
+                if (!initial) {
+                    upcard = this.UpCard;
                     this.Discards.RemoveAt(this.Discards.Count - 1);
                 }
 
-                var cards = this.Discards.Select(this.getCardString).ToArray();
+                var cards = this.Discards.Select(c => c.ToString()).ToArray();
 
                 if (localShuffle) {
                     deal = new GameRecord.FailedShuffle() { cards = cards, error = "Use of random.org was disabled." };
                 } else {
                     try {
-                        // Send the request to random.org
+                        // Send the request to random.org.
                         var response = Plugin.randomClient.GenerateIntegers(this.Discards.Count, 0, this.Discards.Count - 1, true, false);
                         deal = new GameRecord.Shuffle() { cards = cards, random = response.RandomObject["random"], signature = response.Signature };
 
@@ -143,53 +145,14 @@ namespace UNO {
 
                 this.cardsDrawn = 0;
                 this.Discards.Clear();
-                if (!(bool) initial) this.Discards.Add(upcard);
+                if (!initial) this.Discards.Add(upcard);
             }
         }
-        private string getCardString(byte card) {
-            var s = new char[2];
 
-            if ((card & 64) != 0) {
-                // Wild card
-                s[0] = 'W';
-                if (card == 64)
-                    s[1] = ' ';
-                else if (card == 65)
-                    s[1] = 'D';
-                else
-                    s[1] = '?';
-            } else {
-                switch (card & 48) {
-                    case  0: s[0] = 'R'; break;
-                    case 16: s[0] = 'Y'; break;
-                    case 32: s[0] = 'G'; break;
-                    case 48: s[0] = 'B'; break;
-                    default: s[0] = '?'; break;
-                }
-                switch (card & 15) {
-                    case  0: s[1] = '0'; break;
-                    case  1: s[1] = '1'; break;
-                    case  2: s[1] = '2'; break;
-                    case  3: s[1] = '3'; break;
-                    case  4: s[1] = '4'; break;
-                    case  5: s[1] = '5'; break;
-                    case  6: s[1] = '6'; break;
-                    case  7: s[1] = '7'; break;
-                    case  8: s[1] = '8'; break;
-                    case  9: s[1] = '9'; break;
-                    case 10: s[1] = 'R'; break;
-                    case 11: s[1] = 'S'; break;
-                    case 12: s[1] = 'D'; break;
-                    default: s[1] = '?'; break;
-                }
-            }
-            return new string(s);
-        }
-
-        public byte DrawCard() {
-            var b = this.Deck[this.cardsDrawn];
+        public Card DrawCard() {
+            var card = this.Deck[this.cardsDrawn];
             ++this.cardsDrawn;
-            return b;
+            return card;
         }
         public bool EndOfDeck => this.cardsDrawn == this.Deck.Count;
 
@@ -224,7 +187,7 @@ namespace UNO {
             this.Turn = this.NextPlayer();
             this.IdleTurn = this.Turn;
             this.Players[this.Turn].CanMove = true;
-            this.DrawnCard = 255;
+            this.DrawnCard = Card.None;
         }
 
         public int IndexOf(string nickname) {

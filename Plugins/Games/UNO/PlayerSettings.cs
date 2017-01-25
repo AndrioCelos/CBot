@@ -22,13 +22,13 @@
         }
     }
 
-    public enum AutoSortOptions : short {
+    public enum AutoSortOptions {
         Off,
         ByColour,
         ByRank
     }
 
-    public enum HighlightOptions : short {
+    public enum HighlightOptions {
         Off,
         OffBecauseIdle,
         OffBecauseLeftChannel,
