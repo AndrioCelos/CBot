@@ -2371,11 +2371,12 @@ namespace UNO {
             }
 
             game.DrawnCard = Card.None;
-            if (goneOut) {
-                game.Players[playerIndex].Presence = PlayerPresence.Out;
+            if (goneOut)
                 this.AwardPoints(game, playerIndex);
-            }
-            if (endOfGame) {
+            else
+				game.Players[playerIndex].Presence = PlayerPresence.Playing;
+
+			if (endOfGame) {
                 this.EndGame(game);
             } else {
                 if (goneOut) {

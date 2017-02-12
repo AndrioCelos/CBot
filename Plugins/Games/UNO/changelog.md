@@ -1,3 +1,8 @@
+Version 1.12.1 – 8 February 2017
+------------------------------
+
+* **Fix**: Going out with Draw cards with progressive rules enabled no longer corrupts the game state.
+
 Version 1.12 – 25 January 2017
 ------------------------------
 
