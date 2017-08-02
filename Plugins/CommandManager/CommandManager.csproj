@@ -65,6 +65,10 @@
       <Project>{c734f450-74ba-4ecf-ab7b-3b5ed3e4cd76}</Project>
       <Name>CBot</Name>
     </ProjectReference>
+    <ProjectReference Include="..\..\AnIRC\AnIRC\AnIRC.csproj">
+      <Project>{0F38DD6F-9BC0-480B-8695-6F50ACB8A8C7}</Project>
+      <Name>AnIRC</Name>
+    </ProjectReference>
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
   <!-- To modify your build process, add your task inside one of the targets below and uncomment it. 
