@@ -15,7 +15,7 @@ using System.Text;
 using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
-using IRC;
+using AnIRC;
 
 namespace CBot {
     /// <summary>
@@ -63,7 +63,7 @@ namespace CBot {
         private static ConsoleClient consoleClient;
 
         /// <summary>The minimum compatible plugin API version with this version of CBot.</summary>
-        public static readonly Version MinPluginVersion = new Version(3, 5);
+        public static readonly Version MinPluginVersion = new Version(3, 6);
 
         /// <summary>Indicates whether there are any NickServ-based permissions.</summary>
         internal static bool commandCallbackNeeded;
@@ -155,7 +155,9 @@ namespace CBot {
             newClient.AwayCancelled += Bot.OnAwayCancelled;
             newClient.AwayMessage += Bot.OnAwayMessage;
             newClient.AwaySet += Bot.OnAwaySet;
-            newClient.ChannelAction += Bot.OnChannelAction;
+			newClient.CapabilitiesAdded += Bot.OnCapabilitiesAdded;
+			newClient.CapabilitiesDeleted += Bot.OnCapabilitiesDeleted;
+			newClient.ChannelAction += Bot.OnChannelAction;
             newClient.ChannelAdmin += Bot.OnChannelAdmin;
             newClient.ChannelBan += Bot.OnChannelBan;
             newClient.ChannelBanList += Bot.OnChannelBanList;
@@ -996,9 +998,9 @@ namespace CBot {
         /// <param name="channels">A list of channels in which this plugin should be active.</param>
         /// <exception cref="ArgumentException">A plugin with the specified key is already loaded.</exception>
         /// <exception cref="InvalidPluginException">The plugin could not be constructed.</exception>
-        public static void LoadPlugin(string key, string filename, params string[] channels)
+        public static PluginEntry LoadPlugin(string key, string filename, params string[] channels)
             => LoadPlugin(new PluginEntry() { Key = key, Filename = filename, Channels = channels });
-        public static void LoadPlugin(PluginEntry entry) {
+        public static PluginEntry LoadPlugin(PluginEntry entry) {
             Assembly assembly;
             AssemblyName assemblyName;
             Type pluginType = null;
@@ -1015,7 +1017,7 @@ namespace CBot {
                 assemblyName = assembly.GetName();
 
                 foreach (Type type in assembly.GetTypes()) {
-                    if (typeof(Plugin).IsAssignableFrom(type)) {
+                    if (!type.IsAbstract && typeof(Plugin).IsAssignableFrom(type)) {
                         pluginType = type;
                         break;
                     }
@@ -1067,17 +1069,18 @@ namespace CBot {
                                                                                    "It should be defined as 'public SamplePlugin()'", pluginType.Name, entry.Filename));
                 }
 
-                plugin.Key = entry.Key;
+				plugin.Key = entry.Key;
                 plugin.Channels = entry.Channels ?? new string[0];
-                Plugins.Add(new PluginEntry() { Key = entry.Key, Filename = entry.Filename, Obj = plugin });
-                plugin.LoadLanguage();
-                plugin.Initialize();
+				var result = new PluginEntry() { Key = entry.Key, Filename = entry.Filename, Obj = plugin };
+                Plugins.Add(result);
 
                 x2 = Console.CursorLeft; y2 = Console.CursorTop;
                 Console.SetCursorPosition(x, y);
                 ConsoleUtils.WriteLine(" {0} ({1}) OK", plugin.Name, assemblyName.Version);
                 Console.SetCursorPosition(x2, y2);
-            } catch (Exception ex) {
+
+				return result;
+			} catch (Exception ex) {
                 x2 = Console.CursorLeft; y2 = Console.CursorTop;
                 Console.SetCursorPosition(x, y);
                 ConsoleUtils.Write(" %cRED");
@@ -1194,6 +1197,7 @@ namespace CBot {
             bool success = true;
             HashSet<string> oldPlugins = new HashSet<string>(StringComparer.InvariantCultureIgnoreCase);
             List<PluginEntry> reloadNeeded = new List<PluginEntry>();
+			List<PluginEntry> newPlugins = new List<PluginEntry>();
 
             foreach (var plugin in Plugins) oldPlugins.Add(plugin.Key);
 
@@ -1218,10 +1222,35 @@ namespace CBot {
             // Load new plugins.
             foreach (var plugin in reloadNeeded) {
                 try {
-                    LoadPlugin(plugin);
+                    newPlugins.Add(LoadPlugin(plugin));
                 } catch (Exception) {
                     success = false;
                 }
+            }
+
+            foreach (var plugin in newPlugins) {
+				ConsoleUtils.Write("  Enabling plugin %cWHITE" + plugin.Key + "%r...");
+				int x = Console.CursorLeft; int y = Console.CursorTop; int x2; int y2;
+				Console.WriteLine();
+
+				try {
+					plugin.Obj.LoadLanguage();
+					plugin.Obj.Initialize();
+
+					x2 = Console.CursorLeft; y2 = Console.CursorTop;
+					Console.SetCursorPosition(x, y);
+					ConsoleUtils.WriteLine(" {0} ({1}) OK", plugin.Obj.Name, plugin.Obj.GetType().Assembly.GetName().Version);
+					Console.SetCursorPosition(x2, y2);
+				} catch (Exception ex) {
+					x2 = Console.CursorLeft; y2 = Console.CursorTop;
+					Console.SetCursorPosition(x, y);
+					ConsoleUtils.Write(" %cRED");
+					ConsoleUtils.Write("Failed");
+					ConsoleUtils.WriteLine("%r");
+					Console.SetCursorPosition(x2, y2);
+					LogError(plugin.Key, "Initialize", ex);
+					success = false;
+				}
             }
 
             return success;
@@ -1260,13 +1289,12 @@ namespace CBot {
                 if (pos2 != -1) {
                     PluginEntry plugin;
 					if (Bot.Plugins.TryGetValue(label.Substring(0, pos2), out plugin)) {
+						label = label.Substring(pos2 + 1);
 						var command = plugin.Obj.GetCommand(target, label);
 						if (command != null) {
 							await plugin.Obj.RunCommand(sender, target, command, parameters, false);
 							return true;
 						}
-						await plugin.Obj.RunCommand(sender, target, command, parameters, true);
-						return true;
 					}
                 }
             }
@@ -1875,7 +1903,9 @@ namespace CBot {
         private static void OnAwayCancelled(object sender, AwayEventArgs e)                            { foreach (var entry in Bot.Plugins) if (entry.Obj.OnAwayCancelled(sender, e)) return; }
         private static void OnAwayMessage(object sender, AwayMessageEventArgs e)                       { foreach (var entry in Bot.Plugins) if (entry.Obj.OnAwayMessage(sender, e)) return; }
         private static void OnAwaySet(object sender, AwayEventArgs e)                                  { foreach (var entry in Bot.Plugins) if (entry.Obj.OnAwaySet(sender, e)) return; }
-        private static async void OnChannelAction(object sender, ChannelMessageEventArgs e) {
+		private static void OnCapabilitiesAdded(object sender, CapabilitiesAddedEventArgs e)           { foreach (var entry in Bot.Plugins) if (entry.Obj.OnCapabilitiesAdded(sender, e)) return; }
+        private static void OnCapabilitiesDeleted(object sender, CapabilitiesEventArgs e)              { foreach (var entry in Bot.Plugins) if (entry.Obj.OnCapabilitiesDeleted(sender, e)) return; }
+		private static async void OnChannelAction(object sender, ChannelMessageEventArgs e) {
             foreach (var entry in Bot.Plugins) {
                 if (entry.Obj.OnChannelAction(sender, e)) return;
                 if (entry.Obj.IsActiveChannel(e.Channel) && await entry.Obj.CheckCommands(e.Sender, e.Channel, e.Message)) return;
@@ -1948,7 +1978,7 @@ namespace CBot {
             Identification id;
             if (Bot.Identifications.TryGetValue(key, out id)) {
                 if (id.Channels.Remove(e.Channel.Name)) {
-                    if (id.Channels.Count == 0 && !(((IrcClient) sender).Extensions.SupportsWatch && id.Watched))
+                    if (id.Channels.Count == 0 && !(((IrcClient) sender).Extensions.SupportsMonitor && id.Monitoring))
                         Bot.Identifications.Remove(key);
                 }
             }
@@ -2068,18 +2098,17 @@ namespace CBot {
                     if (e.Line.Parameters.Length == 4 && e.Line.Parameters[1] == "1") {  // This identifies our WHOX request.
                         IrcUser user;
                         if (client.Users.TryGetValue(e.Line.Parameters[2], out user)) {
-                            if (e.Line.Parameters[3] == "0")
-                                user.Account = null;
+							if (e.Line.Parameters[3] == "0")
+								client.ReceivedLine(":" + user.ToString() + " ACCOUNT *");
                             else
-                                user.Account = e.Line.Parameters[3];
-
+								client.ReceivedLine(":" + user.ToString() + " ACCOUNT " + e.Line.Parameters[3]);
                         }
                     }
                     break;
                 case Replies.RPL_NOWON:
                     Identification id;
                     if (Bot.Identifications.TryGetValue(client.NetworkName + "/" + e.Line.Parameters[1], out id))
-                        id.Watched = true;
+                        id.Monitoring = true;
                     break;
                 case Replies.RPL_LOGOFF:
                     Bot.Identifications.Remove(client.NetworkName + "/" + e.Line.Parameters[1]);
@@ -2089,7 +2118,7 @@ namespace CBot {
                     break;
                 case Replies.RPL_WATCHOFF:
                     if (Bot.Identifications.TryGetValue(client.NetworkName + "/" + e.Line.Parameters[1], out id)) {
-                        id.Watched = false;
+                        id.Monitoring = false;
                         if (id.Channels.Count == 0) Bot.Identifications.Remove(client.NetworkName + "/" + e.Line.Parameters[1]);
                     }
                     break;

@@ -6,7 +6,7 @@ using System.Reflection;
 using System.Text;
 using System.Text.RegularExpressions;
 using System.Threading.Tasks;
-using IRC;
+using AnIRC;
 
 namespace CBot {
     public delegate void PluginCommandHandler(object sender, CommandEventArgs e);
@@ -83,12 +83,14 @@ namespace CBot {
             }
         }
 
-        /// <summary>
-        /// When overridden, returns help text on a specific user-specified topic, if it is available and relevant to this plugin; otherwise, null.
-        /// If no topic was specified, the implementation may return a brief description of what this plugin is doing.
-        /// </summary>
-        /// <param name="Topic">The topic the user asked for help on, or null if none was specified.</param>
-        public virtual string Help(string Topic) => null;
+		/// <summary>
+		/// When overridden, returns help text on a specific user-specified topic, if it is available and relevant to this plugin; otherwise, null.
+		/// If no topic was specified, the implementation may return a brief description of what this plugin is doing.
+		/// Command strings should be written using the '!' prefix; the help command plugin will replace it with the actual prefix.
+		/// </summary>
+		/// <param name="topic">The topic the user asked for help on, or null if none was specified.</param>
+		/// <param name="target">The channel or query target in which the request was issued.</param>
+		public virtual string Help(string topic, IrcMessageTarget target) => null;
 
         /// <summary>
         /// Returns true if the specified channel is in this plugin's Channels list.
@@ -588,8 +590,12 @@ namespace CBot {
         public virtual bool OnAwayMessage(object sender, AwayMessageEventArgs e) => false;
         /// <summary>When overridden, handles the AwaySet event. Return true to stop further processing of the event.</summary>
         public virtual bool OnAwaySet(object sender, AwayEventArgs e) => false;
-        /// <summary>Handles the ChannelAction event, including running triggers. Return true to stop further processing of the event.</summary>
-        public virtual bool OnChannelAction(object sender, ChannelMessageEventArgs e) => false;
+		/// <summary>When overridden, handles the CapabilitiesAdded event. Return true to stop further processing of the event.</summary>
+		public virtual bool OnCapabilitiesAdded(object sender, CapabilitiesAddedEventArgs e) => false;
+		/// <summary>When overridden, handles the CapabilitiesDeleted event. Return true to stop further processing of the event.</summary>
+		public virtual bool OnCapabilitiesDeleted(object sender, CapabilitiesEventArgs e) => false;
+		/// <summary>Handles the ChannelAction event, including running triggers. Return true to stop further processing of the event.</summary>
+		public virtual bool OnChannelAction(object sender, ChannelMessageEventArgs e) => false;
         /// <summary>When overridden, handles the ChannelAdmin event. Return true to stop further processing of the event.</summary>
         public virtual bool OnChannelAdmin(object sender, ChannelStatusChangedEventArgs e) => false;
         /// <summary>When overridden, handles the ChannelBan event. Return true to stop further processing of the event.</summary>

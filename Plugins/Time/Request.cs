@@ -1,7 +1,7 @@
 ﻿using System;
 using System.Timers;
 
-using IRC;
+using AnIRC;
 
 namespace Time {
     public class Request {

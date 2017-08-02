@@ -5,10 +5,10 @@ using System.IO;
 using System.Reflection;
 
 using CBot;
-using IRC;
+using AnIRC;
 
 namespace PluginManager {
-    [ApiVersion(3, 5)]
+    [ApiVersion(3, 6)]
     public class PluginManagerPlugin : Plugin {
         public override string Name => "Plugin Manager";
 

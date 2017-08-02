@@ -1,3 +1,8 @@
+Version 3.6 – 2 August 2017
+---------------------------
+
+* Moved the IRC library to a separate repository.
+
 Version 3.2 – 12 November 2015
 ------------------------------
 

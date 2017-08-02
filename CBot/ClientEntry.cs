@@ -3,7 +3,7 @@ using System.Collections.Generic;
 using System.Reflection;
 using System.Timers;
 
-using IRC;
+using AnIRC;
 using Newtonsoft.Json;
 
 namespace CBot {

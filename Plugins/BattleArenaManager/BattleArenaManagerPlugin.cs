@@ -12,14 +12,14 @@ using System.Timers;
 using Octokit;
 
 using CBot;
-using IRC;
+using AnIRC;
 
 using FileMode = System.IO.FileMode;
 using Timer = System.Timers.Timer;
 using System.Globalization;
 
 namespace BattleArenaManager {
-    [ApiVersion(3, 5)]
+    [ApiVersion(3, 6)]
     public class BattleArenaManagerPlugin : Plugin {
         private GitHubClient client;
 

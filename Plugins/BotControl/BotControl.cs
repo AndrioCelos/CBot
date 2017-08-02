@@ -1,10 +1,10 @@
 ﻿using System;
 using System.Linq;
 using CBot;
-using IRC;
+using AnIRC;
 
 namespace BotControl {
-    [ApiVersion(3, 5)]
+    [ApiVersion(3, 6)]
     public class BotControlPlugin : Plugin {
         public override string Name => "Bot Control";
 

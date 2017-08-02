@@ -2,7 +2,7 @@
 using System.ComponentModel;
 using System.Text.RegularExpressions;
 
-using IRC;
+using AnIRC;
 
 namespace CBot {
     public class IrcClientEventArgs : EventArgs {

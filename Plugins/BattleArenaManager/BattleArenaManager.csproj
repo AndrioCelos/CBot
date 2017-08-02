@@ -65,6 +65,10 @@
     <Compile Include="Properties\AssemblyInfo.cs" />
   </ItemGroup>
   <ItemGroup>
+    <ProjectReference Include="..\..\AnIRC\AnIRC\AnIRC.csproj">
+      <Project>{0f38dd6f-9bc0-480b-8695-6f50acb8a8c7}</Project>
+      <Name>AnIRC</Name>
+    </ProjectReference>
     <ProjectReference Include="..\..\CBot\CBot.csproj">
       <Project>{C734F450-74BA-4ECF-AB7B-3B5ED3E4CD76}</Project>
       <Name>CBot</Name>

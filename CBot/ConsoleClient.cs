@@ -1,7 +1,7 @@
 ﻿using System;
 using System.Text.RegularExpressions;
 
-using IRC;
+using AnIRC;
 
 namespace CBot {
     /// <summary>
@@ -11,9 +11,8 @@ namespace CBot {
     internal class ConsoleClient : IrcClient {
         private static object consoleLock = new object();
 
-        internal ConsoleClient() : base(new IrcLocalUser(Bot.DefaultNicknames[0], Bot.DefaultNicknames[0], Bot.DefaultNicknames[0])) {
+        internal ConsoleClient() : base(new IrcLocalUser(Bot.DefaultNicknames[0], Bot.DefaultNicknames[0], Bot.DefaultNicknames[0]), "!Console") {
             this.Address = "!Console";
-            this.Extensions.NetworkName = "!Console";
         }
 
         public override void Connect(string host, int port) {

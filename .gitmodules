@@ -1,0 +1,3 @@
+[submodule "AnIRC"]
+	path = AnIRC
+	url = https://github.com/AndrioCelos/AnIRC.git

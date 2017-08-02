@@ -7,9 +7,10 @@ using System.Threading.Tasks;
 using System.Timers;
 
 using CBot;
+using AnIRC;
 
 namespace BashQuotes {
-    [ApiVersion(3, 5)]
+    [ApiVersion(3, 6)]
     public class BashQuotesPlugin : Plugin {
         private System.Timers.Timer QuoteTimer;
         private Task getQuotesTask;
@@ -41,8 +42,8 @@ namespace BashQuotes {
 
         public override string Name => "Quotes";
 
-        public override string Help(string Topic) {
-            if (Topic == null) return "Quotes are being provided in this channel.";
+        public override string Help(string topic, IrcMessageTarget target) {
+            if (topic == null) return "Quotes are being provided in this channel.";
             return null;
         }
 
@@ -73,15 +74,15 @@ namespace BashQuotes {
         public static string Colourize(string line) {
             Match match = Regex.Match(line, @"^(\s*[<\[(\-]?[ +%@&!~]?)([A-}0-9-]+)([>\])\-]:?\s+.*)");
             if (match.Success)
-                line = match.Groups[1].Value + IRC.Colours.NicknameColour(match.Groups[2].Value) + match.Groups[2].Value + "\u000F" + match.Groups[3].Value;
+                line = match.Groups[1].Value + Colours.NicknameColour(match.Groups[2].Value) + match.Groups[2].Value + "\u000F" + match.Groups[3].Value;
             else {
                 match = Regex.Match(line, @"^([ +%@&!~]?)([A-}0-9-]+)(:\s+.*)");
                 if (match.Success)
-                    line = match.Groups[1].Value + IRC.Colours.NicknameColour(match.Groups[2].Value) + match.Groups[2].Value + "\u000F" + match.Groups[3].Value;
+                    line = match.Groups[1].Value + Colours.NicknameColour(match.Groups[2].Value) + match.Groups[2].Value + "\u000F" + match.Groups[3].Value;
                 else {
                     match = Regex.Match(line, @"^(\*+ )([A-}0-9-]+)(\s+(?!Now talking)(?!Topic)(?:Joins: |Parts: )?.*)");
                     if (match.Success)
-                        line = match.Groups[1].Value + IRC.Colours.NicknameColour(match.Groups[2].Value) + match.Groups[2].Value + "\u000F" + match.Groups[3].Value;
+                        line = match.Groups[1].Value + Colours.NicknameColour(match.Groups[2].Value) + match.Groups[2].Value + "\u000F" + match.Groups[3].Value;
                 }
             }
             return line;

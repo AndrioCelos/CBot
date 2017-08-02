@@ -8,7 +8,7 @@ using System.Threading;
 using System.Timers;
 
 using CBot;
-using IRC;
+using AnIRC;
 
 using Demot.RandomOrgApi;
 
@@ -16,7 +16,7 @@ using Timer = System.Timers.Timer;
 using System.Threading.Tasks;
 
 namespace UNO {
-    [ApiVersion(3, 5)]
+    [ApiVersion(3, 6)]
     public class UnoPlugin : Plugin {
         public static readonly string[] Hints = new string[] {
             /*  0 */ "It's your turn. Enter \u0002!play \u001Fcard\u000F to play a card from your hand with a matching colour, number or symbol. Here, you can play a {0} card, a {1} or a Wild card. If you have none, enter \u0002!draw\u0002.",
@@ -90,7 +90,7 @@ namespace UNO {
 
         public override string Name => "UNO game";
 
-        public override string Help(string topic) {
+        public override string Help(string topic, IrcMessageTarget target) {
             if (topic == null || topic == "") {
                 return "The \u0002UNO card game\u0002 is hosted in this channel.\r\n" +
                        "Say \u0002!ujoin\u0002 to start a game, or to join a game that someone else starts.\r\n" +
@@ -3383,7 +3383,7 @@ namespace UNO {
                         if (messageBuilder.Length != 0)
                             messageBuilder.Append(" \u000315| ");
                         messageBuilder.Append("\u0002");
-                        messageBuilder.Append(IRC.Colours.NicknameColour(player.Name));
+                        messageBuilder.Append(Colours.NicknameColour(player.Name));
                         messageBuilder.Append(player.Name);
 
                         if (player.Presence == PlayerPresence.Left)
@@ -3869,7 +3869,7 @@ namespace UNO {
         private static int Compare(PlayerStats value1, PlayerStats value2, LeaderboardMode sortKey) {
             switch (sortKey) {
                 case LeaderboardMode.SortedByName:
-                    return IRC.IrcStringComparer.ASCII.Compare(value1.Name, value2.Name);
+                    return IrcStringComparer.ASCII.Compare(value1.Name, value2.Name);
                 case LeaderboardMode.SortedByScore:
                     if (value1.Points > value2.Points) return -1;
                     if (value1.Points < value2.Points) return 1;

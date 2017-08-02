@@ -1,6 +1,6 @@
 using System.Collections.Generic;
 
-using IRC;
+using AnIRC;
 
 namespace CBot {
     /// <summary>
@@ -13,8 +13,8 @@ namespace CBot {
         public string Nickname;
         /// <summary>The account to which the user has identified.</summary>
         public string AccountName;
-        /// <summary>Indicates whether CBot is watching this user using the WATCH command.</summary>
-        public bool Watched;
+        /// <summary>Indicates whether CBot is watching this user using the MONITOR or WATCH command.</summary>
+        public bool Monitoring;
         /// <summary>The list of channels this user shares with the bot.</summary>
         public HashSet<string> Channels;
     }

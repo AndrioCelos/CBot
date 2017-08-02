@@ -1,9 +1,9 @@
 ﻿
 using CBot;
-using IRC;
+using AnIRC;
 
 namespace IdentifyPlugin {
-    [ApiVersion(3, 5)]
+    [ApiVersion(3, 6)]
     public class IdentifyPlugin : Plugin {
         public override string Name => "Identify";
 
@@ -14,7 +14,7 @@ namespace IdentifyPlugin {
                 // TODO: Prompt the user to change their password.
             }
 
-            if (!e.Client.Extensions.SupportsWatch) {
+            if (!e.Client.Extensions.SupportsMonitor) {
                 // Ensure that the user is on at least one channel with the bot. Otherwise it's a security hole.
                 bool found = false;
                 foreach (IrcChannel _channel in e.Client.Channels) {
@@ -41,7 +41,8 @@ namespace IdentifyPlugin {
             }
 
             if (Bot.Identify(e.Sender, username, password, out id, out message)) {
-                if (e.Client.Extensions.SupportsWatch) e.Client.Send("WATCH +{0}", e.Sender.Nickname);
+				if (e.Client.Extensions.SupportsMonitor)
+					e.Client.MonitorList.Add(e.Sender.Nickname);
             }
 
             e.Whisper(message);

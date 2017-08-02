@@ -1,8 +1,9 @@
 using System;
 
 namespace CBot {
-    public static class ConsoleUtils
-	{
+    public static class ConsoleUtils {
+		public static bool UseDarkGray = true;
+
         private static object writeLock = new object();
         private static string[] colours = new string[] { "BLACK"    , "DKBLUE"   , "DKGREEN"  , "DKCYAN"   , "DKRED"    , "DKMAGENTA", "DKYELLOW" , "GRAY"       ,
                                                          "DKGRAY"   , "BLUE"     , "GREEN"    , "CYAN"     , "RED"      , "MAGENTA"  , "YELLOW"   , "WHITE"       };

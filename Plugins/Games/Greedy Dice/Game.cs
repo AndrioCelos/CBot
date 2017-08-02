@@ -2,7 +2,7 @@
 using System.Collections.Generic;
 using System.Timers;
 
-using IRC;
+using AnIRC;
 
 namespace GreedyDice {
     public class Game {

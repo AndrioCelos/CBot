@@ -5,10 +5,10 @@ using System.IO;
 using System.Text.RegularExpressions;
 
 using CBot;
-using IRC;
+using AnIRC;
 
 namespace ChannelNotifier {
-    [ApiVersion(3, 5)]
+    [ApiVersion(3, 6)]
     public class ChannelNotifierPlugin : Plugin {
         public List<string> Targets;
 

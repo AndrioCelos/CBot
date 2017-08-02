@@ -6,12 +6,12 @@ using System.Linq;
 using System.Text.RegularExpressions;
 
 using CBot;
-using IRC;
+using AnIRC;
 
 using static System.StringComparison;
 
 namespace Time {
-    [ApiVersion(3, 5)]
+    [ApiVersion(3, 6)]
     public class TimePlugin : Plugin {
         public override string Name => "Time zone calculator";
 

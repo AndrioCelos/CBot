@@ -3,7 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Timers;
 
-using IRC;
+using AnIRC;
 
 using Newtonsoft.Json;
 using System.IO;

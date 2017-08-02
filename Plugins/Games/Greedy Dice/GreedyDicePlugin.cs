@@ -9,10 +9,10 @@ using System.Threading.Tasks;
 using System.Timers;
 
 using CBot;
-using IRC;
+using AnIRC;
 
 namespace GreedyDice {
-    [ApiVersion(3, 5)]
+    [ApiVersion(3, 6)]
     public class GreedyDicePlugin : Plugin {
         private static readonly int[] RollValues = new int[] { 0, 0, 50, 50, 100, 150 };
         private static readonly string[] RollFaces = new string[] { "\u00031,8 X ", "\u00031,8 X ", "\u000313,6 ♥ ", "\u00039,3 * ", "\u00034,5* *", "\u000312,2***" };
