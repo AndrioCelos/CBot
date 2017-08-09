@@ -51,6 +51,9 @@
     <DefineConstants>TRACE</DefineConstants>
     <WarningLevel>4</WarningLevel>
   </PropertyGroup>
+  <PropertyGroup>
+    <RunPostBuildEvent>OnOutputUpdated</RunPostBuildEvent>
+  </PropertyGroup>
   <ItemGroup>
     <Reference Include="Newtonsoft.Json, Version=9.0.0.0, Culture=neutral, PublicKeyToken=30ad4fe6b2a6aeed, processorArchitecture=MSIL">
       <HintPath>..\packages\Newtonsoft.Json.9.0.1\lib\net45\Newtonsoft.Json.dll</HintPath>
@@ -67,7 +70,6 @@
     <Compile Include="EventArgs.cs" />
     <Compile Include="IniConfig.cs" />
     <Compile Include="InvalidPluginException.cs" />
-    <Compile Include="Logger.cs" />
     <Compile Include="NickServSettings.cs" />
     <Compile Include="PluginCollection.cs" />
     <Compile Include="SayOptions.cs" />
@@ -93,4 +95,7 @@
   <ProjectExtensions>
     <VisualStudio AllowExistingFolder="true" />
   </ProjectExtensions>
+  <PropertyGroup>
+    <PostBuildEvent>copy /Y "$(TargetPath)" "$(ProjectDir)..\bins" &amp;&amp; copy /Y "$(TargetDir)AnIRC.dll" "$(ProjectDir)..\bins"</PostBuildEvent>
+  </PropertyGroup>
 </Project>
