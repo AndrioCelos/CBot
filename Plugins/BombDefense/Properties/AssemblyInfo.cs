@@ -9,7 +9,7 @@ using System.Runtime.InteropServices;
 [assembly: AssemblyConfiguration("")]
 [assembly: AssemblyCompany("")]
 [assembly: AssemblyProduct("BombDefense")]
-[assembly: AssemblyCopyright("2015-7 Andrio Celos")]
+[assembly: AssemblyCopyright("© 2015-2017 Andrea Giannone")]
 [assembly: AssemblyTrademark("")]
 [assembly: AssemblyCulture("")]
 

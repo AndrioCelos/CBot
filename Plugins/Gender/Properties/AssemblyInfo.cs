@@ -9,7 +9,7 @@ using System.Runtime.InteropServices;
 [assembly: AssemblyConfiguration("")]
 [assembly: AssemblyCompany("Andrio Celos")]
 [assembly: AssemblyProduct("Gender Manager")]
-[assembly: AssemblyCopyright("2014 Andrio Celos")]
+[assembly: AssemblyCopyright("© 2014-2017 Andrea Giannone")]
 [assembly: AssemblyTrademark("")]
 [assembly: AssemblyCulture("")]
 

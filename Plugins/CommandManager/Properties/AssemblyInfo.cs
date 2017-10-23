@@ -9,7 +9,7 @@ using System.Runtime.InteropServices;
 [assembly: AssemblyConfiguration("")]
 [assembly: AssemblyCompany("")]
 [assembly: AssemblyProduct("CommandManager")]
-[assembly: AssemblyCopyright("Copyright ©  2014")]
+[assembly: AssemblyCopyright("© 2014-2017 Andrea Giannone")]
 [assembly: AssemblyTrademark("")]
 [assembly: AssemblyCulture("")]
 

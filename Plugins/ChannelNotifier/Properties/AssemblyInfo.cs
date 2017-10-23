@@ -9,7 +9,7 @@ using System.Runtime.InteropServices;
 [assembly: AssemblyConfiguration("")]
 [assembly: AssemblyCompany("Andrio Celos")]
 [assembly: AssemblyProduct("Channel Notifier")]
-[assembly: AssemblyCopyright("2013-7 Andrio Celos")]
+[assembly: AssemblyCopyright("© 2013-2017 Andrea Giannone")]
 [assembly: AssemblyTrademark("")]
 [assembly: AssemblyCulture("")]
 
