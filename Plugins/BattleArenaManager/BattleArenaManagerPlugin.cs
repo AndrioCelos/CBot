@@ -496,7 +496,7 @@ namespace BattleArenaManager {
 
                     // Copy data files.
                     ConsoleUtils.WriteLine("Updating data files...");
-                    foreach (string directory in new string[] { "bosses", "monsters", "npcs", "summons", "dbs", "lsts", "txts", "dungeons" }) {
+                    foreach (string directory in new string[] { "bosses", "monsters", "npcs", "summons", "dbs", "lsts", "txts", "dungeons", "help-files" }) {
                         Directory.CreateDirectory(Path.Combine(this.ArenaDirectory, directory));
                         files = Directory.GetFiles(Path.Combine(Path.GetTempPath(), baseFolderName, "battlearena", directory));
                         foreach (string file2 in files) {
