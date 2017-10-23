@@ -5,6 +5,7 @@ using System.Linq;
 using System.Text;
 using System.Text.RegularExpressions;
 using System.Threading;
+using System.Threading.Tasks;
 using System.Timers;
 
 using CBot;
@@ -13,7 +14,6 @@ using AnIRC;
 using Demot.RandomOrgApi;
 
 using Timer = System.Timers.Timer;
-using System.Threading.Tasks;
 
 namespace UNO {
     [ApiVersion(3, 6)]
@@ -3561,12 +3561,13 @@ namespace UNO {
         }
 
         public void StartResetTimer() {
-            if (this.StatsPeriodEnd == default(DateTime)) {
+			if (this.ScoreboardCurrent.Count == 0) return;
+
+			if (this.StatsPeriodEnd == default(DateTime)) {
                 this.StatsPeriodEnd = DateTime.UtcNow.Date.Add(new TimeSpan(14, 8, 0, 0));
                 this.StatsResetTimer.Interval = 3600e+3;
             }
-            if (this.ScoreboardCurrent.Count != 0)
-                this.StatsResetTimer_Elapsed(null, null);
+            this.StatsResetTimer_Elapsed(null, null);
         }
 
         [Command(new string[] { "score", "rank", "uscore", "urank" }, 0, 1, "uscore [name]", "Shows you a player's (by default, your own) total score.")]
@@ -3795,7 +3796,7 @@ namespace UNO {
 
             if (this.StatsPeriodEnd == default(DateTime) || list != this.ScoreboardCurrent) return;
             // Show the time remaining until the period ends.
-            TimeSpan time = TimeSpan.FromMinutes(Math.Ceiling((this.StatsPeriodEnd - DateTime.UtcNow).TotalMinutes));  // This rounds it up to the nearext minute.
+            var time = TimeSpan.FromMinutes(Math.Ceiling((this.StatsPeriodEnd - DateTime.UtcNow).TotalMinutes));  // This rounds it up to the nearest minute.
             string timeMessage; string[] timePart = new string[] { null, null, null };
 
             if (time.TotalMinutes < 1) {
