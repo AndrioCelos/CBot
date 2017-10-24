@@ -10,7 +10,7 @@ using System.Threading.Tasks;
 using System.Timers;
 
 using CBot;
-using IRC;
+using AnIRC;
 
 using Timer = System.Timers.Timer;
 
@@ -1134,20 +1134,20 @@ namespace BattleBot {
                     if (DarknessTurns == 0) {
                         timeMessage = "{0} turns";
                         demonWallMessage = "200%";
-                        timeColour = IRC.Colours.DarkRed;
+                        timeColour = Colours.DarkRed;
                     } else {
                         if (DarknessTurns == 1)
                             timeMessage = "{0} turn";
                         else
                             timeMessage = "{0} turns";
                         if (DarknessTurns < 3)
-                            timeColour = IRC.Colours.Red;
+                            timeColour = Colours.Red;
                         else if (DarknessTurns < 5)
-                            timeColour = IRC.Colours.Orange;
+                            timeColour = Colours.Orange;
                         else if (DarknessTurns < 10)
-                            timeColour = IRC.Colours.Yellow;
+                            timeColour = Colours.Yellow;
                         else
-                            timeColour = IRC.Colours.Green;
+                            timeColour = Colours.Green;
 
                         if (this.HolyAuraTurns != -1) {
                             // Show the time remaining for Holy Aura.
@@ -1202,15 +1202,15 @@ namespace BattleBot {
                     timeMessage = string.Format(timeMessage, time.Minutes, time.Seconds);
 
                     if (time < TimeSpan.FromSeconds(5))
-                        timeColour = IRC.Colours.DarkRed;
+                        timeColour = Colours.DarkRed;
                     else if (time < TimeSpan.FromMinutes(2))
-                        timeColour = IRC.Colours.Red;
+                        timeColour = Colours.Red;
                     else if (time < TimeSpan.FromMinutes(5))
-                        timeColour = IRC.Colours.Orange;
+                        timeColour = Colours.Orange;
                     else if (time < TimeSpan.FromMinutes(10))
-                        timeColour = IRC.Colours.Yellow;
+                        timeColour = Colours.Yellow;
                     else
-                        timeColour = IRC.Colours.Green;
+                        timeColour = Colours.Green;
 
                     if (this.HolyAuraEnd != default(DateTime)) {
                         // Show the time remaining for Holy Aura.
@@ -1261,13 +1261,13 @@ namespace BattleBot {
                 }
 
                 // Show the time.
-                if (timeColour == IRC.Colours.DarkRed)
+                if (timeColour == Colours.DarkRed)
                     e.Reply("Darkness should rise any second now.");
                 else
                     e.Reply(string.Format(Bot.Choose(
                         "Darkness arises in {0}.",
                         "You have {0} until darkness arises."
-                        ), timeColour + timeMessage + IRC.Colours.Reset));
+                        ), timeColour + timeMessage + Colours.Reset));
 
                 // Show the holy aura time.
                 if (holyAuraOut)

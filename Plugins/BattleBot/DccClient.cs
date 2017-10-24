@@ -7,7 +7,7 @@ using System.Text.RegularExpressions;
 using System.Threading;
 
 using CBot;
-using IRC;
+using AnIRC;
 
 namespace BattleBot {
     internal class DccClient : IrcClient {
