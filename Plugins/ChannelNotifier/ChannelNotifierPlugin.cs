@@ -104,31 +104,31 @@ namespace ChannelNotifier {
 
         public override bool OnChannelJoin(object sender, ChannelJoinEventArgs e) {
             if (!IsActiveChannel(e.Channel)) return false;
-            this.SendCheck(string.Format("\u000315[\u000F{0}\u000315] {1}{2}\u000F joined.", e.Channel, Colours.NicknameColour(e.Sender.Nickname), e.Sender.Nickname), (IrcClient) sender, e.Channel);
+            this.SendCheck(string.Format("\u000315[\u000F{0}\u000315/\u000F{1}\u000315] {2}{3}\u000F joined.", e.Channel, (sender as IrcClient).NetworkName, Colours.NicknameColour(e.Sender.Nickname), e.Sender.Nickname), (IrcClient) sender, e.Channel);
             return base.OnChannelJoin(sender, e);
         }
 
         public override bool OnChannelLeave(object sender, ChannelPartEventArgs e) {
             if (!IsActiveChannel(e.Channel)) return false;
-            this.SendCheck(string.Format("\u000315[\u000F{0}\u000315] {1}{2}\u000F left: {3}.", e.Channel, Colours.NicknameColour(e.Sender.Nickname), e.Sender.Nickname, e.Message), (IrcClient) sender, e.Channel);
+            this.SendCheck(string.Format("\u000315[\u000F{0}\u000315/\u000F{1}\u000315] {2}{3}\u000F left: {4}.", e.Channel, (sender as IrcClient).NetworkName, Colours.NicknameColour(e.Sender.Nickname), e.Sender.Nickname, e.Message), (IrcClient) sender, e.Channel);
             return base.OnChannelLeave(sender, e);
         }
 
         public override bool OnChannelMessage(object sender, ChannelMessageEventArgs e) {
             if (!IsActiveChannel(e.Channel)) return false;
-            this.SendCheck(string.Format("\u000315[\u000F{0}\u000315] {1}{2}\u000F: {3}", e.Channel, Colours.NicknameColour(e.Sender.Nickname), e.Sender.Nickname, e.Message), (IrcClient) sender, e.Channel);
+            this.SendCheck(string.Format("\u000315[\u000F{0}\u000315/\u000F{1}\u000315] {2}{3}\u000F: {4}", e.Channel, (sender as IrcClient).NetworkName, Colours.NicknameColour(e.Sender.Nickname), e.Sender.Nickname, e.Message), (IrcClient) sender, e.Channel);
             return base.OnChannelMessage(sender, e);
         }
 
         public override bool OnChannelAction(object sender, ChannelMessageEventArgs e) {
             if (!IsActiveChannel(e.Channel)) return false;
-            this.SendCheck(string.Format("\u000315[\u000F{0}\u000315] {1}{2}\u000F {3}", e.Channel, Colours.NicknameColour(e.Sender.Nickname), e.Sender.Nickname, e.Message), (IrcClient) sender, e.Channel);
+            this.SendCheck(string.Format("\u000315[\u000F{0}\u000315/\u000F{1}\u000315] {2}{3}\u000F {4}", e.Channel, (sender as IrcClient).NetworkName, Colours.NicknameColour(e.Sender.Nickname), e.Sender.Nickname, e.Message), (IrcClient) sender, e.Channel);
             return base.OnChannelAction(sender, e);
         }
 
         public override bool OnChannelNotice(object sender, ChannelMessageEventArgs e) {
             if (!IsActiveChannel(e.Channel)) return false;
-            this.SendCheck(string.Format("\u000315[\u00038{0}\u000315] {1}{2}\u00038:\u000F {3}", e.Channel, Colours.NicknameColour(e.Sender.Nickname), e.Sender.Nickname, e.Message), (IrcClient) sender, e.Channel);
+            this.SendCheck(string.Format("\u000315[\u000F{0}\u000315/\u000F{1}\u000315] {2}{3}\u00038:\u000F {4}", e.Channel, (sender as IrcClient).NetworkName, Colours.NicknameColour(e.Sender.Nickname), e.Sender.Nickname, e.Message), (IrcClient) sender, e.Channel);
             return base.OnChannelNotice(sender, e);
         }
 
@@ -146,24 +146,24 @@ namespace ChannelNotifier {
             else
                 message = e.Message;
             if (message.Length == 0 || !Bot.GetCommandPrefixes((IrcClient) sender, e.Sender.Nickname).Contains(message[0].ToString()))
-                this.SendCheck(string.Format("\u000315[\u000312PM\u000315] {0}{1}\u000F: {2}", Colours.NicknameColour(e.Sender.Nickname), e.Sender.Nickname, e.Message), (IrcClient) sender, e.Sender);
+                this.SendCheck(string.Format("\u000315[\u000F{0}\u000315/\u000312PM\u000315] {1}{2}\u000F: {3}", (sender as IrcClient).NetworkName, Colours.NicknameColour(e.Sender.Nickname), e.Sender.Nickname, e.Message), (IrcClient) sender, e.Sender);
 
             return false;
         }
 
         public override bool OnPrivateAction(object sender, PrivateMessageEventArgs e) {
-            this.SendCheck(string.Format("\u000315[\u000312PM\u000315] {0}{1}\u000F {2}", Colours.NicknameColour(e.Sender.Nickname), e.Sender.Nickname, e.Message), (IrcClient) sender, e.Sender);
+            this.SendCheck(string.Format("\u000315[\u000F{0}\u000315/\u000312PM\u000315] {1}{2}\u000F {3}", (sender as IrcClient).NetworkName, Colours.NicknameColour(e.Sender.Nickname), e.Sender.Nickname, e.Message), (IrcClient) sender, e.Sender);
             return base.OnPrivateAction(sender, e);
         }
 
         public override bool OnPrivateNotice(object sender, PrivateMessageEventArgs e) {
-            this.SendCheck(string.Format("\u000315[\u00037PM\u000315] {0}{1}\u00038:\u000F {2}", Colours.NicknameColour(e.Sender.Nickname), e.Sender.Nickname, e.Message), (IrcClient) sender, e.Sender);
+            this.SendCheck(string.Format("\u000315[\u000F{0}\u000315/\u00037PM\u000315] {1}{2}\u00038:\u000F {3}", (sender as IrcClient).NetworkName, Colours.NicknameColour(e.Sender.Nickname), e.Sender.Nickname, e.Message), (IrcClient) sender, e.Sender);
             return base.OnPrivateNotice(sender, e);
         }
 
         public override bool OnInvite(object sender, InviteEventArgs e) {
             if (e.Target == ((IrcClient) sender).Me.Nickname)
-            this.SendCheck(string.Format("Invited to \u0002{0}\u0002 by {1}{2}\u000F.", e.Channel, Colours.NicknameColour(e.Sender.Nickname), e.Sender.Nickname), (IrcClient) sender, e.Sender);
+            this.SendCheck(string.Format("Invited to \u0002{0}\u0002/\u0002{1}\u0002 by {2}{3}\u000F.", e.Channel, (sender as IrcClient).NetworkName, Colours.NicknameColour(e.Sender.Nickname), e.Sender.Nickname), (IrcClient) sender, e.Sender);
             return base.OnInvite(sender, e);
         }
     }
