@@ -15,7 +15,7 @@ using AnIRC;
 using Timer = System.Timers.Timer;
 
 namespace BattleBot {
-    [ApiVersion(3, 5)]
+    [ApiVersion(3, 6)]
     public class BattleBotPlugin : Plugin {
         private List<ArenaTrigger> arenaTriggers = new List<ArenaTrigger>();
 
@@ -48,6 +48,7 @@ namespace BattleBot {
         public string ArenaNickname;
         public string ArenaDirectory;
         public bool NoMonsterFix;
+		public bool LongAiBattleFix;
 
         public Dictionary<string, OwnCharacter> OwnCharacters;
         public Dictionary<string, Character> Characters;
@@ -198,17 +199,19 @@ namespace BattleBot {
         }
 
         public override bool OnChannelJoin(object sender, ChannelJoinEventArgs e) {
-            if (e.Sender.Nickname == ((IrcClient) sender).Me.Nickname) {
+			var client = (IrcClient) sender;
+
+			if (e.Sender.IsMe) {
                 if (this.ArenaConnection == null) this.CheckChannels();
 
-                if (this.ArenaConnection == sender && ((IrcClient) sender).CaseMappingComparer.Equals(this.ArenaChannel, e.Channel)) {
+                if (this.ArenaConnection.NetworkName == client.NetworkName && client.CaseMappingComparer.Equals(this.ArenaChannel, e.Channel.Name)) {
                     if (this.OwnCharacters.ContainsKey(((IrcClient) sender).Me.Nickname)) {
                         // Identify to the Arena bot.
                         Bot.Say(ArenaConnection, ArenaNickname, "!id " + this.OwnCharacters[ArenaConnection.Me.Nickname].Password, SayOptions.NoticeNever);
                     }
                     // Get the Arena bot version.
                     if (this.Version == default(ArenaVersion) && !this.VersionPreCTCP)
-                        e.Sender.Ctcp("BOTVERSION");
+                        new IrcMessageTarget((IrcClient) sender, ArenaNickname).Ctcp("BOTVERSION");
                 }
             }
             return base.OnChannelJoin(sender, e);
@@ -221,7 +224,7 @@ namespace BattleBot {
                 this.WaitingForBattleList = false;
                 this.OnBattleListLegacy(e.Message);
             } else {
-                if (sender is DccClient || (sender == this.ArenaConnection && ((IrcClient) sender).CaseMappingComparer.Equals(e.Channel, this.ArenaChannel) &&
+                if (sender is DccClient || (sender == this.ArenaConnection && ((IrcClient) sender).CaseMappingComparer.Equals(e.Channel.Name, this.ArenaChannel) &&
                                             ((IrcClient) sender).CaseMappingComparer.Equals(e.Sender.Nickname, this.ArenaNickname)))
                     this.RunArenaRegex((IrcClient) sender, e.Channel, e.Sender, e.Message);
                 else if (e.Message.StartsWith("!enter", StringComparison.InvariantCultureIgnoreCase) && !this.PlayersEntering.Contains(e.Sender.Nickname))
@@ -401,7 +404,8 @@ namespace BattleBot {
             writer.WriteLine("");
             writer.WriteLine("[Arena]");
             writer.WriteLine("BotNickname={0}", this.ArenaNickname);
-            writer.WriteLine("NoMonsterFix={0}", this.NoMonsterFix ? "On" : "Off");
+			writer.WriteLine("NoMonsterFix={0}", this.NoMonsterFix ? "On" : "Off");
+			writer.WriteLine("LongAiBattleFix={0}", this.LongAiBattleFix ? "On" : "Off");
             if (this.ArenaDirectory != null)
                 writer.WriteLine("DataFolder={0}", this.ArenaDirectory);
             writer.Close();
@@ -1064,7 +1068,24 @@ namespace BattleBot {
                         }
                     }
                     break;
-                case "ARENADIRECTORY":
+				case "LONGAIBATTLEFIX":
+					if (value == null) {
+						if (this.NoMonsterFix)
+							e.Reply("The \u0002long AI battle fix\u0002 is currently \u00039enabled\u000F.");
+						else
+							e.Reply("The \u0002long AI battle fix\u0002 is currently \u00034disabled\u000F.");
+					} else {
+						try {
+							if (this.NoMonsterFix = Bot.ParseBoolean(value))
+								e.Reply("The \u0002long AI battle fix\u0002 is now \u00039enabled\u000F.");
+							else
+								e.Reply("The \u0002long AI battle fix\u0002 is now \u00034disabled\u000F.");
+						} catch (ArgumentException) {
+							e.Whisper(string.Format("I don't recognise '\u0002{0}\u000F' as a Boolean value. Please enter \u0002on\u0002 or \u0002off\u0002.", value));
+						}
+					}
+					break;
+				case "ARENADIRECTORY":
                 case "ARENADIR":
                 case "ARENAFOLDER":
                 case "ARENAPATH":
@@ -3577,7 +3598,7 @@ namespace BattleBot {
             }
         }
 
-        [ArenaRegex(@"^\x0312AI Battle information: \[NPC\]\x02 ([^\x02]*) \x02vs \[Monster\]\x02 ([^\x02]*) \x02on \[Streak Level\]\x02 (\d*) \x02\[Favorite to Win\]\x034\x02 (?:(\1)|(\2)|.*)")]
+        [ArenaRegex(@"^\x03\d*AI Battle information:(?:\x0312| \[NPC\])\x02 ([^\x02]*) \x02(?:\x03\d*)vs(?:\x030?4| \[Monster\])\x02 ([^\x02]*) \x02(?:\x03\d*)on (?:Arena Level|\[Streak Level\])\x02 (\d*) \x02\[Favorite to Win\]\x034\x02 (?:\x03\d{0,2})?(?:(\1)|(\2)|.*)")]
         internal void OnNPCBattleInfo(object sender, TriggerEventArgs e) {
             this.BattleOpen = false;
 
@@ -3592,6 +3613,9 @@ namespace BattleBot {
             this.BattleList.Add(ally.ShortName, allyEntry = new Combatant(ally));
             this.BattleList.Add(monster.ShortName, monsterEntry = new Combatant(monster));
 
+            this.WriteLine(1, 12, "{0} ({1}) enters the battle.", ally.Name, ally.ShortName);
+            this.WriteLine(1, 12, "{0} ({1}) enters the battle.", monster.Name, monster.ShortName);
+
             // Let's give a few rating points to the favourite.
             if (e.Match.Groups[4].Success)
                 ally.Rating += 50;
@@ -3599,17 +3623,13 @@ namespace BattleBot {
                 monster.Rating += 50;
         }
 
-        [ArenaRegex(@"^\x0312\[(?:(NPC)|Monster)\]\x02 ([^\x02]*) \x02Information \[Number of Techs:\x02 (\d*)\x02\] \[Has an Ignition:\x02 (?:(yes)|no)\x02\] \[Has a Mech:\x02 (?:(yes)|no)\x02\]")]
+        [ArenaRegex(@"^\x03(?:(?:(12)|0?4)\x02|12\[(?:(NPC)|Monster)\]\x02 )([^\x02]*) \x02Information \[Number of Techs:\x02 (\d*)\x02\] \[Has an Ignition:\x02 (?:(yes)|no)\x02\] \[Has a Mech:\x02 (?:(yes)|no)\x02\]")]
         internal void OnNPCInfo(object sender, TriggerEventArgs e) {
-            Character character;
-            if (e.Match.Groups[1].Success)
-                character = this.Characters[this.BattleList.Keys.ElementAt(0)];
-            else
-                character = this.Characters[this.BattleList.Keys.ElementAt(1)];
+            Character character = this.GetCharacter(e.Match.Groups[3].Value, true);
 
-            character.TechniqueCount = int.Parse(e.Match.Groups[3].Value);
-            character.HasIgnition = e.Match.Groups[4].Success;
-            character.HasMech = e.Match.Groups[5].Success;
+            character.TechniqueCount = int.Parse(e.Match.Groups[4].Value);
+            character.HasIgnition = e.Match.Groups[5].Success;
+            character.HasMech = e.Match.Groups[6].Success;
         }
 
         [ArenaRegex(@"^\x034\[Total Betting Amount:\x0312\x02 \$\$(\d*)\x02\x034\] \[Odds:\x0312\x02 ([0-9.]*):([0-9.]*)\x02\x034\]")]
@@ -3863,8 +3883,8 @@ namespace BattleBot {
             // This is the last message sent during setup.
             // This is when we know the battle has started.
             this.BattleStarted = true;
-            this.BattleStartTime = DateTime.Now;
-            this.TurnNumber = 1;
+            this.BattleStartTime = DateTime.UtcNow;
+			this.TurnNumber = 1;
 
             // If there are no monsters at the start of the battle, we can assume it's a PvP battle.
             // But not if the Arena bot has the legacy list format, and so is too old to include PvP mode.
@@ -4383,7 +4403,8 @@ namespace BattleBot {
                 ++this.TurnNumber;
                 if (this.DarknessTurns > 0) --this.DarknessTurns;
                 if (this.HolyAuraTurns > 0) --this.HolyAuraTurns;
-            } else if (combatant.TurnNumber > this.TurnNumber) {
+				if (this.LongAiBattleFix) this.CheckLongAiBattle();
+			} else if (combatant.TurnNumber > this.TurnNumber) {
                 combatant.TurnNumber = this.TurnNumber;
             }
 
@@ -4416,6 +4437,62 @@ namespace BattleBot {
             }
             this.AICheck();
         }
+
+		public void CheckLongAiBattle() {
+			/*
+				This feature will call off an AI battle that appears to be a stalemate.
+				The bot must have access to the Arena data directory for this to work.
+				If 20 turns have passed since the start of the battle, and no one has lost 1/3 of their HP, the battle is called off.
+				If 40 turns have passed since the start of the battle, and no one has lost 2/3 of their HP, the battle is called off.
+				If 60 turns have passed since the start of the battle, it's called off.
+				If a battle is called off this way, all bets are refunded.
+			*/
+			const int CheckInterval = 20;
+			const int CheckLimit = 3;
+
+			if (this.BattleType == BattleType.NPC && this.TurnNumber > 1 && this.TurnNumber % CheckInterval == 1 && this.ArenaDirectory != null && this.IsAdmin
+				&& this.DarknessWarning == default(DateTime)) {  // No time over if there is a demon wall in the battle.
+				// Read the character files only every 20 turns.
+				var listBuilder = new StringBuilder();
+
+				if (this.TurnNumber < CheckInterval * CheckLimit) {
+					using (var reader = new StreamReader(Path.Combine(this.ArenaDirectory, "txts", "battle.txt"))) {
+						// Need to read the battle list because we might not know the file names by other means.
+						while (!reader.EndOfStream) {
+							var name = reader.ReadLine();
+							if (listBuilder.Length != 0) listBuilder.Append(", ");
+							listBuilder.Append(name);
+
+							var file = IniFile.FromFile(Path.Combine(this.ArenaDirectory, "characters", name + ".char"), StringComparer.InvariantCultureIgnoreCase);
+
+							var hpThreshold = int.Parse(file["BaseStats", "HP"]);
+							hpThreshold -= hpThreshold * (this.TurnNumber / CheckInterval) / CheckLimit;
+
+							var hp = int.Parse(file["Battle", "HP"]);
+							if (hp < hpThreshold) return;
+						}
+					}
+				}
+
+				Directory.CreateDirectory("data");
+				File.AppendAllText(Path.Combine("data", this.Key + "-StoppedAiBattles.log"), DateTime.Now.ToString() + " - " + listBuilder.ToString() + " - stopped after " + (this.TurnNumber - 1) + " turns." + Environment.NewLine);
+
+				// No one has taken enough damage.
+				this.BattleAction(false, this.TurnNumber < CheckInterval * CheckLimit ? "No one seems to be doing much damage here. I'll refund all bets." : "Time Over.");
+
+				using (var reader = new StreamReader(Path.Combine(this.ArenaDirectory, "txts", "1vs1bet.txt"))) {
+					while (!reader.EndOfStream) {
+						var line = reader.ReadLine();
+						var match = Regex.Match(line, @"^([^=]*)\.betamount=(\d+)", RegexOptions.IgnoreCase | RegexOptions.Compiled);
+						if (match.Success) {
+							this.BattleAction(true, "!add " + match.Groups[1].Value + " doubledollars " + match.Groups[2].Value);
+						}
+					}
+				}
+
+				this.BattleAction(true, "!end battle draw");
+			}
+		}
 
         [ArenaRegex(@"^\x0312\x02([^\x02]*) \x02gets another turn\.")]
         internal void OnTurnExtra(object sender, TriggerEventArgs e) {
@@ -4666,7 +4743,7 @@ namespace BattleBot {
             this.eBattleEnd?.Invoke(this, EventArgs.Empty);
 
             // Update activity reports.
-            var startTime = BattleStartTime.ToUniversalTime();
+            var startTime = this.BattleStartTime;
             foreach (var combatant in this.BattleList) {
                 if (combatant.Value.Category == Category.Player && this.PlayersEntering.Contains(combatant.Key)) {
                     ActivityReport report;
