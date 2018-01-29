@@ -1203,6 +1203,11 @@ namespace CBot {
         private static void LoadConfig(bool update) {
 			if (File.Exists("config.json")) {
 				Config = JsonConvert.DeserializeObject<Config>(File.ReadAllText("config.json"));
+				foreach (var network in Config.Networks) {
+					if (network.Nicknames == null) network.Nicknames = Config.Nicknames;
+					if (network.Ident == null) network.Ident = Config.Ident;
+					if (network.FullName == null) network.FullName = Config.FullName;
+				}
 			} else if (File.Exists("CBotConfig.ini")) {
 				Config = new Config();
 				IniConfig.LoadConfig(Config);

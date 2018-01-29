@@ -35,9 +35,9 @@ namespace CBot {
 		[JsonIgnore]
 		public IrcClient Client { get; internal set; }
 
-        public string[] Nicknames { get; set; } = Bot.DefaultNicknames;
-        public string Ident { get; set; } = Bot.DefaultIdent;
-        public string FullName { get; set; } = Bot.DefaultFullName;
+        public string[] Nicknames { get; set; }
+        public string Ident { get; set; }
+        public string FullName { get; set; }
 
         public string Address { get; set; }
         public int Port { get; set; } = 6667;
