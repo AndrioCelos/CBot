@@ -15,7 +15,7 @@ namespace CBot {
         /// <summary>The name of the IRC network.</summary>
         public string Name { get; set; }
 
-        private bool _ReconnectEnabled;
+		private bool _ReconnectEnabled;
         /// <summary>Returns or sets a value specifying whether CBot will automatically reconnect to this network.</summary>
         [JsonIgnore]
         public bool ReconnectEnabled {
@@ -27,10 +27,13 @@ namespace CBot {
             }
         }
         /// <summary>Returns or sets the delay, in milliseconds, with which CBot will automatically reconnect.</summary>
+		[JsonIgnore]
         public double ReconnectDelay { get { return this.ReconnectTimer.Interval; } set { this.ReconnectTimer.Interval = value; } }
-        private Timer ReconnectTimer;
-        /// <summary>Returns the IRCClient object for this connection.</summary>
-        public IrcClient Client { get; internal set; }
+		[JsonIgnore]
+		private Timer ReconnectTimer;
+		/// <summary>Returns the <see cref="IrcClient"/> object for this connection.</summary>
+		[JsonIgnore]
+		public IrcClient Client { get; internal set; }
 
         public string[] Nicknames { get; set; } = Bot.DefaultNicknames;
         public string Ident { get; set; } = Bot.DefaultIdent;
@@ -54,10 +57,13 @@ namespace CBot {
         /// <summary>Contains the data used to deal with nickname services.</summary>
         public NickServSettings NickServ;
 
-        // Diagnostic information.
-        public Plugin CurrentPlugin { get; internal set; }
-        public MethodInfo CurrentProcedure { get; internal set; }
+		// Diagnostic information.
+		[JsonIgnore]
+		public Plugin CurrentPlugin { get; internal set; }
+		[JsonIgnore]
+		public MethodInfo CurrentProcedure { get; internal set; }
 
+		[JsonConstructor]
         public ClientEntry(string name) {
             this.Name = name;
             if (name.Contains(".")) this.Address = name;

@@ -336,7 +336,7 @@ namespace BotControl {
                 Bot.LoadConfig();
             } else if (e.Parameters[0].Equals("plugins", StringComparison.InvariantCultureIgnoreCase)) {
                 e.Reply("Reloading plugins.");
-                Bot.LoadPlugins();
+                Bot.LoadPluginConfig();
             } else if (e.Parameters[0].Equals("users", StringComparison.InvariantCultureIgnoreCase)) {
                 e.Reply("Reloading users.");
                 Bot.LoadUsers();

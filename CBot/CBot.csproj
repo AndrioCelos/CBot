@@ -1,5 +1,5 @@
 ﻿<?xml version="1.0" encoding="utf-8"?>
-<Project ToolsVersion="15.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+<Project DefaultTargets="Build" ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <Import Project="$(MSBuildExtensionsPath)\$(MSBuildToolsVersion)\Microsoft.Common.props" Condition="Exists('$(MSBuildExtensionsPath)\$(MSBuildToolsVersion)\Microsoft.Common.props')" />
   <PropertyGroup>
     <Configuration Condition=" '$(Configuration)' == '' ">Debug</Configuration>
@@ -52,6 +52,7 @@
     <Compile Include="Bot.cs" />
     <Compile Include="ClientEntry.cs" />
     <Compile Include="CommandScope.cs" />
+    <Compile Include="Config.cs" />
     <Compile Include="ConsoleClient.cs" />
     <Compile Include="ConsoleUtils.cs" />
     <Compile Include="EventArgs.cs" />
@@ -72,7 +73,7 @@
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\AnIRC\AnIRC\AnIRC.csproj">
-      <Project>{8cacd460-77b1-4674-8ec9-e8516ba374ca}</Project>
+      <Project>{0F38DD6F-9BC0-480B-8695-6F50ACB8A8C7}</Project>
       <Name>AnIRC</Name>
     </ProjectReference>
   </ItemGroup>
