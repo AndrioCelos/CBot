@@ -15,7 +15,9 @@ using System.Text;
 using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
+
 using AnIRC;
+using Newtonsoft.Json;
 
 namespace CBot {
     /// <summary>
@@ -27,16 +29,15 @@ namespace CBot {
         /// <summary>Returns the version of the bot.</summary>
         public static Version Version => Assembly.GetExecutingAssembly().GetName().Version;
 
+		public static Config Config = new Config();
         /// <summary>The list of IRC connections the bot has.</summary>
         public static List<ClientEntry> Clients = new List<ClientEntry>();
-        /// <summary>Acts as a staging area to compare the configuration file with the currently loaded configuration.</summary>
-        internal static List<ClientEntry> NewClients;
         /// <summary>The list of loaded plugins.</summary>
         public static PluginCollection Plugins = new PluginCollection();
-        /// <summary>Acts as a staging area to compare the plugin configuration file with the currently loaded plugins.</summary>
-        internal static List<PluginEntry> NewPlugins;
-        /// <summary>The list of users who are identified.</summary>
-        public static Dictionary<string, Identification> Identifications = new Dictionary<string, Identification>(StringComparer.OrdinalIgnoreCase);
+		/// <summary>Acts as a staging area to compare the plugin configuration file with the currently loaded plugins.</summary>
+		internal static Dictionary<string, PluginEntry> NewPlugins;
+		/// <summary>The list of users who are identified.</summary>
+		public static Dictionary<string, Identification> Identifications = new Dictionary<string, Identification>(StringComparer.OrdinalIgnoreCase);
         /// <summary>The list of user accounts that are known to the bot.</summary>
         public static Dictionary<string, Account> Accounts = new Dictionary<string, Account>(StringComparer.OrdinalIgnoreCase);
 
@@ -275,7 +276,7 @@ namespace CBot {
             Bot.rng = new Random();
 
             Console.Write("Loading configuration file...");
-            if (File.Exists("CBotConfig.ini")) {
+            if (File.Exists("config.json") || File.Exists("CBotConfig.ini")) {
                 Bot.ConfigFileFound = true;
                 try {
                     Bot.LoadConfig(false);
@@ -285,11 +286,11 @@ namespace CBot {
                     Bot.Clients.Add(new ClientEntry("!Console", "!Console", 0, consoleClient) { SaveToConfig = false });
                     SetUpClientEvents(consoleClient);
 
-                    foreach (var network in NewClients) {
+                    foreach (var network in Config.Networks) {
+						network.SaveToConfig = true;
                         AddNetwork(network);
                     }
 
-                    NewClients = null;
                     Console.WriteLine(" OK");
                 } catch (Exception ex) {
                     ConsoleUtils.WriteLine(" %cREDFailed%r");
@@ -298,11 +299,11 @@ namespace CBot {
                     if (Console.ReadKey(true).Key == ConsoleKey.Escape) return 2;
                 }
             } else {
-                ConsoleUtils.WriteLine(" %cBLUEFile CBotConfig.ini is missing.%r");
+                ConsoleUtils.WriteLine(" %cBLUEconfig.json is missing.%r");
             }
 
             Console.Write("Loading user configuration file...");
-            if (File.Exists("CBotUsers.ini")) {
+            if (File.Exists("users.json") || File.Exists("CBotUsers.ini")) {
                 Bot.UsersFileFound = true;
                 try {
                     Bot.LoadUsers();
@@ -314,14 +315,14 @@ namespace CBot {
                     if (Console.ReadKey(true).Key == ConsoleKey.Escape) return 2;
                 }
             } else {
-                ConsoleUtils.WriteLine(" %cBLUEFile CBotUsers.ini is missing.%r");
+                ConsoleUtils.WriteLine(" %cBLUEusers.json is missing.%r");
             }
 
             Console.Write("Loading plugins...");
-            if (File.Exists("CBotPlugins.ini")) {
+            if (File.Exists("plugins.json") || File.Exists("CBotPlugins.ini")) {
                 Bot.PluginsFileFound = true;
                 Console.WriteLine();
-                bool success = Bot.LoadPlugins();
+                bool success = Bot.LoadPluginConfig();
                 if (!success) {
                     Console.WriteLine();
                     ConsoleUtils.WriteLine("Some plugins failed to load.");
@@ -329,10 +330,10 @@ namespace CBot {
                     if (Console.ReadKey(true).Key == ConsoleKey.Escape) return 2;
                 }
             } else {
-                ConsoleUtils.WriteLine(" %cBLUEFile CBotPlugins.ini is missing.%r");
+                ConsoleUtils.WriteLine(" %cBLUEplugins.json is missing.%r");
             }
             Bot.FirstRun();
-            if (!Bot.PluginsFileFound) Bot.LoadPlugins();
+            if (!Bot.PluginsFileFound) Bot.LoadPluginConfig();
 
             foreach (ClientEntry client in Bot.Clients) {
                 try {
@@ -345,7 +346,9 @@ namespace CBot {
                 }
             }
 
-            ConsoleUtils.WriteLine("Type 'help' to list built-in console commands.");
+			if (Config.Networks.Count == 0)
+                ConsoleUtils.WriteLine("%cYELLOWNo IRC networks are defined in the configuration file. Delete config.json and restart to set one up.%r");
+			ConsoleUtils.WriteLine("Type 'help' to list built-in console commands.");
 
             while (true) {
                 string input = Console.ReadLine();
@@ -360,6 +363,7 @@ namespace CBot {
                         ConsoleUtils.WriteLine("  %cWHITEenter <message...>%r : Sends a chat message that would otherwise look like a command.");
                         ConsoleUtils.WriteLine("  %cWHITEload [key] <file path...>%r : Loads a plugin.");
                         ConsoleUtils.WriteLine("  %cWHITEreload [config|users|plugins]%r : Reloads configuration files.");
+						ConsoleUtils.WriteLine("  %cWHITEsave [config|users|plugins]%r : Saves configuration files.");
                         ConsoleUtils.WriteLine("  %cWHITEsend <network> <message...>%r : Sends a raw IRC command.");
                         ConsoleUtils.WriteLine("Anything else is treated as a chat message.");
                     } else if (fields[0].Equals("connect", StringComparison.CurrentCultureIgnoreCase)) {
@@ -410,13 +414,41 @@ namespace CBot {
                             ConsoleUtils.WriteLine("%cREDUsage: load [key] <file path...>%r");
 
                     } else if (fields[0].Equals("reload", StringComparison.CurrentCultureIgnoreCase)) {
-                        if (fields.Length == 1) LoadConfig();
-                        else if (fields[1].Equals("config", StringComparison.CurrentCultureIgnoreCase)) LoadConfig();
-                        else if (fields[1].Equals("plugins", StringComparison.CurrentCultureIgnoreCase)) LoadPlugins();
-                        else if (fields[1].Equals("users", StringComparison.CurrentCultureIgnoreCase)) LoadUsers();
-                        else ConsoleUtils.WriteLine("%cREDUsage: reload [config|plugins|users]%r");
+						bool badSyntax = false;
+						if (fields.Length == 1) {
+							LoadConfig();
+							LoadPluginConfig();
+							LoadUsers();
+						} else if (fields[1].Equals("config", StringComparison.CurrentCultureIgnoreCase)) LoadConfig();
+						else if (fields[1].Equals("plugins", StringComparison.CurrentCultureIgnoreCase)) LoadPluginConfig();
+						else if (fields[1].Equals("users", StringComparison.CurrentCultureIgnoreCase)) LoadUsers();
+						else {
+							ConsoleUtils.WriteLine("%cREDUsage: reload [config|plugins|users]%r");
+							badSyntax = true;
+						}
+						if (!badSyntax) ConsoleUtils.WriteLine("Configuration reloaded successfully.");
 
-                    } else if (fields[0].Equals("send", StringComparison.CurrentCultureIgnoreCase)) {
+					} else if (fields[0].Equals("save", StringComparison.CurrentCultureIgnoreCase)) {
+						bool badSyntax = false, savePlugins = false;
+						if (fields.Length == 1) {
+							SaveConfig();
+							savePlugins = true;
+							SaveUsers();
+						} else if (fields[1].Equals("config", StringComparison.CurrentCultureIgnoreCase)) SaveConfig();
+						else if (fields[1].Equals("plugins", StringComparison.CurrentCultureIgnoreCase)) savePlugins = true;
+						else if (fields[1].Equals("users", StringComparison.CurrentCultureIgnoreCase)) SaveUsers();
+						else {
+							ConsoleUtils.WriteLine("%cREDUsage: save [config|plugins|users]%r");
+							badSyntax = true;
+						}
+						if (savePlugins) {
+							SavePlugins();
+							foreach (var plugin in Plugins)
+								plugin.Obj.OnSave();
+						}
+						if (!badSyntax) ConsoleUtils.WriteLine("Configuration saved successfully.");
+
+					} else if (fields[0].Equals("send", StringComparison.CurrentCultureIgnoreCase)) {
                         if (fields.Length < 3)
                             ConsoleUtils.WriteLine("%cREDUsage: send <network> <command...>%r");
                         else {
@@ -614,7 +646,8 @@ namespace CBot {
                     Password = password,
                     TLS = tls,
                     AcceptInvalidTlsCertificate = acceptInvalidCertificate,
-                    NickServ = nickServ
+                    NickServ = nickServ,
+					SaveToConfig = true
                 };
                 network.AutoJoin.AddRange(autoJoinChannels);
                 AddNetwork(network);
@@ -635,7 +668,7 @@ namespace CBot {
             Console.WriteLine();
             Console.WriteLine("How do you want to identify yourself to me?");
             ConsoleUtils.WriteLine("%cWHITEA%r: With a password, via PM, through the Identify plugin");
-            ConsoleUtils.WriteLine("%cWHITEB%r: With a NickServ account");
+            ConsoleUtils.WriteLine("%cWHITEB%r: With a services account");
             ConsoleUtils.WriteLine("%cWHITEC%r: With a hostmask or vHost");
             ConsoleUtils.WriteLine("%cWHITED%r: Skip this step");
             Console.WriteLine();
@@ -663,7 +696,7 @@ namespace CBot {
                     prompt = "What do you want your account name to be? ";
                     break;
                 case 1:
-                    prompt = "What is your NickServ account name? ";
+                    prompt = "What is your services account name? ";
                     break;
                 case 2:
                     prompt = "What hostmask should identify you? (Example: *!*you@your.vHost) ";
@@ -935,15 +968,12 @@ namespace CBot {
                 }
             } while (!done);
 
-            // Write out the config file.
-            using (var writer = new StreamWriter(File.Open("CBotPlugins.ini", FileMode.CreateNew, FileAccess.Write))) {
-                foreach (var entry in selected) {
-                    writer.WriteLine("[" + entry.Item1 + "]");
-                    writer.WriteLine("Filename=" + entry.Item2);
-                    writer.WriteLine("Channels=" + string.Join(",", entry.Item3));
-                    writer.WriteLine();
-                }
-            }
+			foreach (var entry in selected) {
+				Plugins.Add(new PluginEntry(entry.Item1, entry.Item2, entry.Item3));
+			}
+
+			// Write out the config file.
+			SavePlugins();
 
             Console.WriteLine();
             Console.WriteLine("Configuration is now complete.");
@@ -998,23 +1028,25 @@ namespace CBot {
         /// <param name="channels">A list of channels in which this plugin should be active.</param>
         /// <exception cref="ArgumentException">A plugin with the specified key is already loaded.</exception>
         /// <exception cref="InvalidPluginException">The plugin could not be constructed.</exception>
-        public static PluginEntry LoadPlugin(string key, string filename, params string[] channels)
-            => LoadPlugin(new PluginEntry() { Key = key, Filename = filename, Channels = channels });
-        public static PluginEntry LoadPlugin(PluginEntry entry) {
-            Assembly assembly;
-            AssemblyName assemblyName;
+		public static PluginEntry LoadPlugin(string key, string filename, params string[] channels) {
+			var entry = new PluginEntry(key, filename, channels);
+			LoadPlugin(entry);
+			return entry;
+		}
+        public static void LoadPlugin(PluginEntry entry) {
             Type pluginType = null;
             string errorMessage = null;
 
-            if (Plugins.Contains(entry.Key)) throw new ArgumentException(string.Format("A plugin with key {0} is already loaded.", entry.Key), "key");
+            if (Plugins.Contains(entry.Key)) throw new ArgumentException(string.Format("A plugin with key {0} is already loaded.", entry.Key), nameof(entry));
 
             ConsoleUtils.Write("  Loading plugin %cWHITE" + entry.Key + "%r...");
             int x = Console.CursorLeft; int y = Console.CursorTop; int x2; int y2;
             Console.WriteLine();
 
             try {
-                assembly = Assembly.LoadFrom(entry.Filename);
-                assemblyName = assembly.GetName();
+				// Find the plugin class.
+                var assembly = Assembly.LoadFrom(entry.Filename);
+                var assemblyName = assembly.GetName();
 
                 foreach (Type type in assembly.GetTypes()) {
                     if (!type.IsAbstract && typeof(Plugin).IsAssignableFrom(type)) {
@@ -1027,6 +1059,7 @@ namespace CBot {
                     throw new InvalidPluginException(entry.Filename, string.Format("The file '{0}' does not contain a class that inherits from the base plugin class.", entry.Filename));
                 }
 
+				// Check the version number.
                 Version pluginVersion = null;
                 foreach (ApiVersionAttribute attribute in pluginType.GetCustomAttributes(typeof(ApiVersionAttribute), false)) {
                     if (pluginVersion == null || pluginVersion < attribute.Version)
@@ -1043,6 +1076,7 @@ namespace CBot {
                     throw new InvalidPluginException(entry.Filename, string.Format("The class '{0}' in '{1}' was built for newer version {2}.{3}.", pluginType.Name, entry.Filename, pluginVersion.Major, pluginVersion.Minor));
                 }
 
+				// Construct the plugin.
                 int constructorType = -1;
                 foreach (ConstructorInfo constructor in pluginType.GetConstructors()) {
                     ParameterInfo[] parameters = constructor.GetParameters();
@@ -1071,15 +1105,13 @@ namespace CBot {
 
 				plugin.Key = entry.Key;
                 plugin.Channels = entry.Channels ?? new string[0];
-				var result = new PluginEntry() { Key = entry.Key, Filename = entry.Filename, Obj = plugin };
-                Plugins.Add(result);
+				entry.Obj = plugin;
+                Plugins.Add(entry);
 
                 x2 = Console.CursorLeft; y2 = Console.CursorTop;
                 Console.SetCursorPosition(x, y);
                 ConsoleUtils.WriteLine(" {0} ({1}) OK", plugin.Name, assemblyName.Version);
                 Console.SetCursorPosition(x2, y2);
-
-				return result;
 			} catch (Exception ex) {
                 x2 = Console.CursorLeft; y2 = Console.CursorTop;
                 Console.SetCursorPosition(x, y);
@@ -1092,6 +1124,72 @@ namespace CBot {
                 throw ex;
             }
         }
+		public static void EnablePlugin(PluginEntry plugin) {
+			LoadPlugin(plugin);
+			ConsoleUtils.Write("  Enabling plugin %cWHITE" + plugin.Key + "%r...");
+			int x = Console.CursorLeft; int y = Console.CursorTop; int x2; int y2;
+			Console.WriteLine();
+
+			try {
+				plugin.Obj.LoadLanguage();
+				plugin.Obj.Initialize();
+
+				x2 = Console.CursorLeft; y2 = Console.CursorTop;
+				Console.SetCursorPosition(x, y);
+				ConsoleUtils.WriteLine(" {0} ({1}) OK", plugin.Obj.Name, plugin.Obj.GetType().Assembly.GetName().Version);
+				Console.SetCursorPosition(x2, y2);
+			} catch (Exception ex) {
+				x2 = Console.CursorLeft; y2 = Console.CursorTop;
+				Console.SetCursorPosition(x, y);
+				ConsoleUtils.Write(" %cRED");
+				ConsoleUtils.Write("Failed");
+				ConsoleUtils.WriteLine("%r");
+				Console.SetCursorPosition(x2, y2);
+				LogError(plugin.Key, "Initialize", ex);
+				throw;
+			}
+		}
+		public static void EnablePlugins(List<PluginEntry> plugins) {
+			var exceptions = new List<Exception>();
+
+			foreach (var plugin in plugins) {
+				try {
+					LoadPlugin(plugin);
+				} catch (Exception ex) {
+					exceptions.Add(ex);
+				}
+			}
+			foreach (var plugin in plugins) {
+				if (plugin.Obj != null) {  // It loaded successfully.
+					ConsoleUtils.Write("  Enabling plugin %cWHITE" + plugin.Key + "%r...");
+					int x = Console.CursorLeft; int y = Console.CursorTop; int x2; int y2;
+					Console.WriteLine();
+
+					try {
+						plugin.Obj.LoadLanguage();
+						plugin.Obj.Initialize();
+
+						x2 = Console.CursorLeft; y2 = Console.CursorTop;
+						Console.SetCursorPosition(x, y);
+						ConsoleUtils.WriteLine(" {0} ({1}) OK", plugin.Obj.Name, plugin.Obj.GetType().Assembly.GetName().Version);
+						Console.SetCursorPosition(x2, y2);
+					} catch (Exception ex) {
+						x2 = Console.CursorLeft; y2 = Console.CursorTop;
+						Console.SetCursorPosition(x, y);
+						ConsoleUtils.Write(" %cRED");
+						ConsoleUtils.Write("Failed");
+						ConsoleUtils.WriteLine("%r");
+						Console.SetCursorPosition(x2, y2);
+						LogError(plugin.Key, "Initialize", ex);
+						exceptions.Add(ex);
+					}
+				}
+			}
+
+			if (exceptions.Count != 0) {
+				throw new AggregateException(exceptions);
+			}
+		}
 
         public static void DropPlugin(string key) {
             var plugin = Bot.Plugins[key];
@@ -1103,13 +1201,18 @@ namespace CBot {
         /// <summary>Loads configuration data from the file CBotConfig.ini if it is present.</summary>
         public static void LoadConfig() => LoadConfig(true);
         private static void LoadConfig(bool update) {
-            if (File.Exists("CBotConfig.ini")) IniConfig.LoadConfig();
+			if (File.Exists("config.json")) {
+				Config = JsonConvert.DeserializeObject<Config>(File.ReadAllText("config.json"));
+			} else if (File.Exists("CBotConfig.ini")) {
+				Config = new Config();
+				IniConfig.LoadConfig(Config);
+			}
 
             if (update) UpdateNetworks();
         }
         /// <summary>Compares and applies changes in IRC network configuration.</summary>
         public static void UpdateNetworks() {
-            if (NewClients == null) return;  // Nothing to do.
+            if (Config.Networks == null) return;  // Nothing to do.
 
             Dictionary<string, int> oldNetworks = new Dictionary<string, int>(StringComparer.InvariantCultureIgnoreCase);
             List<ClientEntry> reconnectNeeded = new List<ClientEntry>();
@@ -1117,7 +1220,7 @@ namespace CBot {
             for (int i = 0; i < Clients.Count; ++i)
                 oldNetworks[Clients[i].Name] = i;
 
-            foreach (var network in NewClients) {
+			foreach (var network in Config.Networks) {
                 ClientEntry oldNetwork; int index;
                 if (oldNetworks.TryGetValue(network.Name, out index)) {
                     oldNetwork = Clients[index];
@@ -1139,12 +1242,11 @@ namespace CBot {
                     }
 
                 } else {
+					network.SaveToConfig = true;
                     AddNetwork(network);
                     reconnectNeeded.Add(network);
                 }
             }
-
-            NewClients = null;
 
             foreach (var index in oldNetworks.Values) {
                 var network = Clients[index];
@@ -1167,7 +1269,11 @@ namespace CBot {
         /// <summary>Loads user data from the file CBotUsers.ini if it is present.</summary>
         public static void LoadUsers() => LoadUsers(true);
         public static void LoadUsers(bool update) {
-            if (File.Exists("CBotUsers.ini")) IniConfig.LoadUsers();
+			if (File.Exists("users.json")) {
+				Accounts = JsonConvert.DeserializeObject<Dictionary<string, Account>>(File.ReadAllText("users.json"));
+			} else if (File.Exists("CBotUsers.ini")) {
+				IniConfig.LoadUsers();
+			}
 
             if (update) {
                 // Remove links to deleted accounts.
@@ -1183,9 +1289,13 @@ namespace CBot {
         }
 
         /// <summary>Loads active plugin data from the file CBotPlugins.ini if it is present.</summary>
-        public static bool LoadPlugins() => LoadPlugins(true);
-        public static bool LoadPlugins(bool update) {
-            if (File.Exists("CBotPlugins.ini")) IniConfig.LoadPlugins();
+        public static bool LoadPluginConfig() => LoadPluginConfig(true);
+		public static bool LoadPluginConfig(bool update) {
+			if (File.Exists("plugins.json")) {
+				NewPlugins = JsonConvert.DeserializeObject<Dictionary<string, PluginEntry>>(File.ReadAllText("plugins.json"));
+			} else if (File.Exists("CBotPlugins.ini")) {
+				IniConfig.LoadPlugins();
+			}
 
             if (update) return UpdatePlugins();
             return true;
@@ -1202,12 +1312,14 @@ namespace CBot {
             foreach (var plugin in Plugins) oldPlugins.Add(plugin.Key);
 
             foreach (var plugin in NewPlugins) {
-                PluginEntry oldPlugin;
-                if (Plugins.TryGetValue(plugin.Key, out oldPlugin) && plugin.Filename == oldPlugin.Filename) {
+				plugin.Value.Key = plugin.Key;
+
+				PluginEntry oldPlugin;
+				if (Plugins.TryGetValue(plugin.Key, out oldPlugin) && plugin.Value.Filename == oldPlugin.Filename) {
                     oldPlugins.Remove(plugin.Key);
-                    oldPlugin.Channels = plugin.Channels;
+                    oldPlugin.Channels = plugin.Value.Channels;
                 } else {
-                    reloadNeeded.Add(plugin);
+                    reloadNeeded.Add(plugin.Value);
                 }
             }
 
@@ -1219,60 +1331,56 @@ namespace CBot {
                 ConsoleUtils.WriteLine("Dropped plugin {0}.", key);
             }
 
-            // Load new plugins.
-            foreach (var plugin in reloadNeeded) {
-                try {
-                    newPlugins.Add(LoadPlugin(plugin));
-                } catch (Exception) {
-                    success = false;
-                }
-            }
-
-            foreach (var plugin in newPlugins) {
-				ConsoleUtils.Write("  Enabling plugin %cWHITE" + plugin.Key + "%r...");
-				int x = Console.CursorLeft; int y = Console.CursorTop; int x2; int y2;
-				Console.WriteLine();
-
-				try {
-					plugin.Obj.LoadLanguage();
-					plugin.Obj.Initialize();
-
-					x2 = Console.CursorLeft; y2 = Console.CursorTop;
-					Console.SetCursorPosition(x, y);
-					ConsoleUtils.WriteLine(" {0} ({1}) OK", plugin.Obj.Name, plugin.Obj.GetType().Assembly.GetName().Version);
-					Console.SetCursorPosition(x2, y2);
-				} catch (Exception ex) {
-					x2 = Console.CursorLeft; y2 = Console.CursorTop;
-					Console.SetCursorPosition(x, y);
-					ConsoleUtils.Write(" %cRED");
-					ConsoleUtils.Write("Failed");
-					ConsoleUtils.WriteLine("%r");
-					Console.SetCursorPosition(x2, y2);
-					LogError(plugin.Key, "Initialize", ex);
-					success = false;
-				}
-            }
+			// Load new plugins.
+			try {
+				EnablePlugins(reloadNeeded);
+			} catch (Exception) {
+				success = false;
+			}
 
             return success;
         }
 
-        /// <summary>Writes configuration data to the file CBotConfig.ini.</summary>
-        public static void SaveConfig() => IniConfig.SaveConfig();
+        /// <summary>Writes configuration data to the file `config.json`.</summary>
+		public static void SaveConfig() {
+			Config.Nicknames = DefaultNicknames;
+			Config.Ident = DefaultIdent;
+			Config.FullName = DefaultFullName;
+			Config.UserInfo = DefaultUserInfo;
+			Config.Avatar = DefaultAvatar;
+			Config.CommandPrefixes = DefaultCommandPrefixes;
+			Config.ChannelCommandPrefixes = ChannelCommandPrefixes;
+			Config.Nicknames = DefaultNicknames;
 
-        /// <summary>Writes user data to the file CBotUsers.ini.</summary>
-        public static void SaveUsers() => IniConfig.SaveUsers();
+			Config.Networks.Clear();
+			Config.Networks.AddRange(Clients.Where(n => n.SaveToConfig));
 
-        /// <summary>Writes active plugin data to the file CBotPlugins.ini.</summary>
-        public static void SavePlugins() {
-            foreach (var plugin in Bot.Plugins) plugin.Obj.OnSave();
-            IniConfig.SavePlugins();
-        }
+			var json = JsonConvert.SerializeObject(Config, Formatting.Indented);
+			File.WriteAllText("config.json", json);
+		}
 
-        /// <summary>Runs a global command (/plugin:command) in a message.</summary>
-        /// <param name="sender">The user sending the message.</param>
-        /// <param name="target">The target of the event: the sender or a channel.</param>
-        /// <param name="message">The message text.</param>
-        private static async Task<bool> CheckCommands(IrcUser sender, IrcMessageTarget target, string message) {
+        /// <summary>Writes user data to the file `users.json`.</summary>
+		public static void SaveUsers() {
+			var json = JsonConvert.SerializeObject(Accounts, Formatting.Indented);
+			File.WriteAllText("users.json", json);
+		}
+
+		/// <summary>Writes plugin data to the file `plugins.json`.</summary>
+		public static void SavePlugins() {
+			NewPlugins = new Dictionary<string, PluginEntry>();
+			foreach (var plugin in Plugins) {
+				NewPlugins.Add(plugin.Key, plugin);
+			}
+			var json = JsonConvert.SerializeObject(NewPlugins, Formatting.Indented);
+			File.WriteAllText("plugins.json", json);
+			NewPlugins = null;
+		}
+
+		/// <summary>Runs a global command (/plugin:command) in a message.</summary>
+		/// <param name="sender">The user sending the message.</param>
+		/// <param name="target">The target of the event: the sender or a channel.</param>
+		/// <param name="message">The message text.</param>
+		private static async Task<bool> CheckCommands(IrcUser sender, IrcMessageTarget target, string message) {
             // Check commands.
             string commandString; string prefix; string label; string parameters;
             if (IsCommand(target as IrcChannel, message, out commandString, out prefix)) {

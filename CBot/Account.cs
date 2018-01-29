@@ -1,7 +1,9 @@
 using System;
+using System.ComponentModel;
 using System.Linq;
 using System.Security.Cryptography;
 using System.Text;
+using Newtonsoft.Json;
 
 namespace CBot {
     /// <summary>
@@ -9,8 +11,10 @@ namespace CBot {
     /// </summary>
 	public class Account {
         /// <summary>The user's password, or a hashed representation of it.</summary>
+		[JsonProperty(NullValueHandling = NullValueHandling.Ignore)]
 		public string Password;
         /// <summary>A HashType value specifying how the password is hashed.</summary>
+		[JsonProperty(DefaultValueHandling = DefaultValueHandling.IgnoreAndPopulate)] [DefaultValue(HashType.None)] [JsonConverter(typeof(Newtonsoft.Json.Converters.StringEnumConverter))]
         public HashType HashType;
         /// <summary>A list of permissions that the user is to be granted.</summary>
 		public string[] Permissions;

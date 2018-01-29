@@ -8,100 +8,102 @@ using static System.StringSplitOptions;
 
 namespace CBot {
     public class IniConfig {
-        public static void LoadConfig() {
+		public static void LoadConfig(Config config) {
             if (File.Exists("CBotConfig.ini")) {
                 var file = IniFile.FromFile("CBotConfig.ini");
                 Dictionary<string, string> section; string value;
 
                 if (file.TryGetValue("Me", out section)) {
-                    if (section.TryGetValue("Nicknames", out value)) Bot.DefaultNicknames = value.Split(new char[] { ',', ' ' }, RemoveEmptyEntries);
-                    else if (section.TryGetValue("Nickname", out value)) Bot.DefaultNicknames = new[] { value };
+					if (section.TryGetValue("Nicknames", out value)) config.Nicknames = value.Split(new char[] { ',', ' ' }, RemoveEmptyEntries);
+					else if (section.TryGetValue("Nickname", out value)) config.Nicknames = new[] { value };
 
-                    if (section.TryGetValue("Username", out value)) Bot.DefaultIdent = value;
-                    if (section.TryGetValue("FullName", out value)) Bot.DefaultFullName = value;
-                    if (section.TryGetValue("UserInfo", out value)) Bot.DefaultUserInfo = value;
-                    section.TryGetValue("Avatar", out value); Bot.DefaultAvatar = value;  // That *can* be null.
+					if (section.TryGetValue("Username", out value)) config.Ident = value;
+					if (section.TryGetValue("FullName", out value)) config.FullName = value;
+					if (section.TryGetValue("UserInfo", out value)) config.UserInfo = value;
+					section.TryGetValue("Avatar", out value); config.Avatar = value;  // That *can* be null.
 
                     file.Remove("Me");
                 }
 
                 if (file.TryGetValue("Prefixes", out section)) {
                     if (section.TryGetValue("Default", out value)) {
-                        Bot.DefaultCommandPrefixes = value.Split((char[]) null, RemoveEmptyEntries);
+						config.CommandPrefixes = value.Split((char[]) null, RemoveEmptyEntries);
                         section.Remove("Default");
                     }
 
                     foreach (var item in section)
-                        Bot.ChannelCommandPrefixes[item.Key] = item.Value.Split((char[]) null, RemoveEmptyEntries);
+						config.ChannelCommandPrefixes[item.Key] = item.Value.Split((char[]) null, RemoveEmptyEntries);
 
                     file.Remove("Prefixes");
                 }
 
-                Bot.NewClients = new List<ClientEntry>();
-                foreach (var network in file) {
-                    ClientEntry entry = new ClientEntry(network.Key) { SaveToConfig = true };
-                    Bot.NewClients.Add(entry);
+                foreach (var section2 in file) {
+					var network = new ClientEntry(section2.Key);
 
-                    if (network.Value.TryGetValue("Address", out value)) {
+					if (section2.Value.TryGetValue("Address", out value)) {
                         var fields = value.Split(new[] { ':' }, 2);
                         if (fields.Length == 2) {
-                            entry.Address = fields[0];
+                            network.Address = fields[0];
                             if (fields[1].StartsWith("+")) {
-                                entry.TLS = true;
-                                entry.Port = int.Parse(fields[1].Substring(1));
+								network.TLS = true;
+								network.Port = int.Parse(fields[1].Substring(1));
                             } else
-                                entry.Port = int.Parse(fields[1]);
+								network.Port = int.Parse(fields[1]);
                         } else {
-                            entry.Address = fields[0];
+							network.Address = fields[0];
                         }
                     }
-                    if (network.Value.TryGetValue("Port", out value)) entry.Port = int.Parse(value);
-                    if (network.Value.TryGetValue("Password", out value)) entry.Password = value;
+					if (section2.Value.TryGetValue("Port", out value)) network.Port = int.Parse(value);
+					if (section2.Value.TryGetValue("Password", out value)) network.Password = value;
 
-                    if (network.Value.TryGetValue("Nicknames", out value)) entry.Nicknames = value.Split(new char[] { ',', ' ' }, RemoveEmptyEntries);
-                    else if (network.Value.TryGetValue("Nickname", out value)) entry.Nicknames = new[] { value };
+					if (section2.Value.TryGetValue("Nicknames", out value)) network.Nicknames = value.Split(new char[] { ',', ' ' }, RemoveEmptyEntries);
+					else if (section2.Value.TryGetValue("Nickname", out value)) network.Nicknames = new[] { value };
 
-                    if (network.Value.TryGetValue("Username", out value)) entry.Ident = value;
-                    if (network.Value.TryGetValue("FullName", out value)) entry.FullName = value;
-                    if (network.Value.TryGetValue("Autojoin", out value)) {
+					if (section2.Value.TryGetValue("Username", out value)) network.Ident = value;
+					if (section2.Value.TryGetValue("FullName", out value)) network.FullName = value;
+                    if (section2.Value.TryGetValue("Autojoin", out value)) {
                         foreach (var channel in value.Split(new[] { ',', ' ' }, RemoveEmptyEntries))
-                            entry.AutoJoin.Add(new AutoJoinChannel(channel));
+							network.AutoJoin.Add(new AutoJoinChannel(channel));
                     }
-                    if (network.Value.TryGetValue("SSL", out value)) entry.TLS = Bot.ParseBoolean(value);
-                    if (network.Value.TryGetValue("AllowInvalidCertificate", out value)) entry.AcceptInvalidTlsCertificate = Bot.ParseBoolean(value);
-                    if (network.Value.TryGetValue("SASL-Username", out value)) entry.SaslUsername = value;
-                    if (network.Value.TryGetValue("SASL-Password", out value)) entry.SaslPassword = value;
+					if (section2.Value.TryGetValue("SSL", out value)) network.TLS = Bot.ParseBoolean(value);
+					if (section2.Value.TryGetValue("AllowInvalidCertificate", out value)) network.AcceptInvalidTlsCertificate = Bot.ParseBoolean(value);
+					if (section2.Value.TryGetValue("SASL-Username", out value)) network.SaslUsername = value;
+					if (section2.Value.TryGetValue("SASL-Password", out value)) network.SaslPassword = value;
 
                     bool nickServ = false; var registration = new NickServSettings();
-                    if (network.Value.TryGetValue("NickServ-Nicknames", out value)) { nickServ = true; registration.RegisteredNicknames = value.Split(new char[] { ',', ' ' }, RemoveEmptyEntries); }
-                    if (network.Value.TryGetValue("NickServ-Password", out value)) { nickServ = true; registration.Password = value; }
-                    if (network.Value.TryGetValue("NickServ-AnyNickname", out value)) { nickServ = true; registration.AnyNickname = Bot.ParseBoolean(value); }
-                    if (network.Value.TryGetValue("NickServ-UseGhostCommand", out value)) { nickServ = true; registration.UseGhostCommand = Bot.ParseBoolean(value); }
-                    if (network.Value.TryGetValue("NickServ-GhostCommand", out value)) { nickServ = true; registration.GhostCommand = value; }
-                    if (network.Value.TryGetValue("NickServ-IdentifyCommand", out value)) { nickServ = true; registration.IdentifyCommand = value; }
-                    if (network.Value.TryGetValue("NickServ-Hostmask", out value)) { nickServ = true; registration.Hostmask = value; }
-                    if (network.Value.TryGetValue("NickServ-RequestMask", out value)) { nickServ = true; registration.RequestMask = value; }
-                    if (nickServ) entry.NickServ = registration;
-                }
-            }
+                    if (section2.Value.TryGetValue("NickServ-Nicknames", out value)) { nickServ = true; registration.RegisteredNicknames = value.Split(new char[] { ',', ' ' }, RemoveEmptyEntries); }
+                    if (section2.Value.TryGetValue("NickServ-Password", out value)) { nickServ = true; registration.Password = value; }
+                    if (section2.Value.TryGetValue("NickServ-AnyNickname", out value)) { nickServ = true; registration.AnyNickname = Bot.ParseBoolean(value); }
+                    if (section2.Value.TryGetValue("NickServ-UseGhostCommand", out value)) { nickServ = true; registration.UseGhostCommand = Bot.ParseBoolean(value); }
+                    if (section2.Value.TryGetValue("NickServ-GhostCommand", out value)) { nickServ = true; registration.GhostCommand = value; }
+                    if (section2.Value.TryGetValue("NickServ-IdentifyCommand", out value)) { nickServ = true; registration.IdentifyCommand = value; }
+                    if (section2.Value.TryGetValue("NickServ-Hostmask", out value)) { nickServ = true; registration.Hostmask = value; }
+                    if (section2.Value.TryGetValue("NickServ-RequestMask", out value)) { nickServ = true; registration.RequestMask = value; }
+                    if (nickServ) network.NickServ = registration;
+
+					config.Networks.Add(network);
+				}
+			}
         }
 
-        public static void LoadPlugins() {
-            if (!File.Exists("CBotPlugins.ini")) return;
+		public static void LoadPlugins() {
+			if (!File.Exists("CBotPlugins.ini")) return;
 
-            Bot.NewPlugins = new List<PluginEntry>();
-            var file = IniFile.FromFile("CBotPlugins.ini");
-            string value;
+			Bot.NewPlugins = new Dictionary<string, PluginEntry>();
+			var file = IniFile.FromFile("CBotPlugins.ini");
+			string value;
 
-            foreach (var section in file) {
-                var entry = new PluginEntry() { Key = section.Key };
-                if (section.Value.TryGetValue("Filename", out value)) entry.Filename = value;
-                if (section.Value.TryGetValue("Channels", out value)) entry.Channels = value.Split(new[] { ',', ' ' }, RemoveEmptyEntries);
-                Bot.NewPlugins.Add(entry);
-            }
-        }
+			foreach (var section in file) {
+				string[] channels;
+				if (section.Value.TryGetValue("Channels", out value)) channels = value.Split(new[] { ',', ' ' }, RemoveEmptyEntries);
+				else channels = new string[0];
+				var entry = new PluginEntry(section.Key, section.Value["Filename"], channels);
 
-        public static void LoadUsers() {
+				Bot.NewPlugins.Add(section.Key, entry);
+			}
+		}
+
+		public static void LoadUsers() {
             // This is not a strict INI file, so the IniFile class cannot be used here.
             Bot.commandCallbackNeeded = false;
             Bot.Accounts.Clear();
@@ -160,6 +162,7 @@ namespace CBot {
         }
 
         /// <summary>Writes configuration data to the file CBotConfig.ini.</summary>
+		[Obsolete("The JSON configuration file format is preferred.")]
         public static void SaveConfig() {
             using (var writer = new StreamWriter("CBotConfig.ini", false)) {
                 writer.WriteLine("[Me]");
@@ -209,8 +212,9 @@ namespace CBot {
             }
         }
 
-        /// <summary>Writes user data to the file CBotUsers.ini.</summary>
-        public static void SaveUsers() {
+		/// <summary>Writes user data to the file CBotUsers.ini.</summary>
+		[Obsolete("The JSON configuration file format is preferred.")]
+		public static void SaveUsers() {
             using (var writer = new StreamWriter("CBotUsers.ini", false)) {
                 foreach (var user in Bot.Accounts) {
                     writer.WriteLine("[" + user.Key + "]");
@@ -228,8 +232,9 @@ namespace CBot {
             }
         }
 
-        /// <summary>Writes active plugin data to the file CBotPlugins.ini.</summary>
-        public static void SavePlugins() {
+		/// <summary>Writes active plugin data to the file CBotPlugins.ini.</summary>
+		[Obsolete("The JSON configuration file format is preferred.")]
+		public static void SavePlugins() {
             using (var writer = new StreamWriter("CBotPlugins.ini", false)) {
                 foreach (var plugin in Bot.Plugins) {
                     writer.WriteLine("[" + plugin.Key + "]");

@@ -1,4 +1,5 @@
 ﻿using System;
+using Newtonsoft.Json;
 
 namespace CBot {
     /// <summary>
@@ -21,8 +22,9 @@ namespace CBot {
         public string Hostmask;
         /// <summary>A mask that matches NickServ's request to identify.</summary>
         public string RequestMask;
-        /// <summary>The time when CBot last identified. Used for rate limiting.</summary>
-        public DateTime IdentifyTime;
+		/// <summary>The time when CBot last identified. Used for rate limiting.</summary>
+		[JsonIgnore]
+		public DateTime IdentifyTime;
 
         /// <summary>Creates a NickServSettings object with standard default data.</summary>
         /// <remarks>
