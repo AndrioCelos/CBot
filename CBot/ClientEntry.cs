@@ -96,9 +96,9 @@ namespace CBot {
             this.Client.AllowInvalidCertificate = this.AcceptInvalidTlsCertificate;
             this.Client.SaslUsername = this.SaslUsername;
             this.Client.SaslPassword = this.SaslPassword;
-            this.Client.Me.Nickname = this.Nicknames[0];
-            this.Client.Me.Ident = this.Ident;
-            this.Client.Me.FullName = this.FullName;
+            this.Client.Me.Nickname = (this.Nicknames ?? Bot.DefaultNicknames)[0];
+            this.Client.Me.Ident = this.Ident ?? Bot.DefaultIdent;
+            this.Client.Me.FullName = this.FullName ?? Bot.DefaultFullName;
         }
 
         public void Connect() {

@@ -124,7 +124,7 @@ namespace CBot {
 
         /// <summary>Sets up an IRC network configuration, including adding CBot's event handlers.</summary>
         public static void SetUpNetwork(ClientEntry network) {
-            IrcClient newClient = new IrcClient(new IrcLocalUser(network.Nicknames[0], network.Ident, network.FullName), network.Name);
+            IrcClient newClient = new IrcClient(new IrcLocalUser((network.Nicknames ?? DefaultNicknames)[0], network.Ident ?? DefaultIdent, network.FullName ?? DefaultFullName), network.Name);
             SetUpClientEvents(newClient);
             network.Client = newClient;
         }
@@ -1208,6 +1208,8 @@ namespace CBot {
 					if (network.Ident == null) network.Ident = Config.Ident;
 					if (network.FullName == null) network.FullName = Config.FullName;
 				}
+				DefaultCommandPrefixes = Config.CommandPrefixes;
+				ChannelCommandPrefixes = Config.ChannelCommandPrefixes;
 			} else if (File.Exists("CBotConfig.ini")) {
 				Config = new Config();
 				IniConfig.LoadConfig(Config);
@@ -1359,6 +1361,9 @@ namespace CBot {
 
 			Config.Networks.Clear();
 			Config.Networks.AddRange(Clients.Where(n => n.SaveToConfig));
+
+			Config.CommandPrefixes = DefaultCommandPrefixes;
+			Config.ChannelCommandPrefixes = ChannelCommandPrefixes;
 
 			var json = JsonConvert.SerializeObject(Config, Formatting.Indented);
 			File.WriteAllText("config.json", json);
@@ -2167,10 +2172,11 @@ namespace CBot {
             foreach (var pluginEntry in Bot.Plugins) if (pluginEntry.Obj.OnNicknameTaken(sender, e)) return;
             // Cycle through the list.
             var entry = GetClientEntry((IrcClient) sender);
-            if (entry.Client.State <= IrcClientState.Registering && entry.Nicknames.Length > 1) {
-                for (int i = 0; i < entry.Nicknames.Length - 1; ++i) {
-                    if (entry.Nicknames[i] == e.Nickname) {
-                        entry.Client.Me.Nickname = entry.Nicknames[i + 1];
+			var nicknames = entry.Nicknames ?? DefaultNicknames;
+            if (entry.Client.State <= IrcClientState.Registering && nicknames.Length > 1) {
+                for (int i = 0; i < nicknames.Length - 1; ++i) {
+                    if (nicknames[i] == e.Nickname) {
+                        entry.Client.Me.Nickname = nicknames[i + 1];
                         break;
                     }
                 }
