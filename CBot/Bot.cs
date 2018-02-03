@@ -1278,6 +1278,7 @@ namespace CBot {
         public static void LoadUsers(bool update) {
 			if (File.Exists("users.json")) {
 				Accounts = JsonConvert.DeserializeObject<Dictionary<string, Account>>(File.ReadAllText("users.json"));
+				commandCallbackNeeded = Accounts.Any(a => a.Key.StartsWith("$a"));
 			} else if (File.Exists("CBotUsers.ini")) {
 				IniConfig.LoadUsers();
 			}
