@@ -1,5 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Collections.Specialized;
+using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Reflection;
@@ -56,7 +58,13 @@ namespace BattleBot {
         public Dictionary<string, Weapon> Weapons;
         public Dictionary<string, ActivityReport> ActivityReports;
 
-        private Dictionary<string, TaskCompletionSource<object>> Tasks = new Dictionary<string, TaskCompletionSource<object>>();
+        private Dictionary<string, TaskState> infoTasks = new Dictionary<string, TaskState>(StringComparer.InvariantCultureIgnoreCase);
+		// We need to remember what list is currently being processed, as many of them can span multiple lines.
+		private InfoListType infoType;
+		private Character infoCharacter;
+		private Timer infoTimer;
+		private List<Tuple<string, int>> infoList;
+		private int infoFragmentLength;
 
         public bool Entering;
 
@@ -66,7 +74,7 @@ namespace BattleBot {
         public bool IsAdmin;
         public DateTime IsAdminChecked;
         public bool IsAdminChecking;
-        public System.Timers.Timer IsAdminCheckTimer;
+        public Timer IsAdminCheckTimer;
 
         public Dictionary<string, Combatant> BattleList;
         private List<string> PlayersEntering = new List<string>();
@@ -121,7 +129,7 @@ namespace BattleBot {
         public event EventHandler eBattleEnd;
 
         public BattleBotPlugin() {
-            // Register commands and triggers.
+            // Register triggers.
             foreach (var method in this.GetType().GetMethods(BindingFlags.InvokeMethod | BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic)) {
                 foreach (var attribute in method.GetCustomAttributes()) {
                     if (attribute is ArenaRegexAttribute) {
@@ -142,6 +150,7 @@ namespace BattleBot {
         }
 
         private void CheckChannels() {
+			// We take the first channel in the list as the Arena channel, excluding wildcard channels.
             this.ArenaConnection = null;
             this.ArenaChannel = null;
             foreach (string channel in this.Channels) {
@@ -156,11 +165,11 @@ namespace BattleBot {
                     if (fields[0] == null || fields[0] == "*" ||
                         fields[0].Equals(clientEntry.Name, StringComparison.InvariantCultureIgnoreCase) ||
                         fields[0].Equals(clientEntry.Address, StringComparison.InvariantCultureIgnoreCase)) {
-                            if (client.Channels.Contains(fields[1])) {
-                                this.ArenaConnection = client;
-                                this.ArenaChannel = fields[1];
-                                return;
-                            }
+                        if (client.Channels.Contains(fields[1])) {
+                            this.ArenaConnection = client;
+                            this.ArenaChannel = fields[1];
+                            return;
+                        }
                     }
                 }
             }
@@ -176,8 +185,8 @@ namespace BattleBot {
             this.ActivityReports = new Dictionary<string, ActivityReport>(StringComparer.OrdinalIgnoreCase);
             this.UnmatchedFullNames = new List<UnmatchedName>();
             this.UnmatchedShortNames = new List<UnmatchedName>();
-            this.IsAdminCheckTimer = new System.Timers.Timer();
-            this.AnalysisTimer = new System.Timers.Timer(10000) { AutoReset = false };
+            this.IsAdminCheckTimer = new Timer();
+            this.AnalysisTimer = new Timer(10000) { AutoReset = false };
             this.AnalysisTimer.Elapsed += (sender, e) => { this.ViewInfoCharacterCheck(true); };
             this.DarknessTurns = -1;
             this.HolyAuraTurns = -1;
@@ -203,18 +212,29 @@ namespace BattleBot {
 
 			if (e.Sender.IsMe) {
                 if (this.ArenaConnection == null) this.CheckChannels();
+				if (this.ArenaConnection == null) return base.OnChannelJoin(sender, e);
 
-                if (this.ArenaConnection.NetworkName == client.NetworkName && client.CaseMappingComparer.Equals(this.ArenaChannel, e.Channel.Name)) {
-                    if (this.OwnCharacters.ContainsKey(((IrcClient) sender).Me.Nickname)) {
+				if (this.ArenaConnection.NetworkName == client.NetworkName && client.CaseMappingComparer.Equals(this.ArenaChannel, e.Channel.Name)) {
+                    if (this.OwnCharacters.ContainsKey(client.Me.Nickname)) {
                         // Identify to the Arena bot.
-                        Bot.Say(ArenaConnection, ArenaNickname, "!id " + this.OwnCharacters[ArenaConnection.Me.Nickname].Password, SayOptions.NoticeNever);
+                        this.identifyOnJoin(e);
                     }
                     // Get the Arena bot version.
                     if (this.Version == default(ArenaVersion) && !this.VersionPreCTCP)
-                        new IrcMessageTarget((IrcClient) sender, ArenaNickname).Ctcp("BOTVERSION");
+                        new IrcMessageTarget(client, this.ArenaNickname).Ctcp("BOTVERSION");
                 }
             }
             return base.OnChannelJoin(sender, e);
+        }
+
+        private async Task identifyOnJoin(ChannelJoinEventArgs e) {
+			try {
+				await e.NamesTask;
+				if (!e.Channel.Users[this.ArenaConnection.Me.Nickname].Status.Contains('v'))
+					Bot.Say(ArenaConnection, ArenaNickname, "!id " + this.OwnCharacters[ArenaConnection.Me.Nickname].Password, SayOptions.NoticeNever);
+			} catch (Exception ex) {
+				this.WriteLine(1, 4, "Identifying on join failed: " + ex.Message);
+			}
         }
 
         public override bool OnChannelMessage(object sender, ChannelMessageEventArgs e) {
@@ -226,7 +246,7 @@ namespace BattleBot {
             } else {
                 if (sender is DccClient || (sender == this.ArenaConnection && ((IrcClient) sender).CaseMappingComparer.Equals(e.Channel.Name, this.ArenaChannel) &&
                                             ((IrcClient) sender).CaseMappingComparer.Equals(e.Sender.Nickname, this.ArenaNickname)))
-                    this.RunArenaRegex((IrcClient) sender, e.Channel, e.Sender, e.Message);
+                    this.RunArenaTriggers((IrcClient) sender, e.Channel, e.Sender, e.Message);
                 else if (e.Message.StartsWith("!enter", StringComparison.InvariantCultureIgnoreCase) && !this.PlayersEntering.Contains(e.Sender.Nickname))
                     this.PlayersEntering.Add(e.Sender.Nickname);
             }
@@ -235,7 +255,7 @@ namespace BattleBot {
 
         public override bool OnPrivateMessage(object sender, PrivateMessageEventArgs e) {
             if (sender is DccClient || (sender == this.ArenaConnection && ((IrcClient) sender).CaseMappingComparer.Equals(e.Sender.Nickname, this.ArenaNickname)))
-                this.RunArenaRegex((IrcClient) sender, e.Sender, e.Sender, e.Message);
+                this.RunArenaTriggers((IrcClient) sender, e.Sender, e.Sender, e.Message);
             return base.OnPrivateMessage(sender, e);
         }
 
@@ -289,10 +309,20 @@ namespace BattleBot {
             return base.OnPrivateCTCP(sender, e);
         }
 
-        public bool RunArenaRegex(IrcClient connection, IrcMessageTarget channel, IrcUser sender, string message) {
+        public bool RunArenaTriggers(IrcClient connection, IrcMessageTarget channel, IrcUser sender, string message) {
+            string stripped = null;
+
             foreach (var trigger in arenaTriggers) {
-                foreach (Regex expression in trigger.Attribute.Patterns) {
-                    Match match = expression.Match(message);
+                string input;
+
+                if (trigger.Attribute.StripFormats) {
+                    if (stripped == null) stripped = IrcClient.RemoveCodes(message);
+                    input = stripped;
+                } else
+                    input = message;
+
+                foreach (var regex in trigger.Attribute.Patterns) {
+                    Match match = regex.Match(input);
                     if (match.Success) {
                         try {
                             trigger.Handler.Invoke(this, new TriggerEventArgs(connection, channel, sender, match));
@@ -1015,8 +1045,7 @@ namespace BattleBot {
                             if (this.EnableParticipation = Bot.ParseBoolean(value)) {
                                 e.Reply(Bot.Choose("\u0002Participation\u0002 is now \u00039enabled\u000F.", "I \u00039will\u000F now participate in battles."));
                                 if (this.EnableParticipation && (this.GetAbilitiesThread == null || !this.GetAbilitiesThread.IsAlive)) {
-                                    this.GetAbilitiesThread = new Thread(GetAbilities);
-                                    this.GetAbilitiesThread.Start();
+									this.GetAbilitiesAsync();
                                 }
                             }  else
                                 e.Reply(Bot.Choose("\u0002Participation\u0002 is now \u00034disabled\u000F.", "I will \u00034no longer\u000F participate in battles."));
@@ -1325,8 +1354,7 @@ namespace BattleBot {
             } else {
                 // We'll need to know what this character has.
                 e.Reply(string.Format("\u0001ACTION looks carefully at {0}...\u0001", character.Name));
-                Thread getAbilitiesThread = new Thread(delegate(object name) { this.oldGetAbilities((string) name); });
-                getAbilitiesThread.Start(character.ShortName);
+				await this.GetAbilitiesAsync(character.ShortName);
             }
         }
 
@@ -1346,8 +1374,7 @@ namespace BattleBot {
             } else {
                 // We'll need to know what this character has.
                 e.Reply(string.Format("\u0001ACTION looks carefully at {0}...\u0001", character.Name));
-                Thread getAbilitiesThread = new Thread(delegate(object name) { this.oldGetAbilities((string) name); });
-                getAbilitiesThread.Start(character.ShortName);
+				this.GetAbilitiesAsync(character.ShortName);
             }
         }
 
@@ -1693,8 +1720,10 @@ namespace BattleBot {
 #endregion
 
 #region Character information
-        private Task GetAbilitiesAsync() => GetAbilitiesAsync(null);
-        private async Task GetAbilitiesAsync(string characterName) {
+        private Task GetAbilitiesAsync() => this.GetAbilitiesAsync(null);
+		private Task GetAbilitiesAsync(CancellationToken cancellationToken) => this.GetAbilitiesAsync(null, cancellationToken);
+		private Task GetAbilitiesAsync(string characterName) => this.GetAbilitiesAsync(characterName, default(CancellationToken));
+		private async Task GetAbilitiesAsync(string characterName, CancellationToken cancellationToken) {
             Character character;
             if (characterName == null) {
                 if (this.LoggedIn == null) throw new InvalidOperationException("The bot is not logged in.");
@@ -1706,45 +1735,53 @@ namespace BattleBot {
                 this.WriteLine(2, 12, "[" + character.ShortName + "] Checking attributes.");
                 await GetAttributesAsync(character.ShortName);
             }
+			if (cancellationToken.IsCancellationRequested) return;
 
             await delay();
             this.WriteLine(2, 12, "[" + character.ShortName + "] Checking equipment.");
             await GetEquipmentAsync(character.ShortName);
+			if (cancellationToken.IsCancellationRequested) return;
 
-            if (character.Skills == null) {
+			if (character.Skills == null) {
                 await delay();
                 this.WriteLine(2, 12, "[" + character.ShortName + "] Checking skills.");
                 await GetSkillsAsync(character.ShortName);
-            }
+				if (cancellationToken.IsCancellationRequested) return;
+			}
 
-            if (character.Weapons == null) {
+			if (character.Weapons == null) {
                 await delay();
                 this.WriteLine(2, 12, "[" + character.ShortName + "] Checking weapons.");
                 await GetWeaponsAsync(character.ShortName);
-            }
+				if (cancellationToken.IsCancellationRequested) return;
+			}
 
-            // Look up each weapon.
-            foreach (string weaponName in character.Weapons.Keys) {
-                Weapon weapon;
-                if (!this.Weapons.TryGetValue(weaponName, out weapon) || !weapon.IsWellKnown) {
+			// Look up each weapon.
+			foreach (string weaponName in character.Weapons.Keys) {
+				if (!this.Weapons.TryGetValue(weaponName, out var weapon) || !weapon.IsWellKnown) {
                     await delay();
-                    this.WriteLine(2, 12, string.Format("Looking up weapon \u0002{0}\u0002.", weaponName));
+					if (cancellationToken.IsCancellationRequested) return;
+					this.WriteLine(2, 12, string.Format("Looking up weapon \u0002{0}\u0002.", weaponName));
                     await GetWeaponInfoAsync(weaponName);
+					if (cancellationToken.IsCancellationRequested) return;
 
-                    if (characterName == null) {
+					if (characterName == null) {
                         if (character.EquippedWeapon != weaponName) {
                             await delay();
-                            this.BattleAction(true, "!equip " + weaponName);
+							if (cancellationToken.IsCancellationRequested) return;
+							this.BattleAction(true, "!equip " + weaponName);
                         }
 
                         // Get the technique list.
                         if (character.EquippedWeapon == weaponName) {
                             await delay();
-                            await GetTechniquesAsync(character.ShortName);
+							if (cancellationToken.IsCancellationRequested) return;
+							await GetTechniquesAsync(character.ShortName);
                         }
                     }
-                }
-            }
+					if (cancellationToken.IsCancellationRequested) return;
+				}
+			}
 
             /*
             if (character.Styles == null) {
@@ -1757,253 +1794,6 @@ namespace BattleBot {
             character.IsWellKnown = true;
             character.IsReadyToControl = true;
             this.WriteLine(2, 12, "Finished setting up.");
-        }
-
-        [Obsolete("This method is being replaced with an async method.")]
-        private void GetAbilities() {
-            if (this.LoggedIn == null) return;
-            Character me = this.Characters[this.LoggedIn];
-
-            // TODO: Insert DCC check here.
-
-            // Attributes
-            if (me.BaseHP == 0 || me.BaseSTR == 0 || me.BaseDEF == 0 || me.BaseINT == 0 || me.BaseSPD == 0 || me.EquippedWeapon == null) {
-                this.WriteLine(2, 12, "Checking attributes.");
-                this.BattleAction(true, "!stats");
-                for (int j = 0; j < 120; ++j) {
-                    if (!(me.BaseHP == 0 || me.BaseSTR == 0 || me.BaseDEF == 0 || me.BaseINT == 0 || me.BaseSPD == 0 || me.EquippedWeapon == null)) break;
-                    Thread.Sleep(250);
-                }
-            }
-
-            // Equipment
-            me.EquippedWeapon = null;
-            this.WriteLine(2, 12, "Checking equipment.");
-            this.BattleAction(true, "!look");
-            for (int j = 0; j < 120; ++j) {
-                if (me.EquippedWeapon != null) break;
-                Thread.Sleep(250);
-            }
-
-            // Find my skills.
-            if (me.Skills == null) {
-                this.WriteLine(2, 12, "Checking skills.");
-                this.BattleAction(true, "!skills");
-                for (int j = 0; j < 120; ++j) {
-                    if (me.Skills != null) break;
-                    Thread.Sleep(250);
-                }
-            }
-
-            // Find my weapons.
-            if (me.Weapons == null) {
-                this.WriteLine(2, 12, "Checking weapons.");
-                do {
-                    this.RepeatCommand = 0;
-                    this.BattleAction(true, "!weapons");
-                    for (int j = 0; j < 120; ++j) {
-                        if (me.Weapons != null || this.RepeatCommand != 0) break;
-                        Thread.Sleep(250);
-                    }
-                } while (this.RepeatCommand != 0);
-            }
-
-            // Look up each of my weapons.
-            foreach (string weaponName in me.Weapons.Keys) {
-                Weapon weapon;
-                if (!this.Weapons.TryGetValue(weaponName, out weapon) || !weapon.IsWellKnown) {
-                    this.WriteLine(2, 12, string.Format("Looking up weapon \u0002{0}\u0002.", weaponName));
-
-                    if (me.EquippedWeapon != weaponName) {
-                        this.BattleAction(true, "!equip " + weaponName);
-                        for (int j = 0; j < 120; ++j) {
-                            if (me.EquippedWeapon == weaponName && this.Weapons.ContainsKey(weaponName)) break;
-                            Thread.Sleep(250);
-                        }
-                    }
-
-                    this.BattleAction(true, "!view-info weapon " + weaponName);
-                    for (int j = 0; j < 120; ++j) {
-                        if (this.Weapons.TryGetValue(weaponName, out weapon) && weapon.IsWellKnown) break;
-                        Thread.Sleep(250);
-                    }
-
-                    // Get the technique list.
-                    if (me.EquippedWeapon == weaponName) {
-                        this.WaitingForOwnTechniques = true;
-                        this.BattleAction(true, "!techs");
-                        for (int j = 0; j < 120; ++j) {
-                            if (!this.WaitingForOwnTechniques) break;
-                            Thread.Sleep(250);
-                        }
-                    }
-                }
-            }
-
-            if (me.Techniques != null) {
-                // Look up each of my techniques.
-                foreach (string techniqueName in me.Techniques.Keys) {
-                    Technique technique;
-                    if (!this.Techniques.TryGetValue(techniqueName, out technique) || !technique.IsWellKnown) {
-                        this.WriteLine(2, 12, string.Format("Looking up technique \u0002{0}\u0002.", techniqueName));
-                        do {
-                            this.RepeatCommand = 0;
-                            this.BattleAction(true, "!view-info tech " + techniqueName);
-                            for (int j = 0; j < 120; ++j) {
-                                if (this.RepeatCommand != 0 || this.Techniques.TryGetValue(techniqueName, out technique) && technique.IsWellKnown) break;
-                                Thread.Sleep(250);
-                            }
-                        } while (this.RepeatCommand != 0);
-                    }
-                }
-            }
-
-            if ((me.EquippedWeapon == null || !this.Weapons.ContainsKey(me.EquippedWeapon)) || (me.EquippedWeapon2 == null || !this.Weapons.ContainsKey(me.EquippedWeapon2))) {
-                this.WriteLine(2, 4, "My equipped weapon is unknown!");
-                this.BattleAction(true, "!equip Fists");
-                for (int j = 0; j < 120; ++j) {
-                    if (me.EquippedWeapon == "Fists") break;
-                    Thread.Sleep(250);
-                }
-            }
-
-            // Find my style.
-            if (me.CurrentStyle == null) {
-                this.WriteLine(2, 12, "Checking styles.");
-                this.BattleAction(true, "!styles");
-                for (int j = 0; j < 120; ++j) {
-                    if (me.CurrentStyle != null) break;
-                    Thread.Sleep(250);
-                }
-            }
-
-            me.IsWellKnown = true;
-            me.IsReadyToControl = true;
-            this.WriteLine(2, 12, "Finished setting up.");
-        }
-
-
-        [Obsolete("This method is being replaced with an async method.")]
-        private void oldGetAbilities(string characterName) {
-            Character character = this.Characters[characterName];
-            Combatant combatant;
-            if (this.BattleList.ContainsKey(characterName))
-                combatant = this.BattleList[characterName];
-            else
-                combatant = null;
-            this.WriteLine(2, 12, string.Format("Examining {0}.", character.ShortName));
-
-            // Attributes
-            if (combatant.Category == Category.Player) {
-                if (character.EquippedWeapon == null ||
-                    (combatant != null && (combatant.HP == 0 || combatant.STR == 0 || combatant.DEF == 0 || combatant.INT == 0 || combatant.SPD == 0)) ||
-                    (combatant == null && (character.BaseHP == 0 || character.BaseSTR == 0 || character.BaseDEF == 0 || character.BaseINT == 0 || character.BaseSPD == 0))) {
-                    this.WriteLine(2, 12, string.Format("[{0}] Checking attributes.", character.ShortName));
-                    this.BattleAction(true, "!stats " + character.ShortName);
-                    for (int j = 0; j < 120; ++j) {
-                        if (!(character.EquippedWeapon == null ||
-                              (combatant != null && (combatant.HP == 0 || combatant.STR == 0 || combatant.DEF == 0 || combatant.INT == 0 || combatant.SPD == 0)) ||
-                              (combatant == null && (character.BaseHP == 0 || character.BaseSTR == 0 || character.BaseDEF == 0 || character.BaseINT == 0 || character.BaseSPD == 0)))) break;
-                        Thread.Sleep(250);
-                    }
-                }
-            }
-
-            // Equipment
-            character.EquippedWeapon = null;
-            this.WriteLine(2, 12, string.Format("[{0}] Checking equipment.", character.ShortName));
-            this.BattleAction(true, "!look " + character.ShortName);
-            for (int j = 0; j < 120; ++j) {
-                if (character.EquippedWeapon != null) break;
-                Thread.Sleep(250);
-            }
-
-            // Skills.
-            if (character.Skills == null) {
-                this.WriteLine(2, 12, string.Format("[{0}] Checking skills.", character.ShortName));
-                this.BattleAction(true, "!skills " + character.ShortName);
-                for (int j = 0; j < 120; ++j) {
-                    if (character.Skills != null) break;
-                    Thread.Sleep(250);
-                }
-            }
-
-            // Find my weapons.
-            if (character.Weapons == null) {
-                this.WriteLine(2, 12, string.Format("[{0}] Checking weapons.", character.ShortName));
-                do {
-                    this.RepeatCommand = 0;
-                    this.BattleAction(true, "!weapons " + character.ShortName);
-                    for (int j = 0; j < 120; ++j) {
-                        if (character.Weapons != null || this.RepeatCommand != 0) break;
-                        Thread.Sleep(250);
-                    }
-                } while (this.RepeatCommand != 0);
-            }
-
-            // Look up their weapon.
-                Weapon weapon;
-                if (!this.Weapons.TryGetValue(character.EquippedWeapon, out weapon) || !weapon.IsWellKnown) {
-                    this.WriteLine(2, 12, string.Format("Looking up weapon \u0002{0}\u0002.", character.EquippedWeapon));
-
-                    this.BattleAction(true, "!view-info weapon " + character.EquippedWeapon);
-                    for (int j = 0; j < 120; ++j) {
-                        if (this.Weapons.TryGetValue(character.EquippedWeapon, out weapon) && weapon.IsWellKnown) break;
-                        Thread.Sleep(250);
-                    }
-
-                    // Get the technique list.
-                        this.WaitingForOwnTechniques = true;
-                        this.BattleAction(true, "!techs");
-                        for (int j = 0; j < 120; ++j) {
-                            if (!this.WaitingForOwnTechniques) break;
-                            Thread.Sleep(250);
-                        }
-                }
-
-            if (character.Techniques != null) {
-                // Look up each of their techniques.
-                foreach (string techniqueName in character.Techniques.Keys) {
-                    Technique technique;
-                    if (!this.Techniques.TryGetValue(techniqueName, out technique) || !technique.IsWellKnown) {
-                        this.WriteLine(2, 12, string.Format("Looking up technique \u0002{0}\u0002.", techniqueName));
-                        do {
-                            this.RepeatCommand = 0;
-                            this.BattleAction(true, "!view-info tech " + techniqueName);
-                            for (int j = 0; j < 120; ++j) {
-                                if (this.RepeatCommand != 0 || this.Techniques.TryGetValue(techniqueName, out technique) && technique.IsWellKnown) break;
-                                Thread.Sleep(250);
-                            }
-                        } while (this.RepeatCommand != 0);
-                    }
-                }
-            }
-
-            if (!this.Weapons.ContainsKey(character.EquippedWeapon) || (character.EquippedWeapon2 != null && !this.Weapons.ContainsKey(character.EquippedWeapon2))) {
-                this.WriteLine(2, 12, string.Format("[{0}] {0}'s equipped weapon is unknown!", character.ShortName));
-                this.BattleAction(true, "!equip Fists");
-                for (int j = 0; j < 120; ++j) {
-                    if (character.EquippedWeapon == "Fists") break;
-                    Thread.Sleep(250);
-                }
-            }
-
-            // Find my style.
-            if (combatant.Category == Category.Player && character.CurrentStyle == null) {
-                this.WriteLine(2, 12, string.Format("[{0}] Checking style.", character.ShortName));
-                Bot.Say(this.ArenaConnection, ArenaNickname, "!xp " + character.ShortName, SayOptions.NoticeNever);
-                for (int j = 0; j < 120; ++j) {
-                    if (character.CurrentStyle != null) break;
-                    Thread.Sleep(250);
-                }
-            }
-
-            character.IsReadyToControl = true;
-            this.WriteLine(2, 12, string.Format("[{0}] Finished the examination.", character.ShortName));
-
-            this.Controlling.Add(character.ShortName);
-            this.BattleAction(false, string.Format("OK. I'll control {0}.", character.Name));
-            if (this.Turn == combatant.ShortName) this.AI.Turn();
         }
 
         public Task GetAttributesAsync(string character) => getCharacterInfoAsync("!stats", "attributes", character);
@@ -2024,53 +1814,31 @@ namespace BattleBot {
                 character = this.LoggedIn;
             }
 
-            string key = category + "/" + character;
-            TaskCompletionSource<object> task;
-            if (this.Tasks.TryGetValue(key, out task)) return task.Task;
+			string key = category + "/" + character;
+			if (!this.infoTasks.TryGetValue(key, out TaskState taskState)) {
+				taskState = new TaskState() { LinesRemaining = new BitVector32(-1) };
+				this.infoTasks.Add(key, taskState);
+				if (character == null) BattleAction(true, command);
+				else BattleAction(true, command + " " + character);
+			}
 
-            task = new TaskCompletionSource<object>();
-            this.Tasks.Add(key, task);
-            if (character == null) BattleAction(true, command);
-            else BattleAction(true, command + " " + character);
-            return task.Task;
+			if (this.infoTimer == null) {
+				this.infoTimer = new Timer(10e+3) { AutoReset = false };
+				this.infoTimer.Elapsed += infoTimer_Elapsed;
+				this.infoTimer.Start();
+			}
+
+			return taskState.TaskSource.Task;
         }
 
         private Task getThingInfoAsync(string category, string thing) {
             string key = category + "/" + thing;
-            TaskCompletionSource<object> task;
-            if (this.Tasks.TryGetValue(key, out task)) return task.Task;
-
-            task = new TaskCompletionSource<object>();
-            this.Tasks.Add(key, task);
-            BattleAction(true, "!view-info " + category + " " + thing);
-            return task.Task;
-        }
-
-        private void characterInfoComplete(string key) {
-            TaskCompletionSource<object> task;
-            if (this.Tasks.TryGetValue(key, out task)) {
-                task.SetResult(null);
-                this.Tasks.Remove(key);
-            }
-        }
-
-        public static async Task Timeout(Task task, int timeout, CancellationTokenSource cts) {
-            if (task.IsCompleted) return;
-            if (timeout <= 0) throw new TimeoutException();
-
-            // Set up the delay
-            var cts2 = new CancellationTokenSource();
-            var delayTask = Task.Delay(timeout, cts2.Token);
-
-            // Wait until either task finishes. Task.WhenAny will return `task` if it finishes before the timeout.
-            Task result = await Task.WhenAny(task, Task.Delay(timeout));
-            if (result == task) {
-                cts.Cancel();
-                return;
-            }
-            // Timeout
-            cts?.Cancel();
-            throw new TimeoutException();
+			if (!this.infoTasks.TryGetValue(key, out TaskState taskState)) {
+				taskState = new TaskState();
+				this.infoTasks.Add(key, taskState);
+				BattleAction(true, "!view-info " + category + " " + thing);
+			}
+			return taskState.TaskSource.Task;
         }
 
         public Character GetCharacter(string name, bool add = true) {
@@ -2103,7 +1871,163 @@ namespace BattleBot {
             }
         }
 
-        [ArenaRegex(@"(?:\x033\x02|\x02\x033)(.*) \x02has the following weapons:(?: (\x02[^(), ]+\(\d+\)\x02(, \x02[^(), ]+\(\d+\)\x02)*))?")]
+		/// <summary>Handles the end of a list and/or starts a new list.</summary>
+		private void endList(InfoListType type, Character character) {
+			if (this.infoType != InfoListType.None) {
+				switch (this.infoType) {
+					case InfoListType.SkillsPassive:
+					case InfoListType.SkillsActive:
+					case InfoListType.SkillsResistances:
+					case InfoListType.SkillsKiller:
+						if (this.infoCharacter.Skills == null) this.infoCharacter.Skills = new Dictionary<string, int>(StringComparer.InvariantCultureIgnoreCase);
+						foreach (var entry in this.infoList) {
+							this.infoCharacter.Skills[entry.Item1] = entry.Item2;
+						}
+						this.WriteLine(2, 7, string.Format("Registered {0}'s skills: {1}", this.infoCharacter.Name, string.Join(", ", this.infoCharacter.Skills)));
+						thingInfoComplete("skills/" + this.infoCharacter.ShortName, ((int) this.infoType) - 1, BitVector32.CreateSection(15));
+						break;
+					case InfoListType.Weapons:
+						this.infoCharacter.Weapons = new Dictionary<string, int>(StringComparer.InvariantCultureIgnoreCase);
+						foreach (var entry in this.infoList) {
+							if (!this.Weapons.ContainsKey(entry.Item1))
+								this.Weapons[entry.Item1] = new Weapon() { Name = entry.Item1, Techniques = new List<string>() };
+							this.infoCharacter.Weapons[entry.Item1] = entry.Item2;
+						}
+						this.WriteLine(2, 7, string.Format("Registered {0}'s weapons: {1}", this.infoCharacter.Name, string.Join(", ", this.infoCharacter.Weapons)));
+						thingInfoComplete("weapons/" + this.infoCharacter.ShortName);
+						break;
+					case InfoListType.Shields: thingInfoComplete("shields/" + this.infoCharacter.ShortName); break;
+					case InfoListType.Techniques:
+						if (this.infoCharacter.Techniques == null) this.infoCharacter.Techniques = new Dictionary<string, int>(StringComparer.InvariantCultureIgnoreCase);
+						foreach (var entry in this.infoList) {
+							this.infoCharacter.Techniques[entry.Item1] = entry.Item2;
+						}
+						this.WriteLine(2, 7, string.Format("Registered {0}'s techniques: {1}", this.infoCharacter.Name, string.Join(", ", this.infoCharacter.Techniques)));
+						if (this.infoCharacter.ShortName == this.LoggedIn) this.WaitingForOwnTechniques = false;
+						thingInfoComplete("techniques/" + this.infoCharacter.ShortName);
+						break;
+					case InfoListType.Attributes:
+						thingInfoComplete("attributes/" + this.infoCharacter.ShortName);
+						break;
+					case InfoListType.Equipment:
+						thingInfoComplete("equipment/" + this.infoCharacter.ShortName);
+						break;
+					case InfoListType.Styles:
+						this.infoCharacter.Styles = new Dictionary<string, int>(StringComparer.InvariantCultureIgnoreCase);
+						if (this.infoCharacter.StyleExperience == null) this.infoCharacter.StyleExperience = new Dictionary<string, int>(StringComparer.InvariantCultureIgnoreCase);
+						foreach (var entry in this.infoList) {
+							this.infoCharacter.Styles[entry.Item1] = entry.Item2;
+						}
+						this.WriteLine(2, 7, string.Format("Registered {0}'s styles: {1}", this.infoCharacter.Name, string.Join(", ", this.infoCharacter.Styles)));
+						thingInfoComplete("styles/" + this.infoCharacter.ShortName);
+						break;
+				}
+			}
+
+			this.infoType = type;
+			this.infoCharacter = character;
+
+			if (type != InfoListType.None) {
+				this.infoList = new List<Tuple<string, int>>();
+				if (this.infoTimer != null) {
+					this.infoTimer.Stop();
+					this.infoTimer.Start();
+				}
+			} else if (infoTasks.Count == 0)
+				this.infoTimer?.Stop();
+			else {
+				this.infoTimer.Stop();
+				this.infoTimer.Start();
+			}
+		}
+
+		private void infoTimer_Elapsed(object sender, ElapsedEventArgs e) {
+			endList(InfoListType.None, null);
+
+			var tasksToRemove = new List<string>();
+			foreach (var task in infoTasks) {
+				if (task.Value.LinesRemaining.Data == -1) {
+					++task.Value.Time;
+					if (task.Value.Time >= 3) {
+						task.Value.TaskSource.SetException(new TimeoutException());
+						tasksToRemove.Add(task.Key);
+					}
+				} else {
+					// Shorter timeout when at least one list has already been received.
+					task.Value.TaskSource.SetResult(null);
+					tasksToRemove.Add(task.Key);
+				}
+			}
+			foreach (var task in tasksToRemove) infoTasks.Remove(task);
+		}
+
+		private void processList(string message) {
+			if (message == null) {
+				endList(InfoListType.None, null);
+				infoFragmentLength = 0;
+			} else {
+				var fields = message.Split(new[] { ", " }, 0);
+				bool broken = false;
+				foreach (var field in fields) {
+					if (field == "") {
+						// Sometimes the list fragment will be too long to fit in an IRC line, so mIRC splits it.
+						// We need to check the length of the fragment (before splitting), so count it here.
+						broken = true;
+						break;
+					}
+
+					var text = IrcClient.RemoveCodes(field);
+					var pos = text.IndexOf('(');
+					Debug.Assert(pos >= 0);
+					var item = text.Substring(0, pos);
+					var level = int.Parse(text.Substring(pos + 1, text.Length - 2 - pos));
+					infoList.Add(new Tuple<string, int>(item, level));
+				}
+
+				infoFragmentLength += fields.Length;
+				if (!broken) {
+					// Battle Arena will split lists into multiple lines if they contain more than a certain number of elements.
+					// We'll assume that a line with fewer elements is the last line.
+					int max;
+					switch (this.infoType) {
+						case InfoListType.Weapons: max = 17; break;  // The limit is actually 18 for fragments after the first.
+						case InfoListType.SkillsPassive: max = 13; break;
+						case InfoListType.SkillsActive: max = 13; break;
+						case InfoListType.SkillsResistances: max = 13; break;
+						case InfoListType.SkillsKiller: max = 13; break;
+						case InfoListType.Shields: max = 19; break;
+						default: max = int.MaxValue; break;
+					}
+					if (infoFragmentLength < max) {
+						endList(InfoListType.None, null);
+					}
+					infoFragmentLength = 0;
+				}
+			}
+		}
+
+		private void thingInfoComplete(string key) {
+			if (this.infoTasks.TryGetValue(key, out TaskState taskState)) {
+				this.infoTasks.Remove(key);
+				taskState.TaskSource.SetResult(null);
+			}
+		}
+		private void thingInfoComplete(string key, int message, BitVector32.Section mask) {
+			if (this.infoTasks.TryGetValue(key, out TaskState taskState)) {
+				taskState.LinesRemaining[message] = false;
+				if (taskState.LinesRemaining[mask] == 0) {
+					this.infoTasks.Remove(key);
+					taskState.TaskSource.SetResult(null);
+				}
+			}
+		}
+
+		[ArenaRegex(@"^(?:[^ ]+\(\d+\)(?:$|, ))+$", StripFormats = true)]
+		internal void OnListFragment(object sender, TriggerEventArgs e) {
+			processList(e.Match.Value);
+		}
+
+		[ArenaRegex(@"(?:\x033\x02|\x02\x033)(.*) \x02has the following weapons:(?: (.*))?")]
         internal void OnWeapons(object sender, TriggerEventArgs e) {
             // Check for a bug in Battle Arena.
             if (e.Match.Groups[2].Value == "") {
@@ -2111,54 +2035,36 @@ namespace BattleBot {
                 return;
             }
 
-            Character character = this.GetCharacter(e.Match.Groups[1].Value);
-            character.Weapons = new Dictionary<string, int>();
-            var weaponNames = e.Match.Groups[2].Value.Split(new string[] { ", " }, StringSplitOptions.None).Select(IrcClient.RemoveCodes);
-
-            foreach (string weaponName in weaponNames) {
-                Match match2 = Regex.Match(weaponName, @"^\x02*(.*)\((\d+)\)\x02*$");
-                if (match2.Success) {
-                    if (!this.Weapons.ContainsKey(match2.Groups[1].Value))
-                        this.Weapons.Add(match2.Groups[1].Value, new Weapon() { Name = match2.Groups[1].Value, Techniques = new List<string>() });
-                    character.Weapons.Add(match2.Groups[1].Value, int.Parse(match2.Groups[2].Value));
-                } else {
-                    this.WriteLine(2, 4, string.Format("Invalid token in the weapon list:\u000F {0}", weaponName));
-                }
-            }
-            this.WriteLine(2, 7, string.Format("Registered {0}'s weapons: {1}", character.Name, string.Join(", ", character.Weapons.ToArray())));
-            characterInfoComplete("weapons/" + character.ShortName);
+            var character = this.GetCharacter(e.Match.Groups[1].Value);
+			endList(InfoListType.Weapons, character);
+			processList(e.Match.Groups[2].Value);
         }
 
-        [ArenaRegex(@"^(?:\x033\x02|\x02\x033)(.*) \x02(?:knows|has) the following (?:\x0312)?(passive(?:\x033)? skills|active(?:\x033)? skills|resistances(?:\x033)?|monster killer traits(?:\x033)?):\x02 ([^(), ]+\(\d+\)(?:, [^(), ]+\(\d+\))*)")]
+        [ArenaRegex(@"^(?:\x033\x02|\x02\x033)(.*) \x02(?:knows|has) the following (?:\x0312)?(?:(passive(?:\x033)? skills)|(active(?:\x033)? skills)|(resistances(?:\x033)?)|(monster killer traits(?:\x033)?)):\x02 ([^(), ]+\(\d+\)(?:, [^(), ]+\(\d+\))*)")]
         internal void OnSkills(object sender, TriggerEventArgs e) {
-            Character character = this.GetCharacter(e.Match.Groups[1].Value);
-            if (character.Skills == null) character.Skills = new Dictionary<string, int>();
-            string[] skillNames = e.Match.Groups[3].Value.Split(new string[] { ", " }, StringSplitOptions.None);
+			InfoListType type;
+			if (e.Match.Groups[2].Success) type = InfoListType.SkillsPassive;
+			else if (e.Match.Groups[3].Success) type = InfoListType.SkillsActive;
+			else if (e.Match.Groups[4].Success) type = InfoListType.SkillsResistances;
+			else if (e.Match.Groups[5].Success) type = InfoListType.SkillsKiller;
+			else throw new FormatException("Unknown skill list");
 
-            foreach (string skillName in skillNames) {
-                Match match2 = Regex.Match(skillName, @"^\x02*(.*)\((\d+)\)\x02*$");
-                if (match2.Success) {
-                    character.Skills.Add(match2.Groups[1].Value, int.Parse(match2.Groups[2].Value));
-                } else {
-                    this.WriteLine(2, 4, string.Format("Invalid token in the skill list:\u000F {0}", skillName));
-                }
-            }
-            this.WriteLine(2, 7, string.Format("Registered {0}'s skills: {1}", character.Name, string.Join(", ", character.Skills.ToArray())));
-            characterInfoComplete("skills/" + character.ShortName);
+			var character = this.GetCharacter(e.Match.Groups[1].Value);
+			endList(type, character);
+			processList(e.Match.Groups[6].Value);
         }
 
         [ArenaRegex(@"^(?:\x033\x02|\x02\x033)(.*) \x02currently knows no skills\.")]
         internal void OnSkillsNone(object sender, TriggerEventArgs e) {
-            Character character = this.GetCharacter(e.Match.Groups[1].Value);
-            if (character.Skills == null) character.Skills = new Dictionary<string, int>();
-            character.Skills.Clear();
-            this.WriteLine(2, 7, string.Format("Registered {0}'s skills: none", character.Name));
-            characterInfoComplete("skills/" + character.ShortName);
-        }
+            var character = this.GetCharacter(e.Match.Groups[1].Value);
+			endList(InfoListType.SkillsPassive, character);
+			processList(null);
+			endList(InfoListType.None, null);
+		}
 
-        [ArenaRegex(@"^(?:\x033\x02|\x02\x033)(.*) \x02knows the following techniques for (?:(his)|(her)|(its)|\w+) (?:equipped weapons|([^ ]*)):\x02 ([^(), ]+\(\d+\)(?:, [^(), ]+\(\d+\))*)")]
+		[ArenaRegex(@"^(?:\x033\x02|\x02\x033)(.*) \x02knows the following techniques for (?:(his)|(her)|(its)|\w+) (?:equipped weapons|([^ ]*)):\x02 ([^(), ]+\(\d+\)(?:, [^(), ]+\(\d+\))*)")]
         internal void OnTechniques(object sender, TriggerEventArgs e) {
-            Character character = this.GetCharacter(e.Match.Groups[1].Value);
+            var character = this.GetCharacter(e.Match.Groups[1].Value);
 
             // Check their gender.
             if (e.Match.Groups[2].Success)
@@ -2170,22 +2076,10 @@ namespace BattleBot {
             else
                 character.Gender = Gender.Unknown;
 
-            // TODO: Check their weapon and update for the new list format.
+			// TODO: Check their weapon and update for the new list format.
 
-            if (character.Techniques == null) character.Techniques = new Dictionary<string, int>();
-            string[] techniqueNames = e.Match.Groups[6].Value.Split(new string[] { ", " }, StringSplitOptions.None);
-
-            foreach (string techniqueName in techniqueNames) {
-                Match match2 = Regex.Match(techniqueName, @"^\x02*(\x035)?([^\x03]*)(?:\x033)?\((\d+)\)\x02*$");
-                if (match2.Success) {
-                    character.Techniques[match2.Groups[2].Value] = int.Parse(match2.Groups[3].Value);
-                } else {
-                    this.WriteLine(2, 4, string.Format("Invalid token in the technique list:\u000F {0}", techniqueName));
-                }
-            }
-            this.WriteLine(2, 7, string.Format("Registered {0}'s techniques: {1}", character.Name, string.Join(", ", character.Techniques.ToArray())));
-            if (character.ShortName == this.LoggedIn) this.WaitingForOwnTechniques = false;
-            characterInfoComplete("techniques/" + character.ShortName);
+			endList(InfoListType.Techniques, character);
+			processList(e.Match.Groups[6].Value);
         }
 
         [ArenaRegex(@"^(?:\x033\x02|\x02\x033)(.*) \x02does not know any techniques for (?:(his)|(her)|(its)|\w+) ([^ ]*)\.")]
@@ -2204,6 +2098,7 @@ namespace BattleBot {
 
             character.EquippedWeapon = e.Match.Groups[5].Value;
 
+			/*
             Weapon weapon;
             if (character.Techniques != null) {
                 if (this.Weapons.TryGetValue(character.EquippedWeapon, out weapon) && weapon.Techniques != null) {
@@ -2217,11 +2112,14 @@ namespace BattleBot {
                     }
                 }
             }
-            this.WriteLine(2, 7, string.Format("Registered {0}'s techniques: none", character.Name));
-            characterInfoComplete("techniques/" + character.ShortName);
-        }
+			*/
 
-        [ArenaRegex(@"^\x033Here are your current stats:")]
+			endList(InfoListType.Techniques, character);
+			processList(null);
+			endList(InfoListType.None, null);
+		}
+
+		[ArenaRegex(@"^\x033Here are your current stats:")]
         internal void OnStatsSelf(object sender, TriggerEventArgs e) {
             if (this.ViewingStatsCharacter == null) {
                 this.ViewingStatsCharacter = new Character();
@@ -2231,6 +2129,7 @@ namespace BattleBot {
                 this.ViewingStatsCombatant = new Combatant();
             }
             this.ViewingStatsCharacter.ShortName = this.LoggedIn;
+			endList(InfoListType.Attributes, this.ViewingStatsCharacter);
         }
 
         [ArenaRegex(@"^\x033Here are the current stats for ([^ ]*):")]
@@ -2243,9 +2142,11 @@ namespace BattleBot {
                 this.ViewingStatsCombatant = new Combatant();
             }
             this.ViewingStatsCharacter.ShortName = e.Match.Groups[1].Value;
-        }
+			endList(InfoListType.Attributes, this.ViewingStatsCharacter);
+		}
 
-        [ArenaRegex(@"^\[\x034HP\x0312 (\d*)\x031/\x0312(\d*)(?:\x03\d{0,2}|\x0F)\] \[\x034TP\x0312 (\d*)\x031/\x0312(\d*)(?:\x03\d{0,2}|\x0F)\](?: \[\x034Ignition Gauge\x0312 (\d*)\x031/\x0312(\d*)(?:\x03\d{0,2}|\x0F)\])? \[\x034Status\x0312 \x033((?:[^\]]|\[[^\]]*\])*)(?:\x03\d{0,2}|\x0F)\](?: \[\x034Royal Guard Meter\x0312 (\d*)(?:\x03\d{0,2}|\x0F)\])?")]
+		//[ArenaRegex(@"^\[\x034HP\x0312 (\d*)\x031/\x0312(\d*)(?:\x03\d{0,2}|\x0F)\] \[\x034TP\x0312 (\d*)\x031/\x0312(\d*)(?:\x03\d{0,2}|\x0F)\](?: \[\x034Ignition Gauge\x0312 (\d*)\x031/\x0312(\d*)(?:\x03\d{0,2}|\x0F)\])? \[\x034Status\x0312 \x033((?:[^\]]|\[[^\]]*\])*)(?:\x03\d{0,2}|\x0F)\](?: \[\x034Royal Guard Meter\x0312 (\d*)(?:\x03\d{0,2}|\x0F)\])?")]
+		[ArenaRegex(@"^\[HP (\d+)/(\d+)\] \[TP (\d+)/(\d+)\](?: \[Ignition Gauge (\d+)/(\d+)\])?(?: \[Level (\d+)\])?(?: \[Armor Level (\d+)\])?(?: \[Status ([^\]]+)\])?(?: \[Royal Guard Meter (\d+)\])?(?: \[Capacity Points (\d+)/(\d+)\])?(?: \[Enhancement Points (\d+)\])?(?: \[Login Points (\d+)\])?", true)]
         internal void OnStats1(object sender, TriggerEventArgs e) {
             if (this.ViewingStatsCharacter == null) {
                 this.ViewingStatsCharacter = new Character();
@@ -2271,7 +2172,7 @@ namespace BattleBot {
             this.viewInfoStatsCheck();
         }
 
-        [ArenaRegex(@"^\[\x034Strength\x0312 (\d*)(?:\x03\d{0,2}|\x0F)\] \[\x034Defense\x0312 (\d*)(?:\x03\d{0,2}|\x0F)\] \[\x034Intelligence\x0312 (\d*)(?:\x03\d{0,2}|\x0F)\] \[\x034Speed\x0312 (\d*)(?:\x03\d{0,2}|\x0F)\]")]
+        [ArenaRegex(@"^\[Strength: (\d+)(?: \+(\d+))?\] \[Defense: (\d+)(?: \+(\d+))?\] \[Intelligence: (\d+)(?: \+(\d+))?\] ?\[Speed: (\d+)(?: \+(\d+))?\]", true)]
         internal void OnStats2(object sender, TriggerEventArgs e) {
             if (this.ViewingStatsCharacter == null) {
                 this.ViewingStatsCharacter = new Character();
@@ -2283,9 +2184,9 @@ namespace BattleBot {
 
             // TODO: Fix this for level-synced players.
             this.ViewingStatsCombatant.STR = int.Parse(e.Match.Groups[1].Value);
-            this.ViewingStatsCombatant.DEF = int.Parse(e.Match.Groups[2].Value);
-            this.ViewingStatsCombatant.INT = int.Parse(e.Match.Groups[3].Value);
-            this.ViewingStatsCombatant.SPD = int.Parse(e.Match.Groups[4].Value);
+            this.ViewingStatsCombatant.DEF = int.Parse(e.Match.Groups[3].Value);
+            this.ViewingStatsCombatant.INT = int.Parse(e.Match.Groups[5].Value);
+            this.ViewingStatsCombatant.SPD = int.Parse(e.Match.Groups[7].Value);
             this.WriteLine(2, 7, string.Format("Registered {0}'s current attributes.  STR: {1}  DEF: {2}  INT: {3}  SPD: {4}",
                 this.ViewingStatsCharacter.ShortName ?? "*", this.ViewingStatsCombatant.STR, this.ViewingStatsCombatant.DEF, this.ViewingStatsCombatant.INT, this.ViewingStatsCombatant.SPD));
 
@@ -2302,10 +2203,10 @@ namespace BattleBot {
                 this.ViewingStatsCombatant = new Combatant();
             }
 
-            this.ViewingStatsCharacter.EquippedAccessory = (!e.Match.Groups[4].Success || e.Match.Groups[4].Value == "nothing" || e.Match.Groups[4].Value == "none") ? null : e.Match.Groups[4].Value;
-            this.ViewingStatsCharacter.EquippedWeapon = e.Match.Groups[1].Value;
+            this.ViewingStatsCharacter.EquippedAccessory = (!e.Match.Groups[4].Success || e.Match.Groups[4].Value == "nothing" || e.Match.Groups[4].Value == "none") ? null : IrcClient.RemoveCodes(e.Match.Groups[4].Value);
+            this.ViewingStatsCharacter.EquippedWeapon = IrcClient.RemoveCodes(e.Match.Groups[1].Value);
             if (e.Match.Groups[3].Success)
-                this.ViewingStatsCharacter.EquippedWeapon2 = e.Match.Groups[3].Value;
+                this.ViewingStatsCharacter.EquippedWeapon2 = IrcClient.RemoveCodes(e.Match.Groups[3].Value);
             else
                 this.ViewingStatsCharacter.EquippedWeapon2 = null;
 
@@ -2317,7 +2218,6 @@ namespace BattleBot {
 
             this.viewInfoStatsCheck();
         }
-
 
         public void viewInfoStatsCheck() {
             if (this.ViewingStatsCharacter.ShortName != null && this.ViewingStatsCombatant.HP != 0 && this.ViewingStatsCombatant.STR != 0 && this.ViewingStatsCharacter.EquippedWeapon != null) {
@@ -2361,7 +2261,7 @@ namespace BattleBot {
                     this.WriteLine(2, 10, string.Format("Registered data for {0} ({1}).", character.Name ?? "*", this.ViewingStatsCharacter.ShortName));
                 }
 
-                characterInfoComplete("attributes/" + this.ViewingStatsCharacter.ShortName);
+				endList(InfoListType.None, null);
                 this.ViewingStatsCharacter = null;
                 this.ViewingStatsCombatant = null;
             }
@@ -2369,7 +2269,7 @@ namespace BattleBot {
 
         [ArenaRegex(@"^(?:\x033\x02|\x02\x033)([^\x02]*) \x02is wearing\x02 ([^\x02]*) \x02on (\w+) head[,;]\x02 ([^\x02]*) \x02on \3 body[,;]\x02 ([^\x02]*) \x02on \3 legs[,;]\x02 ([^\x02]*) \x02on \3 feet[,;]\x02 ([^\x02]*) \x02on \3 hands\. \1 also has[\x02\x03\d ]*([^\x02]*)(?:[\x02\x03\d]* and\x02 ([^\x02]*))?[\x02\x03\d]* ?(?:equipped )?as an accessory and is currently using the\x02 ([^\x02]*) [\x02\x03\d]*(?:weapon|and\x02 ([^\x02]*) [\x02\x03\d]*weapons)")]
         internal void OnEquipment(object sender, TriggerEventArgs e) {
-            Character character = this.GetCharacter(e.Match.Groups[1].Value);
+            var character = this.GetCharacter(e.Match.Groups[1].Value);
             character.EquippedAccessory = IrcClient.RemoveCodes(e.Match.Groups[8].Value) == "nothing" ? null : IrcClient.RemoveCodes(e.Match.Groups[8].Value);
             character.EquippedWeapon = IrcClient.RemoveCodes(e.Match.Groups[10].Value);
             if (e.Match.Groups[11].Success)
@@ -2384,7 +2284,8 @@ namespace BattleBot {
             character.EquippedTechniques = new List<string>();
             this.GetEquippedTechniques(character);
 
-            characterInfoComplete("equipment/" + character.ShortName);
+			endList(InfoListType.Equipment, character);
+			endList(InfoListType.None, null);
         }
 
         [ArenaRegex(@"^(?:\x033\x02|\x02\x033)(.*) \x02is currently using the\x02 ([^ ]+) \x02style\. \[(?:XP: (\d+) / (\d+)|([^\]]*Max[^\]]*))\]")]
@@ -2407,23 +2308,11 @@ namespace BattleBot {
 
         [ArenaRegex(@"^(?:\x033\x02|\x02\x033)(.*) \x02knows the following styles: (\x02[^ (]+\(\d+\)\x02(?:, \x02[^ (]+\(\d+\)\x02)*)")]
         internal void OnStyles(object sender, TriggerEventArgs e) {
-            Character character = this.GetCharacter(e.Match.Groups[1].Value);
-            if (character.Styles == null) character.Styles = new Dictionary<string, int>();
-            if (character.StyleExperience == null) character.StyleExperience = new Dictionary<string, int>();
-            string[] styleNames = e.Match.Groups[2].Value.Split(new string[] { ", " }, StringSplitOptions.None);
+            var character = this.GetCharacter(e.Match.Groups[1].Value);
+			endList(InfoListType.Styles, character);
+		}
 
-            foreach (string styleName in styleNames) {
-                Match match2 = Regex.Match(styleName, @"^\x02*(.*)\((\d+)\)\x02*$");
-                if (match2.Success) {
-                    character.Styles[match2.Groups[1].Value] = int.Parse(match2.Groups[2].Value);
-                } else {
-                    this.WriteLine(2, 4, string.Format("Invalid token in the style list:\u000F {0}", styleName));
-                }
-            }
-            this.WriteLine(2, 7, string.Format("Registered {0}'s styles: {1}", character.Name, string.Join(", ", character.Styles.ToArray())));
-        }
-
-        [ArenaRegex(@"^(?:\x033\x02|\x02\x033)(.*)\x02's ([^ ]+) style has leveled up! It is now\x02 level (\d+)\x02!")]
+		[ArenaRegex(@"^(?:\x033\x02|\x02\x033)(.*)\x02's ([^ ]+) style has leveled up! It is now\x02 level (\d+)\x02!")]
         internal void OnStyleLevelUp(object sender, TriggerEventArgs e) {
             Character character = this.GetCharacter(e.Match.Groups[1].Value);
             character.CurrentStyle = e.Match.Groups[2].Value;
@@ -2673,12 +2562,12 @@ namespace BattleBot {
             this.IsAdminChecking = true;
             this.IsAdminChecked = DateTime.Now;
             this.BattleAction(true, "!toggle AI system");
-            this.IsAdminCheckTimer.Interval = 15000;
+            this.IsAdminCheckTimer.Interval = 30000;
             this.IsAdminCheckTimer.Start();
         }
 
         [ArenaRegex(@"^\x0310\x02([^\x02]*) \x02(.*)")]
-        internal void OnIdentify(object sender, TriggerEventArgs e) {
+        internal async void OnIdentify(object sender, TriggerEventArgs e) {
             // Boost actions also match this pattern.
             // TODO: if (this.Version >= new ArenaVersion("3.1_beta101415")) return;
             if (this.Turn != null && this.BattleList[this.Turn].Name == e.Match.Groups[1].Value)
@@ -2699,13 +2588,11 @@ namespace BattleBot {
                     this.IsAdmin = false;
                     this.CheckAdmin();
 
-                    this.GetAbilitiesAsync(this.LoggedIn);
-                    /*
-                    if (this.EnableParticipation && (this.GetAbilitiesThread == null || !this.GetAbilitiesThread.IsAlive)) {
-                        this.GetAbilitiesThread = new Thread(GetAbilities);
-                        this.GetAbilitiesThread.Start();
-                    }
-                    */
+					try {
+						await this.GetAbilitiesAsync(this.LoggedIn);
+					} catch (Exception ex) {
+						this.WriteLine(2, 4, "Failed to check my attributes: {0}", ex.Message);
+					}
                 }
             }
         }
@@ -2786,7 +2673,7 @@ namespace BattleBot {
         public void viewInfoWeaponCheck() {
             if (this.ViewingWeapon.Name != null && this.ViewingWeapon.Power != -1 && this.ViewingWeapon.Techniques != null) {
                 this.ViewingWeapon.IsWellKnown = true;
-                characterInfoComplete("weapon/" + this.ViewingWeapon.Name);
+                thingInfoComplete("weapon/" + this.ViewingWeapon.Name);
                 this.ViewingWeapon = null;
             }
         }
@@ -2866,7 +2753,7 @@ namespace BattleBot {
         public void viewInfoTechniqueCheck() {
             if (this.ViewingTechnique.Name != null && (this.ViewingTechnique.Type == TechniqueType.Buff || this.ViewingTechnique.Element != null)) {
                 this.ViewingTechnique.IsWellKnown = true;
-                characterInfoComplete("technique/" + this.ViewingTechnique.Name);
+                thingInfoComplete("technique/" + this.ViewingTechnique.Name);
                 this.ViewingTechnique = null;
             }
         }
@@ -2876,7 +2763,7 @@ namespace BattleBot {
             ++this.RepeatCommand;
         }
 
-        [ArenaRegex(@"^\x033You analyze (.*) and determine (?:(he)|(she)|(it)|they) (?:has|have)\x02 (\d*) \x02HP (?:and\x02 (\d*) \x02TP )?left\.")]
+        [ArenaRegex(@"^You analyze (.*?) and determine (?:(he)|(she)|(it)|\w+) (?:has|have) (\d*) HP (?:and (\d*) TP )?left\.", true)]
         internal void OnAnalysis1(object sender, TriggerEventArgs e) {
             if (this.ViewingCharacter == null) {
                 this.ViewingCharacter = new Character();
@@ -2909,21 +2796,39 @@ namespace BattleBot {
             this.ViewInfoCharacterCheck();
         }
 
-        [ArenaRegex(@"^\x033You also determine (.*) has the following stats: \[str:\x02 (\d*)\x02\] \[def:\x02 (\d*)\x02\] \[int:\x02 (\d*)\x02\] \[spd:\x02 (\d*)\x02\]")]
-        internal void OnAnalysis2(object sender, TriggerEventArgs e) {
+        [ArenaRegex(@"^You also determine (.*?) has the following stats: \[str: (\d*)\] \[def: (\d*)\] \[int: (\d*)\] \[spd: (\d*)\]", true)]
+        internal void OnAnalysis2Old(object sender, TriggerEventArgs e) {
+            Analysis2(
+                e.Match.Groups[1].Value,
+                int.Parse(e.Match.Groups[2].Value),
+                int.Parse(e.Match.Groups[3].Value),
+                int.Parse(e.Match.Groups[4].Value),
+                int.Parse(e.Match.Groups[5].Value));
+        }
+        [ArenaRegex(@"^\x033(.*?) has the following stats: \[str: \x033\x02(\d+)\x0F\x033\] \[def: \x033\x02(\d+)\x0F\x033\] \[int: \x033\x02(\d+)\x0F\x033\] \[spd: \x033\x02(\d+)\x0F\x033\]")]
+        internal void OnAnalysis2New(object sender, TriggerEventArgs e) {
+            Analysis2(
+                e.Match.Groups[1].Value,
+                int.Parse(e.Match.Groups[2].Value),
+                int.Parse(e.Match.Groups[3].Value),
+                int.Parse(e.Match.Groups[4].Value),
+                int.Parse(e.Match.Groups[5].Value));
+        }
+
+        internal void Analysis2(string name, int str, int def, int mag, int spd) {
             if (this.ViewingCharacter == null) {
                 this.ViewingCharacter = new Character();
                 this.ViewingCombatant = new Combatant() { STR = int.MinValue };
             } else if (this.ViewingCombatant.STR != int.MinValue ||
-                       (this.ViewingCharacter.Name != null && this.ViewingCharacter.Name != e.Match.Groups[1].Value)) {
+                       (this.ViewingCharacter.Name != null && this.ViewingCharacter.Name != name)) {
                 this.ViewingCharacter = new Character();
                 this.ViewingCombatant = new Combatant() { STR = int.MinValue };
             }
 
-            this.ViewingCombatant.STR = int.Parse(e.Match.Groups[2].Value);
-            this.ViewingCombatant.DEF = int.Parse(e.Match.Groups[3].Value);
-            this.ViewingCombatant.INT = int.Parse(e.Match.Groups[4].Value);
-            this.ViewingCombatant.SPD = int.Parse(e.Match.Groups[5].Value);
+            this.ViewingCombatant.STR = str;
+            this.ViewingCombatant.DEF = def;
+            this.ViewingCombatant.INT = mag;
+            this.ViewingCombatant.SPD = spd;
 
             this.WriteLine(2, 10, string.Format("{0} has {1} STR, {2} DEF, {3} INT, {4} SPD.", this.ViewingCharacter.Name ?? "*", this.ViewingCombatant.STR, this.ViewingCombatant.DEF, this.ViewingCombatant.INT, this.ViewingCombatant.SPD));
 
@@ -2931,7 +2836,7 @@ namespace BattleBot {
         }
 
         [ArenaRegex(@"^\x033(.*?) is also (?:resistant|strong) against the following weapon types:\x02 (?:none|([^\x02]*)) \x02and is (?:resistant|strong) against the following elements:\x02 (?:none|([^\x02]*)(?!\x02\|))( \x02\| \1 is weak against the following weapon types:\x02 (?:none|([^\x02]*)) \x02and weak against the following elements:\x02 (?:none|([^\x02]*)))?")]
-        internal void OnAnalysis3(object sender, TriggerEventArgs e) {
+        internal void OnAnalysis3Old(object sender, TriggerEventArgs e) {
             if (this.ViewingCharacter == null) {
                 this.ViewingCharacter = new Character();
                 this.ViewingCombatant = new Combatant() { STR = int.MinValue };
@@ -2971,7 +2876,7 @@ namespace BattleBot {
         }
 
         [ArenaRegex(@"^\x033(.*?) is completely immune to the following elements:\x02 (?:none|(.*))")]
-        internal void OnAnalysis4(object sender, TriggerEventArgs e) {
+        internal void OnAnalysis4Old(object sender, TriggerEventArgs e) {
             if (this.ViewingCharacter == null) {
                 this.ViewingCharacter = new Character();
                 this.ViewingCombatant = new Combatant() { STR = int.MinValue };
@@ -2993,7 +2898,7 @@ namespace BattleBot {
         }
 
         [ArenaRegex(@"^\x033(.*?) will (?:absorb and )?be healed by the following elements:\x02 (?:none|(.*))")]
-        internal void OnAnalysis5(object sender, TriggerEventArgs e) {
+        internal void OnAnalysis5Old(object sender, TriggerEventArgs e) {
             if (this.ViewingCharacter == null) {
                 this.ViewingCharacter = new Character();
                 this.ViewingCombatant = new Combatant() { STR = int.MinValue };
@@ -3009,6 +2914,117 @@ namespace BattleBot {
             } else {
                 this.ViewingCharacter.ElementalAbsorbs = new List<string>();
                 this.WriteLine(2, 10, string.Format("{0} absorbs no elements.", this.ViewingCharacter.Name ?? "*"));
+            }
+
+            this.ViewInfoCharacterCheck();
+        }
+
+        [ArenaRegex(@"^\x033(.+?) can be hurt normally with the following weapon types: (?:\x031,1[\[\]]*\x0F\x033|(\x033\x02none\x02)|((?:\x033\x02[^\x0F]+\x0F\x033(?:, )?)+)) and is resistant against the following weapon types: (?:\x031,1[\[\]]*\x0F\x033|(\x033\x02none\x02)|((?:\x036\x02[^\x0F]+\x0F\x033(?:, )?)+)) and weak against the following weapon types:\x02? (?:\x031,1[\[\]]*\x0F\x033|(\x033\x02none\x02)|((?:\x037\x02[^\x0F]+\x0F\x033(?:, )?)+))")]
+        internal void OnAnalysis3New(object sender, TriggerEventArgs e) {
+            if (this.ViewingCharacter == null) {
+                this.ViewingCharacter = new Character();
+                this.ViewingCombatant = new Combatant() { STR = int.MinValue };
+            } else if (this.ViewingCharacter.ElementalResistances != null ||
+                       (this.ViewingCharacter.Name != null && this.ViewingCharacter.Name != e.Match.Groups[1].Value)) {
+                this.ViewingCharacter = new Character();
+                this.ViewingCombatant = new Combatant() { STR = int.MinValue };
+            }
+
+            if (e.Match.Groups[4].Success)
+                this.ViewingCharacter.WeaponResistances = new List<string>();
+            else if (e.Match.Groups[5].Success) {
+                this.ViewingCharacter.WeaponResistances = new List<string>();
+                this.ViewingCharacter.WeaponResistances.AddRange(IrcClient.RemoveCodes(e.Match.Groups[5].Value).Split(new string[] { ", " }, 0));
+            }
+
+            if (e.Match.Groups[6].Success)
+                this.ViewingCharacter.WeaponWeaknesses = new List<string>();
+            else if (e.Match.Groups[7].Success) {
+                this.ViewingCharacter.WeaponWeaknesses = new List<string>();
+                this.ViewingCharacter.WeaponWeaknesses.AddRange(IrcClient.RemoveCodes(e.Match.Groups[7].Value).Split(new string[] { ", " }, 0));
+            }
+
+            if (e.Match.Groups[3].Success) {
+                foreach (string weaponType in IrcClient.RemoveCodes(e.Match.Groups[3].Value).Split(new string[] { ", " }, 0)) {
+                    this.ViewingCharacter.WeaponResistances.RemoveAll(s => s.Equals(weaponType, StringComparison.OrdinalIgnoreCase));
+                    this.ViewingCharacter.WeaponWeaknesses.RemoveAll(s => s.Equals(weaponType, StringComparison.OrdinalIgnoreCase));
+                }
+            }
+
+            this.WriteLine(2, 10, string.Format("Registered {0}'s weapon modifiers.", this.ViewingCharacter.Name ?? "*"));
+
+            this.ViewInfoCharacterCheck();
+        }
+
+        [ArenaRegex(@"^\x033(.+?) is resistant against the following elements: (?:\x031,1[\[\]]*\x0F\x033|(\x033\x02none\x02)|((?:\x036\x02[^\x0F]+\x0F\x033(?:, )?)+)) and weak against the following elements: (?:\x031,1[\[\]]*\x0F\x033|(\x033\x02none\x02)|((?:\x037\x02[^\x0F]+\x0F\x033(?:, )?)+))")]
+        internal void OnAnalysis4New(object sender, TriggerEventArgs e) {
+            if (this.ViewingCharacter == null) {
+                this.ViewingCharacter = new Character();
+                this.ViewingCombatant = new Combatant() { STR = int.MinValue };
+            } else if (this.ViewingCharacter.ElementalResistances != null ||
+                       (this.ViewingCharacter.Name != null && this.ViewingCharacter.Name != e.Match.Groups[1].Value)) {
+                this.ViewingCharacter = new Character();
+                this.ViewingCombatant = new Combatant() { STR = int.MinValue };
+            }
+
+            if (e.Match.Groups[2].Success)
+                this.ViewingCharacter.ElementalResistances = new List<string>();
+            else if (e.Match.Groups[3].Success) {
+                this.ViewingCharacter.ElementalResistances = new List<string>();
+                this.ViewingCharacter.ElementalResistances.AddRange(IrcClient.RemoveCodes(e.Match.Groups[3].Value).Split(new string[] { ", " }, 0));
+            }
+
+            if (e.Match.Groups[4].Success)
+                this.ViewingCharacter.ElementalWeaknesses = new List<string>();
+            else if (e.Match.Groups[5].Success) {
+                this.ViewingCharacter.ElementalWeaknesses = new List<string>();
+                this.ViewingCharacter.ElementalWeaknesses.AddRange(IrcClient.RemoveCodes(e.Match.Groups[5].Value).Split(new string[] { ", " }, 0));
+            }
+
+            this.WriteLine(2, 10, string.Format("Registered {0}'s element modifiers.", this.ViewingCharacter.Name ?? "*"));
+
+            this.ViewInfoCharacterCheck();
+        }
+
+        [ArenaRegex(@"^\x033(.+?) is completely immune to the following elements: (?:\x031,1[\[\]]*\x0F\x033|(\x033\x02none\x02)|((?:\x034\x02[^\x0F]+\x0F\x033(?:, )?)+))")]
+        internal void OnAnalysis5New(object sender, TriggerEventArgs e) {
+            if (this.ViewingCharacter == null) {
+                this.ViewingCharacter = new Character();
+                this.ViewingCombatant = new Combatant() { STR = int.MinValue };
+            } else if (this.ViewingCharacter.ElementalImmunities != null ||
+                       (this.ViewingCharacter.Name != null && this.ViewingCharacter.Name != e.Match.Groups[1].Value)) {
+                this.ViewingCharacter = new Character();
+                this.ViewingCombatant = new Combatant() { STR = int.MinValue };
+            }
+
+            if (e.Match.Groups[3].Success) {
+                this.ViewingCharacter.ElementalImmunities = new List<string>(IrcClient.RemoveCodes(e.Match.Groups[3].Value).Split(new string[] { ", " }, StringSplitOptions.None));
+                this.WriteLine(2, 10, string.Format("{0} is immune to {1}.", this.ViewingCharacter.Name ?? "*", string.Join(", ", this.ViewingCharacter.ElementalImmunities)));
+            } else if (e.Match.Groups[2].Success) {
+                this.ViewingCharacter.ElementalImmunities = new List<string>();
+                this.WriteLine(2, 10, string.Format("{0} has no immunities.", this.ViewingCharacter.Name ?? "*"));
+            }
+
+            this.ViewInfoCharacterCheck();
+        }
+
+        [ArenaRegex(@"^\x033(.+?) will be healed by the following elements: (?:\x031,1[\[\]]*\x0F\x033|(\x033\x02none\x02)|((?:\x034\x02[^\x0F]+\x0F\x033(?:, )?)+))")]
+        internal void OnAnalysis6New(object sender, TriggerEventArgs e) {
+            if (this.ViewingCharacter == null) {
+                this.ViewingCharacter = new Character();
+                this.ViewingCombatant = new Combatant() { STR = int.MinValue };
+            } else if (this.ViewingCharacter.ElementalAbsorbs != null ||
+                       (this.ViewingCharacter.Name != null && this.ViewingCharacter.Name != e.Match.Groups[1].Value)) {
+                this.ViewingCharacter = new Character();
+                this.ViewingCombatant = new Combatant() { STR = int.MinValue };
+            }
+
+            if (e.Match.Groups[3].Success) {
+                this.ViewingCharacter.ElementalAbsorbs = new List<string>(IrcClient.RemoveCodes(e.Match.Groups[3].Value).Split(new string[] { ", " }, StringSplitOptions.None));
+                this.WriteLine(2, 10, string.Format("{0} will absorb {1}.", this.ViewingCharacter.Name ?? "*", string.Join(", ", this.ViewingCharacter.ElementalAbsorbs)));
+            } else if (e.Match.Groups[2].Success) {
+                this.ViewingCharacter.ElementalAbsorbs = new List<string>();
+                this.WriteLine(2, 10, string.Format("{0} can absorb no elements.", this.ViewingCharacter.Name ?? "*"));
             }
 
             this.ViewInfoCharacterCheck();
@@ -3133,11 +3149,13 @@ namespace BattleBot {
 #endregion
 
 #region Battle preparation
-        [ArenaRegex(@"^\x034(?:(A dimensional portal has been detected\. The enemy force will arrive)|(A powerful dimensional rift has been detected\. The enemy force will arrive)|(The Allied Forces have detected an orb fountain! The party will be sent to destroy it)|(The Allied Forces have opened the coliseum to allow players to fight one another. The PVP battle will begin)|(A Manual battle has been started. Bot Admins will need to add monsters, npcs and bosses individually\. The battle will begin)|(An outpost of the Allied Forces HQ \x02is under attack\x02! Reinforcements are requested immediately! The reinforcements will depart)) in(?: (\d+(?:\.\d+)?) ?min(?:ute)?\(?s?\)?)?(?: (\d+(?:\.\d+)?) ?sec(?:ond)?\(?s?\)?)?\. (?:Players \S+ )?[Tt]ype \x02!enter\x02 (?:if you wish to join the battle|if they wish to join the battle|to join)")]
+        [ArenaRegex(@"^\x034(?:(A dimensional portal has been detected\. The enemy force will arrive)|(A powerful dimensional rift has been detected\. The enemy force will arrive)|(The Allied Forces have detected an orb fountain! The party will be sent to destroy it)|(The Allied Forces have opened the coliseum to allow players to fight one another. The PVP battle will begin)|(A Manual battle has been started. Bot Admins will need to add monsters, npcs and bosses individually\. The battle will begin)|(An outpost of the Allied Forces HQ \x02is under attack\x02! Reinforcements are requested immediately! The reinforcements will depart)|(The Allied Forces are putting together an assault team to take out an enemy outpost\. If you wish to be a part of this team, type \x02!enter\x02 to join\. The reinforcements will depart)) in(?: (\d+(?:\.\d+)?) ?min(?:ute)?\(?s?\)?)?(?: (\d+(?:\.\d+)?) ?sec(?:ond)?\(?s?\)?)?\.(?: (?:Players \S+ )?[Tt]ype \x02!enter\x02 (?:if you wish to join the battle|if they wish to join the battle|to join))?(?:! \x032\[Current Battle Level: ([-\d]+)\])?")]
         internal void OnBattleOpenNormal(object sender, TriggerEventArgs e) {
             float time = 0f;
-            if (e.Match.Groups[7].Success) time += float.Parse(e.Match.Groups[7].Value) * 60f;
-            if (e.Match.Groups[8].Success) time += float.Parse(e.Match.Groups[8].Value);
+            if (e.Match.Groups[8].Success) time += float.Parse(e.Match.Groups[8].Value) * 60f;
+            if (e.Match.Groups[9].Success) time += float.Parse(e.Match.Groups[9].Value);
+
+            if (e.Match.Groups[10].Success) this.Level = int.Parse(e.Match.Groups[10].Value);
 
             if (e.Match.Groups[2].Success)
                 this.OnBattleOpen(BattleType.Boss, time);
@@ -3147,6 +3165,8 @@ namespace BattleBot {
                 this.OnBattleOpen(BattleType.PvP, time);
             else if (e.Match.Groups[6].Success)
                 this.OnBattleOpen(BattleType.Siege, time);
+            else if (e.Match.Groups[7].Success)
+                this.OnBattleOpen(BattleType.Assault, time);
             else
                 this.OnBattleOpen(BattleType.Normal, time);
         }
@@ -3185,6 +3205,33 @@ namespace BattleBot {
             if (e.Match.Groups[2].Success) time += float.Parse(e.Match.Groups[2].Value);
 
             this.OnBattleOpen(BattleType.NPC, time);
+        }
+
+        [ArenaRegex(@"^\x0312\x02[^\x03]* \x02\x034has discovered the lair of the fearsome dragon known as\x0312\x02 [^\x03]+\x034\x02! A raiding party has been set up to put an end to the beast\. To join the party type \x0312\x02!enter\x034\x02 now! The raiding party will depart in\x0312\x02 (?: (\d+(?:\.\d+)?) ?min(?:ute)?\(?s?\)?)?(?: (\d+(?:\.\d+)?) ?sec(?:ond)?\(?s?\)?)?\x034\x02\. \[This is a level\x0312\x02 (\d+) \x034\x02battle\. Anyone more than 5 levels over will be level synced\.]")]
+        internal void OnBattleOpenDragon(object sender, TriggerEventArgs e) {
+            float time = 0f;
+            if (e.Match.Groups[1].Success) time += float.Parse(e.Match.Groups[1].Value) * 60f;
+            if (e.Match.Groups[2].Success) time += float.Parse(e.Match.Groups[2].Value);
+
+            this.OnBattleOpen(BattleType.DragonHunt, time);
+        }
+
+        [ArenaRegex(@"^\x034\x02[^\x02]*\x02's Torment Orb shatters and creates a large demonic-looking red portal\. All brave souls level\x02\x0312 ([\d.]+) \x02\x034or higher should use\x02\x0312 !enter \x02\x034now to enter this portal if they so wish.  The portal will close in \x0312\x02 (?: (\d+(?:\.\d+)?) ?min(?:ute)?\(?s?\)?)?(?: (\d+(?:\.\d+)?) ?sec(?:ond)?\(?s?\)?)")]
+        internal void OnBattleOpenTorment(object sender, TriggerEventArgs e) {
+            float time = 0f;
+            if (e.Match.Groups[2].Success) time += float.Parse(e.Match.Groups[2].Value) * 60f;
+            if (e.Match.Groups[3].Success) time += float.Parse(e.Match.Groups[3].Value);
+
+            this.OnBattleOpen(BattleType.Torment, time);
+        }
+
+        [ArenaRegex(@"^\x034This dungeon is level\x0312\x02 (\d+) \x034\x02and requires\x0312\x02 (\d+) players \x034\x02to enter\. The dungeon will begin in\x0312\x02 (?: (\d+(?:\.\d+)?) ?min(?:ute)?\(?s?\)?)?(?: (\d+(?:\.\d+)?) ?sec(?:ond)?\(?s?\)?)\x034\x02. Use\x02 !enter\x02 if you wish to join the party\.")]
+        internal void OnBattleOpenDungeon(object sender, TriggerEventArgs e) {
+            float time = 0f;
+            if (e.Match.Groups[3].Success) time += float.Parse(e.Match.Groups[3].Value) * 60f;
+            if (e.Match.Groups[4].Success) time += float.Parse(e.Match.Groups[4].Value);
+
+            this.OnBattleOpen(BattleType.Dungeon, time);
         }
 
         internal void OnBattleOpen(BattleType type, float time) {
@@ -3369,7 +3416,7 @@ namespace BattleBot {
             } else {
                 // The entry phase is closed.
                 // This means that players can no longer enter, and things can no longer be summoned.
-                if (ally) {
+                if (ally || name == "Allied Forces Troop") {
                     this.WriteLine(1, 12, "An ally {0} (?) enters the battle.", name);
                     UnmatchedFullNames.Add(new UnmatchedName() { Name = name, Category = Category.Ally, Description = description });
                 } else {
@@ -3425,6 +3472,37 @@ namespace BattleBot {
 
             this.BattleOpen = false;
             this.Weather = e.Match.Groups[1].Value;
+            this.WriteLine(1, 8, $"The weather is now {this.Weather}.");
+        }
+
+        [ArenaRegex(@"^\x0310(?!\x02)\s*(?:\S+\s+)*?\x02?(?:(calm)|(bright)|(gloom)|(rain)|(storm)|(snow)|(wind)|(hot|heat)|(dry))")]
+        internal void OnWeatherNew(object sender, TriggerEventArgs e) {
+            // Let DCC users know the battle has started.
+            if (this.BattleOpen && this.DccClient != null && this.DccClient.State == IrcClientState.Online)
+                ((DccClient) this.DccClient).SendSub("\u000312\u0002The battle has started.");
+
+            this.BattleOpen = false;
+
+            if (e.Match.Groups[1].Success)
+                this.Weather = "calm";
+            else if (e.Match.Groups[2].Success)
+                this.Weather = "bright";
+            else if (e.Match.Groups[3].Success)
+                this.Weather = "gloomy";
+            else if (e.Match.Groups[4].Success)
+                this.Weather = "rainy";
+            else if (e.Match.Groups[5].Success)
+                this.Weather = "stormy";
+            else if (e.Match.Groups[6].Success)
+                this.Weather = "snowy";
+            else if (e.Match.Groups[7].Success)
+                this.Weather = "windy";
+            else if (e.Match.Groups[8].Success)
+                this.Weather = "hot";
+            else if (e.Match.Groups[9].Success)
+                this.Weather = "dry";
+
+            this.WriteLine(1, 8, $"The weather is now {this.Weather}.");
         }
 
         [ArenaRegex(@"^\x034\[Darkness will occur in:\x0312\x02 (\d*) ?\x02\x034turns\]")]
@@ -3882,6 +3960,10 @@ namespace BattleBot {
         internal void OnBattleStart(object sender, TriggerEventArgs e) {
             // This is the last message sent during setup.
             // This is when we know the battle has started.
+            if (this.BattleOpen && this.DccClient != null && this.DccClient.State == IrcClientState.Online)
+                ((DccClient) this.DccClient).SendSub("\u000312\u0002The battle has started.");
+
+            this.BattleOpen = false;
             this.BattleStarted = true;
             this.BattleStartTime = DateTime.UtcNow;
 			this.TurnNumber = 1;
@@ -4120,7 +4202,7 @@ namespace BattleBot {
             }
         }
 
-        [ArenaRegex(@"^The attack did\x03([467])\x02 (\d+) \x02\x0Fdamage(?! \x0F?to)(?: \[([^\]]*)\])?")]
+        [ArenaRegex(@"^The attack did\x03([467])\x02 ([\d,]+) \x02\x0Fdamage(?! \x0F?to)(?: \[([^\]]*)\])?")]
         internal void OnDamageLegacy(object sender, TriggerEventArgs e) {
             if (!this.EnableAnalysis) return;
             if (this.TurnAction == null) return;
@@ -4145,7 +4227,7 @@ namespace BattleBot {
             this.Turn = null;
         }
 
-        [ArenaRegex(@"^The attack did\x03([467])\x02 (\d+) \x02\x0Fdamage to ([^[]*)(?<! )(?: \[([^\]]*)\])?")]
+        [ArenaRegex(@"^The attack did\x03([467])\x02 ([\d,]+) \x02\x0Fdamage to ([^[]*)(?<! )(?: \[([^\]]*)\])?")]
         internal void OnDamageSingle(object sender, TriggerEventArgs e) {
             if (!this.EnableAnalysis) return;
             this.TurnTarget = GetShortName(e.Match.Groups[3].Value, false, true);
@@ -4154,7 +4236,7 @@ namespace BattleBot {
             this.Turn = null;
         }
 
-        [ArenaRegex(@"^(?:\x031)?The first attack did\x03([467])\x02 (\d+) \x02\x0Fdamage\. +(?:The second attack did\x03\d\x02 (\d+) [\x02\x03]*\x0Fdamage\. +(?:The third attack did\x03\d\x02 (\d+) \x02\x0Fdamage\. +(?:The fourth attack did\x03\d\x02 (\d+) \x02\x0Fdamage\. +(?:The fifth attack did\x03\d\x02 (\d+) \x02\x0Fdamage\. +(?:The sixth attack did\x03\d\x02 (\d+) \x02\x0Fdamage\. +(?:The seventh attack did\x03\d\x02 (\d+) \x02\x0Fdamage\. +(?:The eighth? attack did\x03\d\x02 (\d+) \x02\x0Fdamage\.\ +)?)?)?)?)?)?)?Total physical damage:\x03\d\x02 (\d+) \x0F(.*)")]
+        [ArenaRegex(@"^(?:\x031)?The first attack did\x03([467])\x02 ([\d,]+) \x02\x0Fdamage\. +(?:The second attack did\x03\d\x02 ([\d,]+) [\x02\x03]*\x0Fdamage\. +(?:The third attack did\x03\d\x02 ([\d,]+) \x02\x0Fdamage\. +(?:The fourth attack did\x03\d\x02 ([\d,]+) \x02\x0Fdamage\. +(?:The fifth attack did\x03\d\x02 ([\d,]+) \x02\x0Fdamage\. +(?:The sixth attack did\x03\d\x02 ([\d,]+) \x02\x0Fdamage\. +(?:The seventh attack did\x03\d\x02 ([\d,]+) \x02\x0Fdamage\. +(?:The eighth? attack did\x03\d\x02 ([\d,]+) \x02\x0Fdamage\.\ +)?)?)?)?)?)?)?Total (?:physical )?damage:\x03\d\x02 ([\d,]+) \x0F(.*)")]
         internal void OnDamageMulti(object sender, TriggerEventArgs e) {
             if (!this.EnableAnalysis) return;
 
@@ -4178,7 +4260,7 @@ namespace BattleBot {
             this.Turn = null;
         }
 
-        [ArenaRegex(@"^The attack did\x03([467])\x02 (\d+) \x02\x0Fdamage \x0Fto\x02 ([^\x02]*)\x02! (\x034\x02[^\x02]*\x02.* )?\x0F(\[([^\]]*)\])?( \x02\x034.*\x02.*\x02.*\x02!)?")]
+        [ArenaRegex(@"^The attack did\x03([467])\x02 ([\d,]+) \x02\x0Fdamage \x0Fto\x02 ([^\x02]*)\x02! (\x034\x02[^\x02]*\x02.* )?\x0F(\[([^\]]*)\])?( \x02\x034.*\x02.*\x02.*\x02!)?")]
         internal void OnDamageAoE(object sender, TriggerEventArgs e) {
             if (!this.EnableAnalysis) return;
             this.TurnTarget = GetShortName(e.Match.Groups[3].Value, false, true);
@@ -4547,7 +4629,7 @@ namespace BattleBot {
             combatant.Presence = Presence.Dead;
         }
 
-        [ArenaRegex(@"^(?:\x033\x02|\x02\x033)([^\x02]*) \x02has equipped\x02 ([^ .]*)(?:$|(\.)|\x02 in (\w*) (?:(left)|(right)) hand\.)")]
+        [ArenaRegex(@"^(?:\x033\x02|\x02\x033)([^\x02]*) \x02has equipped\x02 (?:\x03\d{0,2})?([^ .\x03]*)(?:\x03\d{0,2})?(?:$|(\.)|\x02 in (\w*) (?:(left)|(right)) hand\.)")]
         internal void OnEquip(object sender, TriggerEventArgs e) {
             Character character;
             string shortName = GetShortName(e.Match.Groups[1].Value, false, true);
@@ -4734,7 +4816,7 @@ namespace BattleBot {
         }
 
 #region Battle conclusion
-        [ArenaRegex(new string[] { @"^\x034The Battle is Over ?!",
+        [ArenaRegex(new string[] { @"^\x034The Battle is Over",
             @"^\x034There were no players to meet the monsters on the battlefield! \x02The battle is over\x02."})]
         internal void OnBattleEnd(object sender, TriggerEventArgs e) {
             this.WriteLine(1, 8, "The battle has ended.");
@@ -5003,6 +5085,27 @@ namespace BattleBot {
             this.WriteLine(level, colour, string.Format(format, args));
         }
     }
+
+	/// <summary>Records what type of list is currently being received.</summary>
+	internal enum InfoListType {
+		None,
+		SkillsPassive,
+		SkillsActive,
+		SkillsResistances,
+		SkillsKiller,
+		Weapons,
+		Shields,
+		Styles,
+		Techniques,
+		Attributes,
+		Equipment
+	}
+
+	internal class TaskState {
+		public TaskCompletionSource<object> TaskSource { get; } = new TaskCompletionSource<object>();
+		public BitVector32 LinesRemaining;
+		public int Time;
+	}
 
     [Serializable]
     public class ArenaDisconnectedException : Exception {

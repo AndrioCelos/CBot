@@ -189,9 +189,9 @@ namespace BattleBot {
                 float score;
 
                 // Weapon power
-                score = weapon.Power + character.Weapons[weapon.Name] * 1.5F;
+                score = weapon.Power + (float) Math.Log(character.Weapons[weapon.Name]) * 15;
                 // Strength
-                score += combatant.STR / (combatant.Status.Contains("strength down") ? 4F : 1F);
+                score += (float) Math.Log(combatant.STR) * 10 / (combatant.Status.Contains("strength down") ? 4F : 1F);
                 // Hand-to-hand fists level bonus
                 if (weapon.Type.Equals("HandToHand", StringComparison.InvariantCultureIgnoreCase))
                     score += character.Weapons["Fists"];
@@ -370,9 +370,9 @@ namespace BattleBot {
                 score = technique.Power + character.Techniques[techniqueName] * 1.6F;
                 // Character power
                 if (technique.UsesINT)
-                    score += combatant.INT / (combatant.Status.Contains("int down") ? 4F : 1F);
+                    score += (float) Math.Log(combatant.INT) * 10 / (combatant.Status.Contains("int down") ? 4F : 1F);
                 else
-                    score += combatant.STR / (combatant.Status.Contains("strength down") ? 4F : 1F);
+                    score += (float) Math.Log(combatant.STR) * 10 / (combatant.Status.Contains("strength down") ? 4F : 1F);
                 // Multi-hit attack bonus
                 score *= this.plugin.AttackMultiplier(technique.Hits, true);
 
