@@ -9,7 +9,8 @@ using System.Threading.Tasks;
 using AnIRC;
 
 namespace CBot {
-    public delegate void PluginCommandHandler(object sender, CommandEventArgs e);
+	public delegate void PluginCommandHandler(object sender, CommandEventArgs e);
+	public delegate int PluginCommandPriorityHandler(CommandEventArgs e);
     public delegate void PluginTriggerHandler(object sender, TriggerEventArgs e);
 
     /// <summary>Provides a base class for CBot plugin main classes.</summary>
@@ -138,39 +139,24 @@ namespace CBot {
             return false;
         }
 
-        public virtual async Task<bool> CheckCommands(IrcUser sender, IrcMessageTarget target, string message) {
-            // Check commands.
-            if (this.Commands.Count != 0) {
-                string commandString; string prefix; string label; string parameters;
-                if (Bot.IsCommand(target, message, out commandString, out prefix)) {
-                    int pos = commandString.IndexOf(' ');
-                    if (pos == -1) {
-                        label = commandString;
-                        parameters = null;
-                    } else {
-                        label = commandString.Substring(0, pos);
-                        parameters = commandString.Substring(pos + 1);
-                    }
-
-					var command = this.GetCommand(target, label);
-					if (command != null) {
-						await this.RunCommand(sender, target, command, parameters, false);
-						return true;
-					}
-                }
+        public virtual async Task<IEnumerable<Command>> CheckCommands(IrcUser sender, IrcMessageTarget target, string label, string parameters, bool isGlobalCommand) {
+			var command = this.GetCommand(target, label, isGlobalCommand);
+			if (command != null) {
+				return new[] { command };
             }
+			return Enumerable.Empty<Command>();
+        }
 
-            // Check triggers.
-            if (this.Triggers.Count != 0) {
+		public virtual async Task<bool> CheckTriggers(IrcUser sender, IrcMessageTarget target, string message) {
+			if (this.Triggers.Count != 0) {
 				var trigger = this.GetTrigger(target, message, out Match match);
 				if (trigger != null) {
 					await this.RunTrigger(sender, target, trigger, match);
 					return true;
 				}
-            }
-
-            return false;
-        }
+			}
+			return false;
+		}
 
 		/// <summary>Returns the command that matches the specified label and target, if any; otherwise, returns null.</summary>
 		public Command GetCommand(IrcMessageTarget target, string label) => this.GetCommand(target, label, false);
@@ -250,7 +236,7 @@ namespace CBot {
 			foreach (var trigger in this.Triggers) {
 				if (trigger.Attribute.MustUseNickname && !highlightMatch.Success) continue;
 
-				foreach (Regex regex in trigger.Attribute.Expressions) {
+				foreach (Regex regex in trigger.Attribute.Patterns) {
 					match = regex.Match(message);
 					if (match.Success) {
 						// Check the scope.

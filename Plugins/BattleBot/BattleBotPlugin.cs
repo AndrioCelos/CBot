@@ -17,7 +17,7 @@ using AnIRC;
 using Timer = System.Timers.Timer;
 
 namespace BattleBot {
-    [ApiVersion(3, 6)]
+    [ApiVersion(3, 7)]
     public class BattleBotPlugin : Plugin {
         private List<ArenaTrigger> arenaTriggers = new List<ArenaTrigger>();
 
@@ -1005,8 +1005,7 @@ namespace BattleBot {
 #endregion
 
 #region Commands
-        [Command("set", 1, 2, "set <property> [value]", "Changes settings for this plugin",
-            ".set", CommandScope.Channel | CommandScope.PM | CommandScope.Global)]
+        [Command("set", 1, 2, "set <property> [value]", "Changes settings for this plugin", Permission = ".set")]
         public void CommandSet(object sender, CommandEventArgs e) {
             string property; string value;
             property = e.Parameters[0];
@@ -1170,7 +1169,7 @@ namespace BattleBot {
         }
 
         [Command(new string[] { "time", "timeleft" }, 0, 0, "time", "Tells you how long you have left to defeat the enemy force.",
-            ".time", CommandScope.Channel | CommandScope.PM | CommandScope.Global)]
+            Permission = ".time")]
         public void CommandTime(object sender, CommandEventArgs e) {
             if (!BattleStarted)
                 e.Reply("There's no battle going on at the moment.");
@@ -1332,7 +1331,7 @@ namespace BattleBot {
         }
 
         [Command("control", 1, 1, "control <nickname>", "Instructs me to control another character",
-            ".control", CommandScope.Channel)]
+			Permission = ".control", Scope = CommandScope.Channel)]
         public async void CommandControl(object sender, CommandEventArgs e) {
             Character character;
             if (!this.Characters.TryGetValue(e.Parameters[0], out character))
@@ -1358,8 +1357,7 @@ namespace BattleBot {
             }
         }
 
-        [Command("controlme", 0, 0, "controlme", "Instructs me to control your character",
-            ".controlme", CommandScope.Channel)]
+        [Command("controlme", 0, 0, "controlme", "Instructs me to control your character", Permission = ".controlme", Scope = CommandScope.Channel)]
         public void CommandControlMe(object sender, CommandEventArgs e) {
             Character character;
             if (!this.Characters.TryGetValue(e.Sender.Nickname, out character))
@@ -1378,8 +1376,7 @@ namespace BattleBot {
             }
         }
 
-        [Command("stopcontrol", 0, 1, "stopcontrol [nickname]", "Instructs me to stop controlling someone, yourself by default",
-            null, CommandScope.Channel)]
+        [Command("stopcontrol", 0, 1, "stopcontrol [nickname]", "Instructs me to stop controlling someone, yourself by default", Scope = CommandScope.Channel)]
         public async void CommandControlStop(object sender, CommandEventArgs e) {
             string target;
             if (e.Parameters.Length == 1) {
@@ -1399,7 +1396,7 @@ namespace BattleBot {
         }
 
         [Command("arena-id", 0, 1, "arena-id [new]", "Instructs me to identify myself to the Arena. Specify 'new' if I should set up a new character.",
-            ".identify", CommandScope.Channel | CommandScope.PM | CommandScope.Global)]
+			Permission = ".identify")]
         public void CommandIdentify(object sender, CommandEventArgs e) {
             if (this.OwnCharacters.ContainsKey(this.ArenaConnection.Me.Nickname))
                 this.BattleAction(true, "!id " + this.OwnCharacters[this.ArenaConnection.Me.Nickname].Password);
@@ -1465,7 +1462,7 @@ namespace BattleBot {
         }
 
         [Command("rename", 2, 2, "rename <player> <new name>", "Renames a character file. If they're already in battle, I'll keep their place.",
-            ".admin", CommandScope.Channel)]
+			Permission = ".admin", Scope = CommandScope.Channel)]
         public void CommandRename(object sender, CommandEventArgs e) {
             if (this.ArenaDirectory == null) {
                 e.Whisper("I don't have access to the Arena data folder.");
@@ -1572,8 +1569,7 @@ namespace BattleBot {
                 this.BattleAction(false, "!next");
         }
 
-        [Command("restore", 1, 2, "restore <character> [new name]", "Restores a zapped character",
-            ".admin", CommandScope.Channel)]
+        [Command("restore", 1, 2, "restore <character> [new name]", "Restores a zapped character", Permission = ".admin", Scope = CommandScope.Channel)]
         public void CommandRestore(object sender, CommandEventArgs e) {
             if (this.ArenaDirectory == null) {
                 e.Whisper("I don't have access to the Arena data folder.");
@@ -1642,8 +1638,7 @@ namespace BattleBot {
                 e.Reply(string.Format("\u0002{0}\u0002 has been restored as \u0002{1}\u0002.", e.Parameters[0], name));
         }
 
-        [Command("lateentry", 1, 1, "lateentry <player>", "Enters a player into the battle after it has started.",
-            ".lateentry")]
+        [Command("lateentry", 1, 1, "lateentry <player>", "Enters a player into the battle after it has started.", Permission = ".lateentry")]
         public void CommandLateEntry(object sender, CommandEventArgs e) {
             if (this.ArenaDirectory == null) {
                 e.Whisper("I don't have access to the Arena data folder.");

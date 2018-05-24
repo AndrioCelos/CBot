@@ -16,7 +16,7 @@ using Demot.RandomOrgApi;
 using Timer = System.Timers.Timer;
 
 namespace UNO {
-    [ApiVersion(3, 6)]
+    [ApiVersion(3, 7)]
     public class UnoPlugin : Plugin {
         public static readonly string[] Hints = new string[] {
             /*  0 */ "It's your turn. Enter \u0002!play \u001Fcard\u000F to play a card from your hand with a matching colour, number or symbol. Here, you can play a {0} card, a {1} or a Wild card. If you have none, enter \u0002!draw\u0002.",
@@ -1375,7 +1375,7 @@ namespace UNO {
                 this.EntryCommand(game, e.Sender.Nickname);
         }
         [Command(new string[] { "join", "ujoin", "uno" }, 0, 0, "ujoin", "Enters you into a game of UNO.",
-            null, CommandScope.Channel)]
+			Scope = CommandScope.Channel)]
         public void CommandJoin(object sender, CommandEventArgs e) {
             Game game;
             string key = e.Client.NetworkName + "/" + e.Target;
@@ -1420,7 +1420,7 @@ namespace UNO {
         }
 
         [Command(new string[] { "aichallenge", "aisummon", "aijoin" }, 0, 0, "aichallenge", "Calls me into the game, even if there are already two or more players.",
-            null, CommandScope.Channel)]
+            Scope = CommandScope.Channel, PriorityHandlerName = nameof(GameCommandPriority))]
         public void CommandAIJoin(object sender, CommandEventArgs e) {
             Game game;
             string key = e.Client.NetworkName + "/" + e.Target;
@@ -1445,7 +1445,7 @@ namespace UNO {
         }
 
         [Command(new string[] { "ustart", "start" }, 0, 0, "ustart", "Starts the game immediately.",
-            ".start", CommandScope.Channel)]
+            Permission =".start", Scope = CommandScope.Channel, PriorityHandlerName = nameof(GameCommandPriority))]
         public async void CommandStart(object sender, CommandEventArgs e) {
             Game game;
             string key = e.Client.NetworkName + "/" + e.Target;
@@ -1482,7 +1482,7 @@ namespace UNO {
         }
 
         [Command(new string[] { "uwait", "wait" }, 0, 0, "uwait", "Extends the current time limit.",
-            ".wait", CommandScope.Channel)]
+            Permission = ".wait", Scope = CommandScope.Channel, PriorityHandlerName = nameof(GameCommandPriority))]
         public void CommandWait(object sender, CommandEventArgs e) {
             Game game;
             string key = e.Client.NetworkName + "/" + e.Target;
@@ -1558,7 +1558,7 @@ namespace UNO {
         }
 
         [Command(new string[] { "quit", "uquit", "leave", "uleave", "part", "upart" }, 0, 0, "uquit", "Removes you from the game of UNO.",
-            null, CommandScope.Channel)]
+            Scope = CommandScope.Channel, PriorityHandlerName = nameof(GameCommandPriority))]
         public void CommandQuit(object sender, CommandEventArgs e) {
             Game game;
             string key = e.Client.NetworkName + "/" + e.Target;
@@ -1845,7 +1845,7 @@ namespace UNO {
         }
 
         [Command("ustop", 0, 0, "ustop", "Stops the game of UNO without scoring. Use only in emergencies.",
-            ".stop")]
+            Permission = ".stop", PriorityHandlerName = nameof(GameCommandPriority))]
         public void CommandStop(object sender, CommandEventArgs e) {
             Game game;
             string key = e.Client.NetworkName + "/" + e.Target;
@@ -1972,7 +1972,14 @@ namespace UNO {
             return cards;
         }
 
-        [Trigger(@"^pl\s*(.*)", null, CommandScope.Channel)]
+		public int GameCommandPriority(CommandEventArgs e) {
+			if (this.Games.TryGetValue(e.Client.NetworkName + "/" + e.Channel.Name, out _)) {
+				return this.GameTurnCheck(e.Client, e.Target.Target, e.Sender.Nickname, false, out _, out _) ? 10 : 2;
+			}
+			return 1;
+		}
+
+		[Trigger(@"^pl\s*(.*)", Scope = CommandScope.Channel)]
         public void RegexPlay(object sender, TriggerEventArgs e) {
             Game game; int index; Card card; Colour colour;
             bool success = UnoPlugin.TryParseCard(e.Match.Groups[1].Value, out card, out colour);
@@ -1996,7 +2003,8 @@ namespace UNO {
                 }
             }
         }
-        [Command(new string[] { "play", "pl", "uplay" }, 1, 1, "play <card>", "Allows you to play a card on your turn.")]
+        [Command(new string[] { "play", "pl", "uplay" }, 1, 1, "play <card>", "Allows you to play a card on your turn.",
+			Scope = CommandScope.Channel, PriorityHandlerName = nameof(GameCommandPriority))]
         public void CommandPlay(object sender, CommandEventArgs e) {
             Game game; int index; Card card; Colour colour;
             bool success = UnoPlugin.TryParseCard(e.Parameters[0], out card, out colour);
@@ -2441,7 +2449,7 @@ namespace UNO {
             }
         }
 
-        [Trigger(@"^dr(?!\S)", null, CommandScope.Channel)]
+        [Trigger(@"^dr(?!\S)", Scope = CommandScope.Channel)]
         public void RegexDraw(object sender, TriggerEventArgs e) {
             Game game; int index;
             if (!this.GameTurnCheck(e.Client, e.Target.Target, e.Sender.Nickname, true, out game, out index))
@@ -2451,7 +2459,7 @@ namespace UNO {
             }
         }
         [Command("draw", 0, 0, "draw", "Allows you to draw a card from the deck",
-            null, CommandScope.Channel)]
+			Scope = CommandScope.Channel, PriorityHandlerName = nameof(GameCommandPriority))]
         public void CommandDraw(object sender, CommandEventArgs e) {
             Game game; int index;
             if (!this.GameTurnCheck(e.Client, e.Target.Target, e.Sender.Nickname, true, out game, out index))
@@ -2508,7 +2516,7 @@ namespace UNO {
             }
         }
 
-        [Trigger(@"^pa(?!\S)", null, CommandScope.Channel)]
+        [Trigger(@"^pa(?!\S)", Scope = CommandScope.Channel)]
         public void RegexPass(object sender, TriggerEventArgs e) {
             Game game; int index;
             if (!this.GameTurnCheck(e.Client, e.Target.Target, e.Sender.Nickname, true, out game, out index))
@@ -2518,7 +2526,7 @@ namespace UNO {
             }
         }
         [Command("pass", 0, 0, "pass", "Use this command after drawing a card to end your turn.",
-            null, CommandScope.Channel)]
+			Scope = CommandScope.Channel, PriorityHandlerName = nameof(GameCommandPriority))]
         public void CommandPass(object sender, CommandEventArgs e) {
             Game game; int index;
             if (!this.GameTurnCheck(e.Client, e.Target.Target, e.Sender.Nickname, true, out game, out index))
@@ -2550,7 +2558,7 @@ namespace UNO {
             }
         }
 
-        [Trigger(@"^co (\S+)\s*$", null, CommandScope.Channel)]
+        [Trigger(@"^co (\S+)\s*$", Scope = CommandScope.Channel)]
         public void RegexColour(object sender, TriggerEventArgs e) {
             Game game; int index; Colour colour;
             UnoPlugin.TryParseColour(e.Match.Groups[1].Value, out colour);
@@ -2561,7 +2569,7 @@ namespace UNO {
                     this.ColourCheck(game, index, colour);
             }
         }
-        [Trigger(@"^(?:(Red)|(Yellow)|(Green)|(Blue))(?:!|~|\.*)$", null, CommandScope.Channel)]
+        [Trigger(@"^(?:(Red)|(Yellow)|(Green)|(Blue))(?:!|~|\.*)$", Scope = CommandScope.Channel)]
         public void RegexColour2(object sender, TriggerEventArgs e) {
             Game game; int index; Colour colour;
             if (e.Match.Groups[1].Success)
@@ -2581,7 +2589,7 @@ namespace UNO {
             }
         }
         [Command(new string[] { "colour", "color", "ucolour", "ucolor", "co" }, 1, 1, "colour <colour>", "Chooses a colour for your wild card.",
-            null, CommandScope.Channel)]
+			Scope = CommandScope.Channel, PriorityHandlerName = nameof(GameCommandPriority))]
         public void CommandColour(object sender, CommandEventArgs e) {
             Game game; int index; Colour colour;
             UnoPlugin.TryParseColour(e.Parameters[0], out colour);
@@ -2636,7 +2644,7 @@ namespace UNO {
         }
 
         [Command(new string[] { "challenge", "uchallenge" }, 0, 0, "challenge", "Allows you to challenge a Wild Draw Four played on you.",
-            null, CommandScope.Channel)]
+			Scope = CommandScope.Channel, PriorityHandlerName = nameof(GameCommandPriority))]
         public void CommandChallenge(object sender, CommandEventArgs e) {
             Game game; int index;
             if (!this.GameTurnCheck(e.Client, e.Target.Target, e.Sender.Nickname, true, out game, out index))
@@ -3255,13 +3263,13 @@ namespace UNO {
 #endregion
 
 #region Reminder commands
-        [Trigger(@"^tu(?!\S)", null, CommandScope.Channel)]
+        [Trigger(@"^tu(?!\S)", Scope = CommandScope.Channel)]
         public void RegexTurn(object sender, TriggerEventArgs e) {
             this.CommandTurn(sender, new CommandEventArgs(e.Client, e.Target, e.Sender,
                 new string[] { e.Match.Length > 2 ? "" : null }));
         }
         [Command(new string[] { "turn", "uturn", "tu" }, 0, 0, "turn", "Reminds you whose turn it is.",
-            null, CommandScope.Channel)]
+			Scope = CommandScope.Channel, PriorityHandlerName = nameof(GameCommandPriority))]
         public void CommandTurn(object sender, CommandEventArgs e) {
             Game game; int index;
             string key = e.Client.NetworkName + "/" + e.Target;
@@ -3283,13 +3291,13 @@ namespace UNO {
             }
         }
 
-        [Trigger(@"^cd(?!\S)", null, CommandScope.Channel)]
+        [Trigger(@"^cd(?!\S)", Scope = CommandScope.Channel)]
         public void RegexUpCard(object sender, TriggerEventArgs e) {
             this.CommandUpCard(sender, new CommandEventArgs(e.Client, e.Target, e.Sender,
                 new string[] { e.Match.Length > 2 ? "" : null }));
         }
         [Command(new string[] { "card", "upcard", "ucard", "uupcard", "cd" }, 0, 0, "turn", "Shows you the current up-card; that is, the most recent discard.",
-            null, CommandScope.Channel)]
+			Scope = CommandScope.Channel, PriorityHandlerName = nameof(GameCommandPriority))]
         public void CommandUpCard(object sender, CommandEventArgs e) {
             Game game;
             string key = e.Client.NetworkName + "/" + e.Target;
@@ -3327,13 +3335,13 @@ namespace UNO {
             }
         }
 
-        [Trigger(@"^ca(?!\S)", null, CommandScope.Channel)]
+        [Trigger(@"^ca(?!\S)", Scope = CommandScope.Channel)]
         public void RegexHand(object sender, TriggerEventArgs e) {
             this.CommandHand(sender, new CommandEventArgs(e.Client, e.Target, e.Sender,
                 new string[] { e.Match.Length > 2 ? "" : null }));
         }
         [Command(new string[] { "hand", "cards", "uhand", "ucards", "ca" }, 0, 0, "hand", "Shows you the cards in your hand",
-            null, CommandScope.Channel)]
+			Scope = CommandScope.Channel, PriorityHandlerName = nameof(GameCommandPriority))]
         public void CommandHand(object sender, CommandEventArgs e) {
             Game game; int index;
             string key = e.Client.NetworkName + "/" + e.Target;
@@ -3356,13 +3364,13 @@ namespace UNO {
             }
         }
 
-        [Trigger(@"^ct(?!\S)", null, CommandScope.Channel)]
+        [Trigger(@"^ct(?!\S)", Scope = CommandScope.Channel)]
         public void RegexCount(object sender, TriggerEventArgs e) {
             this.CommandCount(sender, new CommandEventArgs(e.Client, e.Target, e.Sender,
                 new string[] { e.Match.Length > 2 ? "" : null }));
         }
         [Command(new string[] { "count", "ucount", "ct" }, 0, 0, "count", "Shows you the number of cards in each player's hand",
-            null, CommandScope.Channel)]
+			Scope = CommandScope.Channel, PriorityHandlerName = nameof(GameCommandPriority))]
         public void CommandCount(object sender, CommandEventArgs e) {
             Game game;
             string key = e.Client.NetworkName + "/" + e.Target;
@@ -3408,13 +3416,13 @@ namespace UNO {
             }
         }
 
-        [Trigger(@"^ti(?!\S)", null, CommandScope.Channel)]
+        [Trigger(@"^ti(?!\S)", Scope = CommandScope.Channel)]
         public void RegexTime(object sender, TriggerEventArgs e) {
             this.CommandTime(sender, new CommandEventArgs(e.Client, e.Target, e.Sender,
                 new string[] { e.Match.Length > 2 ? "" : null }));
         }
         [Command(new string[] { "time", "utime", "ti" }, 0, 0, "time", "Tells you how long the game has lasted",
-            null, CommandScope.Channel)]
+			Scope = CommandScope.Channel, PriorityHandlerName = nameof(GameCommandPriority))]
         public void CommandTime(object sender, CommandEventArgs e) {
             Game game;
             string key = e.Client.NetworkName + "/" + e.Target;

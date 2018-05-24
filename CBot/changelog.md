@@ -1,3 +1,10 @@
+Version 3.7 - 20 April 2018
+---------------------------
+
+* Added command priority. Priority allows different commands with the same label to take precedence in different situations.
+* Revised constructors for `CommandAttribute` and `TriggerAttribute` to use named parameters.
+* Commands in actions are no longer processed.
+
 Version 3.6 – 2 August 2017
 ---------------------------
 

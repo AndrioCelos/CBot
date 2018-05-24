@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Reflection;
 using System.Text.RegularExpressions;
 
 namespace CBot {
@@ -30,111 +31,138 @@ namespace CBot {
     [AttributeUsage(AttributeTargets.Method)]
     public class CommandAttribute : Attribute {
         /// <summary>The names that can be used to make this command.</summary>
-        public List<string> Names;
+        public List<string> Names { get; }
         /// <summary>A human-readable example of the syntax of the command.</summary>
-        public string Syntax;
+        public string Syntax { get; set; }
         /// <summary>A brief description of the command.</summary>
-        public string Description;
+        public string Description { get; set; }
         /// <summary>The minimum number of parameters this command can take.</summary>
-        public short MinArgumentCount;
-        /// <summary>The maximum number of parameters this command can take.</summary>
-        public short MaxArgumentCount;
-        /// <summary>
-        /// The permission required to use the command. A value of null requires no permission.
-        /// If this starts with a dot, it will be considered as prefixed with the plugin's key.
-        /// </summary>
-        public string Permission;
-        /// <summary>
-        /// The message that will be given to users who give this command without permission to use it.
-        /// Defaults to "You don't have access to this command."
-        /// </summary>
-        public string NoPermissionsMessage;
-        /// <summary>The scopes in which this command can be used.</summary>
-        public CommandScope Scope;
+        public short MinArgumentCount { get; set; }
+		/// <summary>The maximum number of parameters this command can take.</summary>
+		public short MaxArgumentCount { get; set; }
+		/// <summary>
+		/// The permission required to use the command. A value of null requires no permission.
+		/// If this starts with a dot, it will be considered as prefixed with the plugin's key.
+		/// </summary>
+		public string Permission { get; set; }
+		/// <summary>
+		/// The message that will be given to users who give this command without permission to use it.
+		/// Defaults to "You don't have access to this command."
+		/// </summary>
+		public string NoPermissionsMessage { get; set; } = "You don't have access to this command.";
+		/// <summary>The scopes in which this command can be used.</summary>
+		public CommandScope Scope { get; set; } = CommandScope.Channel | CommandScope.PM | CommandScope.Global;
+		private int priority;
+		/// <summary>Sets the priority for the command. The priority is used to choose between ambiguous commands.</summary>
+		/// <seealso cref="PriorityHandler"/>
+		public int Priority {
+			get => this.priority;
+			set {
+				this.priority = value;
+				this.PriorityHandler = (e => this.priority);
+			}
+		}
+		private string priorityHandlerName;
+		/// <summary>Sets the name of the priority handler for the command. Should only be set from an attribute parameter using the <c>nameof</c> operator.</summary>
+		public string PriorityHandlerName {
+			get => this.priorityHandlerName;
+			set {
+				this.priorityHandlerName = value;
+				if (this.plugin != null) this.SetPriorityHandler();
+			}
+		}
+		/// <summary>Returns or sets a delegate that determines the priority for the command. This property cannot be set as an attribute parameter.</summary>
+		public PluginCommandPriorityHandler PriorityHandler { get; set; } = (e => 10);
 
-        /// <summary>Initializes a new <see cref="CommandAttribute"/> with the specified data.</summary>
-        /// <param name="name">The name that can be used to make this command.</param>
-        /// <param name="minArgumentCount">The minimum number of parameters this command can take.</param>
-        /// <param name="maxArgumentCount">The maximum number of parameters this command can take.</param>
-        /// <param name="syntax">A human-readable example of the syntax of the command.</param>
-        /// <param name="description">A brief description of the command.</param>
-        /// <param name="permission">The permission required to use the command. A value of null requires no permission.
-        /// If this starts with a dot, it will be considered as prefixed with the plugin's key.</param>
-        /// <param name="scope">The scopes in which this command can be used.</param>
-        /// <param name="noPermissionMessage">The message that will be given to users who give this command without permission to use it.</param>
-        public CommandAttribute(string name, short minArgumentCount, short maxArgumentCount, string syntax, string description,
-            string permission = null, CommandScope scope = CommandScope.Channel | CommandScope.PM, string noPermissionMessage = "You don't have access to that command.")
-            : this(new string[] { name }, minArgumentCount, maxArgumentCount, syntax, description, permission, scope, noPermissionMessage) { }
-        /// <summary>Initializes a new <see cref="CommandAttribute"/> with the specified data.</summary>
-        /// <param name="names">The names that can be used to make this command.</param>
-        /// <param name="minArgumentCount">The minimum number of parameters this command can take.</param>
-        /// <param name="maxArgumentCount">The maximum number of parameters this command can take.</param>
-        /// <param name="syntax">A human-readable example of the syntax of the command.</param>
-        /// <param name="description">A brief description of the command.</param>
-        /// <param name="permission">The permission required to use the command. A value of null requires no permission.
-        /// If this starts with a dot, it will be considered as prefixed with the plugin's key.</param>
-        /// <param name="scope">The scopes in which this command can be used.</param>
-        /// <param name="noPermissionMessage">The message that will be given to users who give this command without permission to use it.</param>
-        public CommandAttribute(string[] names, short minArgumentCount, short maxArgumentCount, string syntax, string description,
-            string permission = null, CommandScope scope = CommandScope.Channel | CommandScope.PM, string noPermissionMessage = "You don't have access to that command.") {
-            this.Names = new List<string>(names);
-            this.MinArgumentCount = minArgumentCount;
-            this.MaxArgumentCount = maxArgumentCount;
-            this.Syntax = syntax;
-            this.Description = description;
-            this.Permission = permission;
-            this.Scope = scope;
-            this.NoPermissionsMessage = noPermissionMessage;
-        }
-    }
+		internal Plugin plugin;
 
-    /// <summary>
-    /// Identifies a method in a plugin's main class as a trigger.
-    /// CBot will call the method in response to a message matching the regular expression from a user on IRC in one of the plugin's assigned channels.
-    /// </summary>
-   [AttributeUsage(AttributeTargets.Method)]
+		/// <summary>Initializes a new <see cref="CommandAttribute"/> with the specified parameters.</summary>
+		/// <param name="name">The name that can be used to give this command.</param>
+		/// <param name="minArgumentCount">The minimum number of parameters this command can take.</param>
+		/// <param name="syntax">A human-readable example of the syntax of the command.</param>
+		/// <param name="description">A brief description of the command.</param>
+		public CommandAttribute(string name, short minArgumentCount, string syntax, string description)
+			: this(new List<string>(1) { name }, minArgumentCount, short.MaxValue, syntax, description) { }
+		/// <summary>Initializes a new <see cref="CommandAttribute"/> with the specified parameters.</summary>
+		/// <param name="names">The names that can be used to give this command.</param>
+		/// <param name="minArgumentCount">The minimum number of parameters this command can take.</param>
+		/// <param name="maxArgumentCount">The maximum number of parameters this command can take.</param>
+		/// <param name="syntax">A human-readable example of the syntax of the command.</param>
+		/// <param name="description">A brief description of the command.</param>
+		public CommandAttribute(string[] names, short minArgumentCount, string syntax, string description)
+			: this(new List<string>(names), minArgumentCount, short.MaxValue, syntax, description) { }
+		/// <summary>Initializes a new <see cref="CommandAttribute"/> with the specified parameters.</summary>
+		/// <param name="name">The name that can be used to give this command.</param>
+		/// <param name="minArgumentCount">The minimum number of parameters this command can take.</param>
+		/// <param name="syntax">A human-readable example of the syntax of the command.</param>
+		/// <param name="description">A brief description of the command.</param>
+		public CommandAttribute(string name, short minArgumentCount, short maxArgumentCount, string syntax, string description)
+			: this(new List<string>(1) { name }, minArgumentCount, maxArgumentCount, syntax, description) { }
+		/// <summary>Initializes a new <see cref="CommandAttribute"/> with the specified parameters.</summary>
+		/// <param name="names">The names that can be used to give this command.</param>
+		/// <param name="minArgumentCount">The minimum number of parameters this command can take.</param>
+		/// <param name="maxArgumentCount">The maximum number of parameters this command can take.</param>
+		/// <param name="syntax">A human-readable example of the syntax of the command.</param>
+		/// <param name="description">A brief description of the command.</param>
+		public CommandAttribute(string[] names, short minArgumentCount, short maxArgumentCount, string syntax, string description) 
+			: this(new List<string>(names), minArgumentCount, maxArgumentCount, syntax, description) { }
+		private CommandAttribute(List<string> names, short minArgumentCount, short maxArgumentCount, string syntax, string description) {
+			this.Names = names;
+			this.MinArgumentCount = minArgumentCount;
+			this.MaxArgumentCount = maxArgumentCount;
+			this.Syntax = syntax;
+			this.Description = description;
+		}
+
+		internal void SetPriorityHandler() {
+			if (this.priorityHandlerName == null) return;
+
+			const BindingFlags bindingFlags = BindingFlags.InvokeMethod | BindingFlags.Public | BindingFlags.Instance;
+			var method = this.plugin.GetType().GetMethod(this.priorityHandlerName, bindingFlags, null, new[] { typeof(CommandEventArgs) }, null);
+			this.PriorityHandler = (PluginCommandPriorityHandler) method.CreateDelegate(typeof(PluginCommandPriorityHandler), this.plugin);
+		}
+	}
+
+	/// <summary>
+	/// Identifies a method in a plugin's main class as a trigger.
+	/// CBot will call the method in response to a message matching the regular expression from a user on IRC in one of the plugin's assigned channels.
+	/// </summary>
+	[AttributeUsage(AttributeTargets.Method)]
     public class TriggerAttribute : Attribute {
         /// <summary>The regular expressions that will trigger this procedure.</summary>
-        public List<Regex> Expressions;
+        public List<Regex> Patterns { get; }
         /// <summary>
         /// The permission required to use the command. A value of null requires no permission.
         /// If this starts with a dot, it will be considered as prefixed with the plugin's key.
         /// </summary>
-        public string Permission;
+        public string Permission { get; set; }
         /// <summary>
         /// The message that will be given to users who give this command without permission to use it.
         /// Defaults to "You don't have access to this command."
         /// </summary>
-        public string NoPermissionsMessage;
-        /// <summary>The scopes in which this procedure can be triggered.</summary>
-        public CommandScope Scope;
-        /// <summary>If true, the procedure will only trigger if the message starts with the bot's nickname.</summary>
-        public bool MustUseNickname;
+        public string NoPermissionsMessage { get; set; }
+		/// <summary>The scopes in which this procedure can be triggered.</summary>
+		public CommandScope Scope { get; set; }
+		/// <summary>If true, the procedure will only trigger if the message starts with the bot's nickname.</summary>
+		public bool MustUseNickname { get; set; }
 
-        /// <summary>Initializes a new <see cref="TriggerAttribute"/> with the specified data.</summary>
-        /// <param name="pattern">The regular expression that will trigger this procedure.</param>
-        /// <param name="permission">The permission required to use the command. A value of null requires no permission.
-        /// If this starts with a dot, it will be considered as prefixed with the plugin's key.</param>
-        /// <param name="scope">The scopes in which this procedure can be triggered.</param>
-        /// <param name="mustUseNickname">If true, the procedure will only trigger if the message starts with the bot's nickname.</param>
-        /// <param name="noPermissionMessage">The message that will be given to users who give this command without permission to use it.</param>
-        public TriggerAttribute(string pattern, string permission = null, CommandScope scope = CommandScope.Channel | CommandScope.PM, bool mustUseNickname = false,
-            string noPermissionMessage = "You don't have access to that command.")
-            : this(new string[] { pattern }, permission, scope, mustUseNickname, noPermissionMessage) { }
-        /// <summary>Initializes a new <see cref="TriggerAttribute"/> with the specified data.</summary>
-        /// <param name="patterns">The regular expressions that will trigger this procedure.</param>
-        /// <param name="permission">The permission required to use the command. A value of null requires no permission.
-        /// If this starts with a dot, it will be considered as prefixed with the plugin's key.</param>
-        /// <param name="scope">The scopes in which this procedure can be triggered.</param>
-        /// <param name="mustUseNickname">If true, the procedure will only trigger if the message starts with the bot's nickname.</param>
-        /// <param name="noPermissionMessage">The message that will be given to users who give this command without permission to use it.</param>
-        public TriggerAttribute(string[] patterns, string permission = null, CommandScope scope = CommandScope.Channel | CommandScope.PM, bool mustUseNickname = false,
-            string noPermissionMessage = "You don't have access to that command.") {
-            this.Expressions = new List<Regex>(patterns.Select(pattern => new Regex(pattern, RegexOptions.IgnoreCase | RegexOptions.Compiled)));
-            this.Permission = permission;
-            this.Scope = scope;
+		/// <summary>Initializes a new <see cref="TriggerAttribute"/> with the specified pattern and without requiring the message to highlight the bot.</summary>
+		/// <param name="pattern">The regular expression that will trigger this procedure.</param>
+		public TriggerAttribute(string pattern) : this(pattern, false) { }
+		/// <summary>Initializes a new <see cref="TriggerAttribute"/> with the specified patterns and without requiring the message to highlight the bot.</summary>
+		/// <param name="patterns">The regular expressions that will trigger this procedure.</param>
+		public TriggerAttribute(string[] patterns) : this(patterns, false) { }
+		/// <summary>Initializes a new <see cref="TriggerAttribute"/> with the specified data.</summary>
+		/// <param name="pattern">The regular expression that will trigger this procedure.</param>
+		/// <param name="mustUseNickname">If true, the procedure will only trigger if the message starts with the bot's nickname.</param>
+		public TriggerAttribute(string pattern, bool mustUseNickname) : this(new List<Regex>(1) { new Regex(pattern, RegexOptions.Compiled) }, mustUseNickname) { }
+		/// <summary>Initializes a new <see cref="TriggerAttribute"/> with the specified data.</summary>
+		/// <param name="patterns">The regular expressions that will trigger this procedure.</param>
+		/// <param name="mustUseNickname">If true, the procedure will only trigger if the message starts with the bot's nickname.</param>
+		public TriggerAttribute(string[] patterns, bool mustUseNickname) : this(new List<Regex>(patterns.Select(s => new Regex(s, RegexOptions.Compiled))), mustUseNickname) { }
+		private TriggerAttribute(List<Regex> patterns, bool mustUseNickname) {
+            this.Patterns = patterns;
             this.MustUseNickname = mustUseNickname;
-            this.NoPermissionsMessage = noPermissionMessage;
         }
     }
 }

@@ -9,8 +9,8 @@ using CBot;
 using AnIRC;
 
 namespace GenderManager {
-    [ApiVersion(3, 6)]
-    public class GenderPlugin : Plugin {
+	[ApiVersion(3, 7)]
+	public class GenderPlugin : Plugin {
         public Dictionary<string, Gender> GenderTable { get; }
         private int CheckingConnection;
         private int CheckingChannel;
@@ -136,7 +136,7 @@ namespace GenderManager {
         }
 
         [Command(new string[] { "setgender", "ircsetgender" }, 1, 2, "setgender [<hostmask>|=<nickname>] male|female|none|clear", "Sets a gender for the given user.",
-            ".setgender")]
+			Permission = ".setgender")]
         public async void CommandSetGender(object sender, CommandEventArgs e) {
 			Gender gender = Gender.Unspecified;
             bool valid = false;
@@ -239,7 +239,7 @@ namespace GenderManager {
         }
 
         [Command(new string[] { "getgender", "ircgetgender" }, 1, 1, "getgender <hostmask>|<nickname>", "Returns the gender of the given user.",
-            ".getgender")]
+			Permission = ".getgender")]
         public void CommandGetGender(object sender, CommandEventArgs e) {
 			Gender gender; string header = null;
 
@@ -295,7 +295,7 @@ namespace GenderManager {
         }
 
         [Command(new string[] { "set" }, 1, 2, "set [setting] [value]", "Changes settings for this plugin.",
-            ".set")]
+			Permission = ".set")]
         public void CommandSet(object sender, CommandEventArgs e) {
             if (e.Parameters.Length == 1) {
                 switch (e.Parameters[0].ToUpperInvariant()) {

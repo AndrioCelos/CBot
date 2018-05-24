@@ -9,7 +9,7 @@ using System.Threading;
 using System.Threading.Tasks;
 
 namespace HelpCommand {
-	[ApiVersion(3, 6)]
+	[ApiVersion(3, 7)]
 	public class HelpCommandPlugin : Plugin {
 		public override string Name => "HelpCommand";
 
@@ -20,12 +20,11 @@ namespace HelpCommand {
 			return null;
 		}
 
-		[Command("help", 0, 1, "help [topic]", "Shows help text for active plugins.",
-			null, CommandScope.Global | CommandScope.Channel | CommandScope.PM)]
+		[Command("help", 0, 1, "help [topic]", "Shows help text for active plugins.")]
 		public async void CommandHelp(object sender, CommandEventArgs e)
 			=> await this.ShowHelp(e.Target, e.Sender, e.Parameters.Length >= 1 ? e.Parameters[0] : null);
 
-		[Trigger(@"^\s*help\s*$", null, CommandScope.PM)]
+		[Trigger(@"^\s*help\s*$", Scope = CommandScope.PM)]
 		public async void TriggerHelp(object sender, TriggerEventArgs e)
 			=> await this.ShowHelp(e.Target, e.Sender, null);
 
@@ -90,8 +89,7 @@ namespace HelpCommand {
 			return false;
 		}
 
-		[Command("cmdlist", 0, 1, "cmdlist [plugin]", "Returns a list of my commands.",
-			null, CommandScope.Global | CommandScope.Channel | CommandScope.PM)]
+		[Command("cmdlist", 0, 1, "cmdlist [plugin]", "Returns a list of my commands.")]
 		public async void CommandCommandList(object sender, CommandEventArgs e) {
 			StringBuilder generalBuilder = new StringBuilder("\u0002General commands:\u0002 ");
 			StringBuilder channelBuilder = new StringBuilder(string.Format("\u0002Commands for {0}:\u0002 ", e.Target));
@@ -149,8 +147,7 @@ namespace HelpCommand {
 				e.Whisper(channelBuilder.ToString());
 		}
 
-		[Command("cmdinfo", 1, 1, "cmdinfo <command>", "Returns information on a command.",
-			null, CommandScope.Global | CommandScope.Channel | CommandScope.PM)]
+		[Command("cmdinfo", 1, 1, "cmdinfo <command>", "Returns information on a command.")]
 		public async void CommandCommandInfo(object sender, CommandEventArgs e) {
 			if (!await showCommandInfo(e.Target, e.Sender, e.Parameters[0])) {
 				e.Whisper($"I don't recognise that command. Use {Colours.Bold}{Bot.ReplaceCommands("!cmdlist", e.Client, e.Target.Target)}{Colours.Bold} for a list of commands.");

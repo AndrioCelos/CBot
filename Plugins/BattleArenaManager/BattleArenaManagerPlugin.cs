@@ -19,7 +19,7 @@ using Timer = System.Timers.Timer;
 using System.Globalization;
 
 namespace BattleArenaManager {
-    [ApiVersion(3, 6)]
+    [ApiVersion(3, 7)]
     public class BattleArenaManagerPlugin : Plugin {
         private GitHubClient client;
 
@@ -338,15 +338,13 @@ namespace BattleArenaManager {
             }
         }
 
-        [Command("check", 0, 0, "!check", "Checks for a Battle Arena update.",
-            ".check")]
+        [Command("check", 0, 0, "!check", "Checks for a Battle Arena update.", Permission = ".check")]
         public void CommandCheck(object sender, CommandEventArgs e) {
             Task task = new Task(new Action(async () => await CheckUpdate(true)));
             task.Start();
         }
 
-        [Command("update", 0, 0, "!update", "Updates the Battle Arena bot.",
-            ".update")]
+        [Command("update", 0, 0, "!update", "Updates the Battle Arena bot.", Permission = ".update")]
         public async void CommandUpdate(object sender, CommandEventArgs e) {
 			try {
 				await this.ApplyUpdate();
@@ -354,7 +352,6 @@ namespace BattleArenaManager {
 				this.LogError("ApplyUpdate", ex);
 			}
         }
-
 
         private async void checkTimer_Elapsed(object sender, ElapsedEventArgs e) {
 			try {

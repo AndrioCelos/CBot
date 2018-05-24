@@ -10,7 +10,7 @@ using CBot;
 using AnIRC;
 
 namespace BashQuotes {
-    [ApiVersion(3, 6)]
+    [ApiVersion(3, 7)]
     public class BashQuotesPlugin : Plugin {
         private System.Timers.Timer QuoteTimer;
         private Task getQuotesTask;

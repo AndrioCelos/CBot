@@ -3,8 +3,8 @@ using CBot;
 using AnIRC;
 
 namespace IdentifyPlugin {
-    [ApiVersion(3, 6)]
-    public class IdentifyPlugin : Plugin {
+	[ApiVersion(3, 7)]
+	public class IdentifyPlugin : Plugin {
         public override string Name => "Identify";
 
         [Command(new string[] { "id", "identify", "login" }, 1, 2, "id [username] <password>", "Identifies you to me using a password")]

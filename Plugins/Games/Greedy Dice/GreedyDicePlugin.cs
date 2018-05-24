@@ -12,8 +12,8 @@ using CBot;
 using AnIRC;
 
 namespace GreedyDice {
-    [ApiVersion(3, 6)]
-    public class GreedyDicePlugin : Plugin {
+	[ApiVersion(3, 7)]
+	public class GreedyDicePlugin : Plugin {
         private static readonly int[] RollValues = new int[] { 0, 0, 50, 50, 100, 150 };
         private static readonly string[] RollFaces = new string[] { "\u00031,8 X ", "\u00031,8 X ", "\u000313,6 ♥ ", "\u00039,3 * ", "\u00034,5* *", "\u000312,2***" };
 
@@ -232,8 +232,7 @@ namespace GreedyDice {
 
 
 
-        [Command(new string[] { "join", "djoin" }, 0, 0, "djoin", "Enters you into a game of Greedy Dice.",
-            null, CommandScope.Channel)]
+        [Command(new string[] { "join", "djoin" }, 0, 0, "djoin", "Enters you into a game of Greedy Dice.", Scope = CommandScope.Channel)]
         public void CommandJoin(object sender, CommandEventArgs e) {
             Game game;
             string key = e.Client.NetworkName + "/" + e.Target;
@@ -271,7 +270,7 @@ namespace GreedyDice {
         }
 
         [Command(new string[] { "quit", "dquit", "leave", "dleave", "part", "dpart" }, 0, 0, "uquit", "Removes you from the game of Greedy Dice.",
-            null, CommandScope.Channel)]
+            Scope = CommandScope.Channel)]
         public void CommandQuit(object sender, CommandEventArgs e) {
             Game game;
             string key = e.Client.Extensions.NetworkName + "/" + e.Target;
@@ -390,7 +389,7 @@ namespace GreedyDice {
         }
 
         [Command(new string[] { "roll", "droll" }, 0, 0, "roll", "Allows you to roll the dice for points during your turn.",
-            null, CommandScope.Channel)]
+            Scope = CommandScope.Channel)]
         public void CommandRoll(object sender, CommandEventArgs e) {
             Game game; int playerIndex;
             if (!this.GameTurnCheck(e.Client, e.Target.Target, e.Sender.Nickname, true, out game, out playerIndex)) return;
@@ -445,7 +444,7 @@ namespace GreedyDice {
         }
 
         [Command(new string[] { "pass", "dpass" }, 0, 0, "pass", "Ends your turn, keeping all the points you've won.",
-            null, CommandScope.Channel)]
+            Scope = CommandScope.Channel)]
         public void CommandPass(object sender, CommandEventArgs e) {
             Game game; int playerIndex;
             if (!this.GameTurnCheck(e.Client, e.Target.Target, e.Sender.Nickname, true, out game, out playerIndex)) return;

@@ -8,12 +8,12 @@ using CBot;
 using AnIRC;
 
 namespace PluginManager {
-    [ApiVersion(3, 6)]
-    public class PluginManagerPlugin : Plugin {
+	[ApiVersion(3, 7)]
+	public class PluginManagerPlugin : Plugin {
         public override string Name => "Plugin Manager";
 
         [Command(new string[] { "loadplugin", "load" }, 1, 2, "load [key] <file>", "Loads a plugin",
-            "me.manageplugins", CommandScope.Channel | CommandScope.PM | CommandScope.Global)]
+			Permission = "me.manageplugins")]
         public void CommandLoad(object sender, CommandEventArgs e) {
             string key; string filename; string realFilename;
             if (e.Parameters.Length == 2) {
@@ -52,7 +52,7 @@ namespace PluginManager {
         }
 
         [Command(new string[] { "saveplugin", "save" }, 1, 1, "save <key>", "Instructs a plugin to save data.",
-            "me.manageplugins", CommandScope.Channel | CommandScope.PM | CommandScope.Global)]
+			Permission = "me.manageplugins")]
         public void CommandSave(object sender, CommandEventArgs e) {
             PluginEntry plugin;
             if (Bot.Plugins.TryGetValue(e.Parameters[0], out plugin)) {
@@ -64,7 +64,7 @@ namespace PluginManager {
         }
 
         [Command(new string[] { "saveallplugins", "saveall" }, 0, 0, "saveall", "Instructs all plugins to save data.",
-            "me.manageplugins", CommandScope.Channel | CommandScope.PM | CommandScope.Global)]
+			Permission = "me.manageplugins")]
         public void CommandSaveAll(object sender, CommandEventArgs e) {
             foreach (PluginEntry pluginData in Bot.Plugins) {
                 pluginData.Obj.OnSave();
@@ -73,7 +73,7 @@ namespace PluginManager {
         }
 
         [Command(new string[] { "unloadplugin", "unload" }, 1, 1, "unload <key>", "Drops a plugin. It's impossible to actually unload it on the fly.",
-            "me.manageplugins", CommandScope.Channel | CommandScope.PM | CommandScope.Global)]
+			Permission = "me.manageplugins")]
         public void CommandUnload(object sender, CommandEventArgs e) {
             PluginEntry plugin;
             if (Bot.Plugins.TryGetValue(e.Parameters[0], out plugin)) {
@@ -85,7 +85,7 @@ namespace PluginManager {
         }
 
         [Command(new string[] { "channels", "chans", "pluginchannels", "pluginchans" }, 1, 2, "channels <plugin> [[+|-]channels]", "Views or changes a plugin's channel list.",
-            "me.manageplugins", CommandScope.Channel | CommandScope.PM | CommandScope.Global)]
+            Permission = "me.manageplugins")]
         public void CommandChannels(object sender, CommandEventArgs e) {
             PluginEntry plugin; short direction = 0;
             if (Bot.Plugins.TryGetValue(e.Parameters[0], out plugin)) {
@@ -131,7 +131,7 @@ namespace PluginManager {
         }
 
         [Command("threadstate", 1, 1, "threadstate <network>", "Shows what command an IRC read thread is currently doing.",
-            "me.debug", CommandScope.Channel | CommandScope.PM | CommandScope.Global)]
+            Permission = "me.debug")]
         public void CommandThreadState(object sender, CommandEventArgs e) {
             IrcClient client = null;
 

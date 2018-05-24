@@ -9,8 +9,8 @@ using CBot;
 using AnIRC;
 
 namespace FAQ {
-    [ApiVersion(3, 6)]
-    public class FaqPlugin : Plugin {
+	[ApiVersion(3, 7)]
+	public class FaqPlugin : Plugin {
         public List<string> NoShortcutChannels;
         public string LabelFormat = "{4}";
         public SortedDictionary<string, Factoid> Factoids;
@@ -639,7 +639,7 @@ namespace FAQ {
             this.DisplayFactoid(e.Client, e.Target.Target, target ?? e.Sender.Nickname, fields[0], fields[1], text, PM, true, e.Parameters[0].Equals(key, StringComparison.InvariantCultureIgnoreCase));
         }
 
-        [Trigger(@"^\?:(?:\s+(\S+))?", ".list")]
+        [Trigger(@"^\?:(?:\s+(\S+))?", Permission = ".list")]
         public void RegexFactoidList(object sender, TriggerEventArgs e) {
             if (!this.ShortcutCheck(e.Target)) return;
             if (e.Match.Groups[1].Success) {
@@ -650,8 +650,7 @@ namespace FAQ {
                 this.CommandFactoidList(sender, new CommandEventArgs(e.Client, e.Target, e.Sender, new string[0]));
             }
         }
-        [Command("faqlist", 0, 1, "faqlist [context]", "Displays a list of factoids.",
-            ".list")]
+        [Command("faqlist", 0, 1, "faqlist [context]", "Displays a list of factoids.", Permission = ".list")]
         public async void CommandFactoidList(object sender, CommandEventArgs e) {
             if (e.Parameters.Length == 0) {
                 try {
@@ -696,7 +695,7 @@ namespace FAQ {
             }
         }
 
-        [Trigger(@"^\?\+\s+(\S+)\s+(.+)", ".add")]
+        [Trigger(@"^\?\+\s+(\S+)\s+(.+)", Permission = ".add")]
         public void RegexFactoidAdd(object sender, TriggerEventArgs e) {
             if (!this.ShortcutCheck(e.Target)) return;
             this.CommandFactoidAdd(sender, new CommandEventArgs(e.Client, e.Target, e.Sender, new string[] {
@@ -753,7 +752,7 @@ namespace FAQ {
             }
         }
 
-        [Trigger(@"^\?@\+\s+(\S+)\s+(\S+)", ".add")]
+        [Trigger(@"^\?@\+\s+(\S+)\s+(\S+)", Permission = ".add")]
         public void RegexAliasAdd(object sender, TriggerEventArgs e) {
             if (!this.ShortcutCheck(e.Target)) return;
             this.CommandAliasAdd(sender, new CommandEventArgs(e.Client, e.Target, e.Sender, new string[] {
@@ -845,7 +844,7 @@ namespace FAQ {
             }
         }
 
-        [Trigger(@"^\?@:(?:\s+(\S+))?", ".list")]
+        [Trigger(@"^\?@:(?:\s+(\S+))?", Permission = ".list")]
         public void RegexAliasList(object sender, TriggerEventArgs e) {
             if (!this.ShortcutCheck(e.Target)) return;
             if (e.Match.Groups[1].Success) {
@@ -857,7 +856,7 @@ namespace FAQ {
             }
         }
         [Command("faqaliaslist", 0, 1, "faqaliaslist [key|context]", "List all aliases for a specified factoid, or in a specified context.",
-            ".list")]
+			Permission = ".list")]
         public async void CommandAliasList(object sender, CommandEventArgs e) {
             string target;  string displayKey; bool found; List<string> matches;
             if (e.Parameters.Length == 1) {
@@ -961,7 +960,7 @@ namespace FAQ {
             }
         }
 
-        [Trigger(@"^\?-\s+(\S+)", ".delete")]
+        [Trigger(@"^\?-\s+(\S+)", Permission = ".delete")]
         public void RegexFactoidDelete(object sender, TriggerEventArgs e) {
             if (!this.ShortcutCheck(e.Target)) return;
             this.CommandFactoidDelete(sender, new CommandEventArgs(e.Client, e.Target, e.Sender, new string[] {
@@ -1002,7 +1001,7 @@ namespace FAQ {
             e.Whisper(string.Format("Deleted the factoid {0}.", displayKey));
         }
 
-        [Trigger(@"^\?@-\s+(\S+)", ".delete")]
+        [Trigger(@"^\?@-\s+(\S+)", Permission = ".delete")]
         public void RegexAliasDelete(object sender, TriggerEventArgs e) {
             if (!this.ShortcutCheck(e.Target)) return;
             this.CommandAliasDelete(sender, new CommandEventArgs(e.Client, e.Target, e.Sender, new string[] {
@@ -1049,8 +1048,7 @@ namespace FAQ {
             }
         }
 
-        [Command("faqset", 2, 3, "faqset <key> [setting] [value]", "Changes settings for a factoid.",
-            ".faqset")]
+        [Command("faqset", 2, 3, "faqset <key> [setting] [value]", "Changes settings for a factoid.", Permission = ".faqset")]
         public async void CommandFactoidSet(object sender, CommandEventArgs e) {
             string target = e.Parameters[0];
 
@@ -1190,7 +1188,7 @@ namespace FAQ {
         }
 
         [Command("contextadd", 1, 2, "contextadd <name> [channels]", "Defines a FAQ context.\r\nA FAQ context lets you organise the FAQ data better, and also defines which channels I should listen in for regular expression triggers.",
-            ".contextadd")]
+			Permission = ".contextadd")]
         public void CommandContextAdd(object sender, CommandEventArgs e) {
             List<string> channels = new List<string>();
 
@@ -1211,7 +1209,7 @@ namespace FAQ {
         }
 
         [Command("contextlist", 0, 1, "contextlist [name]", "Lists all FAQ contexts, or all channels associated with a given context.",
-            ".contextlist")]
+			Permission = ".contextlist")]
         public void CommandContextList(object sender, CommandEventArgs e) {
             if (e.Parameters.Length == 1) {
                 string[] channels;
@@ -1250,8 +1248,7 @@ namespace FAQ {
             }
         }
 
-        [Command("contextdelete", 1, 1, "contextdelete <name>", "Deletes a FAQ context",
-            ".contextdelete")]
+        [Command("contextdelete", 1, 1, "contextdelete <name>", "Deletes a FAQ context", Permission = ".contextdelete")]
         public void CommandContextDelete(object sender, CommandEventArgs e) {
             if (this.Contexts.Remove(e.Parameters[0]))
                 e.Whisper(string.Format("Deleted the context \u0002{0}\u0002.", e.Parameters[0]));
@@ -1259,7 +1256,7 @@ namespace FAQ {
                 e.Whisper(string.Format("\u0002{0}\u0002 hasn't been defined.", e.Parameters[0]));
         }
 
-        [Trigger(@"^\?=\s+(\S+)(?:\s+(\+?\d+))?(?:\s+(.*))?", ".edit")]
+        [Trigger(@"^\?=\s+(\S+)(?:\s+(\+?\d+))?(?:\s+(.*))?", Permission = ".edit")]
         public void RegexFactoidEdit(object sender, TriggerEventArgs e) {
             if (!this.ShortcutCheck(e.Target)) return;
             if (e.Match.Groups[2].Success) {
@@ -1286,7 +1283,7 @@ namespace FAQ {
             "Allows you to edit a factoid. With only a key, shows you the numbered lines.\r\n" +
             "Specify the line number to replace it, or +number to insert a line.\r\n" +
             "You can omit the replacement line to delete a line.",
-            ".edit")]
+			Permission = ".edit")]
         public async void CommandFactoidEdit(object sender, CommandEventArgs e) {
             string target;
             Factoid factoid;
@@ -1402,7 +1399,7 @@ namespace FAQ {
             }
         }
 
-        [Trigger(@"^\?\*\+\s+(\S+)\s+(.+)", ".regex")]
+        [Trigger(@"^\?\*\+\s+(\S+)\s+(.+)", Permission = ".regex")]
         public void RegexFactoidRegexAdd(object sender, TriggerEventArgs e) {
             if (!this.ShortcutCheck(e.Target)) return;
             this.CommandFactoidRegexAdd(sender, new CommandEventArgs(e.Client, e.Target, e.Sender, new string[] {
@@ -1410,7 +1407,7 @@ namespace FAQ {
             }));
         }
         [Command("faqregexadd", 2, 2, "faqregexadd <key> [[MSG:|ACTION:|JOIN:|PART:|QUIT:|KICK:|LEAVE:|NICK:|INVITE:]<user mask>:<channel mask>:<permission>]<regex>", "Assigns a regular expression to a FAQ entry. When someone sends a message to a channel within the FAQ's context that matches the regex, the FAQ data will be displayed in the channel.",
-            ".regex")]
+			Permission = ".regex")]
         public async void CommandFactoidRegexAdd(object sender, CommandEventArgs e) {
             string target;
             Factoid factoid;
@@ -1449,7 +1446,7 @@ namespace FAQ {
             e.Whisper(string.Format("Added a regular expression {0}.", displayKey));
         }
 
-        [Trigger(@"^\?\*:\s+(\S+)", ".regex")]
+        [Trigger(@"^\?\*:\s+(\S+)", Permission = ".regex")]
         public void RegexFactoidRegexList(object sender, TriggerEventArgs e) {
             if (!this.ShortcutCheck(e.Target)) return;
             this.CommandFactoidRegexList(sender, new CommandEventArgs(e.Client, e.Target, e.Sender, new string[] {
@@ -1457,7 +1454,7 @@ namespace FAQ {
             }));
         }
         [Command("faqregexlist", 2, 2, "faqregexlist <key> [page]", "Assigns a regular expression to a FAQ entry. When someone sends a message to a channel within the FAQ's context that matches the regex, the FAQ data will be displayed in the channel.",
-            ".regex")]
+			Permission = ".regex")]
         public async void CommandFactoidRegexList(object sender, CommandEventArgs e) {
             string target;
             Factoid factoid;
@@ -1531,7 +1528,7 @@ namespace FAQ {
             }
         }
         [Command("faqregexedit", 1, 3, "faqregexedit <key> [number] [replacement]", "Allows you to edit a factoid's assigned regular expressions. With only a key, shows you the numbered expressions.",
-            ".regex")]
+			Permission = ".regex")]
         public async void CommandFactoidRegexEdit(object sender, CommandEventArgs e) {
             string target;
             Factoid factoid;
@@ -1609,7 +1606,7 @@ namespace FAQ {
             }));
         }
         [Command("faqregexdelete", 2, 2, "faqregexdelete <key> <number>", "Removes a regular expression from a factoid",
-            ".regex")]
+			Permission = ".regex")]
         public async void CommandFactoidRegexDelete(object sender, CommandEventArgs e) {
             string target;
             Factoid factoid;
@@ -1662,7 +1659,7 @@ namespace FAQ {
         }
 
         [Command(new string[] { "globalset", "set" }, 1, 2, "set [setting] [value]", "Changes settings for this plugin.",
-            ".set")]
+			Permission = ".set")]
         public void CommandSet(object sender, CommandEventArgs e) {
             if (e.Parameters.Length == 1) {
                 switch (e.Parameters[0].ToUpperInvariant()) {
@@ -1694,7 +1691,7 @@ namespace FAQ {
         }
 
         [Command("faqload", 0, 0, "faqload", "Reloads FAQ data from the file.",
-            ".reload")]
+			Permission = ".reload")]
         public void CommandLoad(object sender, CommandEventArgs e) {
             try {
                 this.Factoids.Clear();
@@ -1708,7 +1705,7 @@ namespace FAQ {
         }
 
         [Command("faqsave", 0, 0, "faqsave", "Saves FAQ data to the file.",
-            ".save")]
+			Permission = ".save")]
         public void CommandSave(object sender, CommandEventArgs e) {
             try {
                 this.SaveData(this.Key == "FAQ" ? "FAQ.ini" : "FAQ-" + this.Key + ".ini");

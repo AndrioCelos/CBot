@@ -4,12 +4,12 @@ using CBot;
 using AnIRC;
 
 namespace BotControl {
-    [ApiVersion(3, 6)]
+    [ApiVersion(3, 7)]
     public class BotControlPlugin : Plugin {
         public override string Name => "Bot Control";
 
         [Command("connect", 0, 1, "connect [server]", "Connects to a server, or, with no parameter, lists all servers I'm on.",
-            "me.connect", CommandScope.Channel | CommandScope.PM | CommandScope.Global)]
+			Permission = "me.connect")]
         public void CommandConnect(object sender, CommandEventArgs e) {
             if (e.Parameters.Length == 0) {
                 e.Reply("I'm connected to the following servers:");
@@ -73,7 +73,7 @@ namespace BotControl {
         }
 
         [Command("join", 1, 2, "join [server address] <channel>", "Instructs me to join a channel on IRC.",
-            "me.ircsend", CommandScope.Channel | CommandScope.PM | CommandScope.Global)]
+			Permission = "me.ircsend")]
         public void CommandJoin(object sender, CommandEventArgs e) {
             IrcClient targetConnection; string targetChannel;
 
@@ -113,7 +113,7 @@ namespace BotControl {
         }
 
         [Command("part", 1, 3, "part [server address] <channel> [message]", "Instructs me to leave a channel on IRC.",
-            "me.ircsend", CommandScope.Channel | CommandScope.PM | CommandScope.Global)]
+			Permission = "me.ircsend")]
         public void CommandPart(object sender, CommandEventArgs e) {
             IrcClient targetConnection; string targetAddress; string targetChannel; string message;
 
@@ -175,7 +175,7 @@ namespace BotControl {
         }
 
         [Command("quit", 1, 2, "quit [server address] [message]", "Instructs me to quit an IRC server.",
-            "me.ircsend", CommandScope.Channel | CommandScope.PM | CommandScope.Global)]
+			Permission = "me.ircsend")]
         public void CommandQuit(object sender, CommandEventArgs e) {
             IrcClient targetConnection; string targetAddress; string message;
 
@@ -223,7 +223,7 @@ namespace BotControl {
         }
 
         [Command("disconnect", 1, 2, "disconnect [server address] [message]", "Instructs me to drop my connection to an IRC server.",
-            "me.ircsend", CommandScope.Channel | CommandScope.PM | CommandScope.Global)]
+			Permission = "me.ircsend")]
         public void CommandDisconnect(object sender, CommandEventArgs e) {
             IrcClient targetConnection; string targetAddress; string message;
 
@@ -270,7 +270,7 @@ namespace BotControl {
         }
 
         [Command("raw", 1, 2, "raw [server] <message>", "Sends a raw command to the server.",
-            "me.ircsend", CommandScope.Channel | CommandScope.PM | CommandScope.Global)]
+			Permission = "me.ircsend")]
         public void CommandRaw(object sender, CommandEventArgs e) {
             IrcClient targetConnection; string targetAddress; string command;
 
@@ -309,7 +309,7 @@ namespace BotControl {
         }
 
         [Command("die", 1, 1, "die [message]", "Shuts me down",
-            "me.die", CommandScope.Channel | CommandScope.PM | CommandScope.Global)]
+			Permission = "me.die")]
         public void CommandDie(object sender, CommandEventArgs e) {
             string message;
 
@@ -329,7 +329,7 @@ namespace BotControl {
         }
 
         [Command("reload", 0, 1, "Reloads configuration files.", "reload config|plugins|users",
-            "me.reload", CommandScope.Channel | CommandScope.PM | CommandScope.Global)]
+			Permission = "me.reload")]
         public void CommandReload(object sender, CommandEventArgs e) {
             if (e.Parameters.Length == 0 || e.Parameters[0].Equals("config", StringComparison.InvariantCultureIgnoreCase)) {
                 e.Reply("Reloading configuration.");
@@ -346,7 +346,7 @@ namespace BotControl {
         }
 
 #if (DEBUG)
-        [Command("whois", 1, 1, "whois <nickname>", "Tests asynchronous commands.", ".debug")]
+        [Command("whois", 1, 1, "whois <nickname>", "Tests asynchronous commands.", Permission = ".debug")]
         public async void CommandWhois(object sender, CommandEventArgs e) {
 			IrcUser user;
             if (e.Client.Users.TryGetValue(e.Parameters[0], out user)) {
@@ -355,7 +355,7 @@ namespace BotControl {
             }
         }
 
-        [Command("names", 1, 2, "names [server] <channel>", "Lists users on a channel.", ".debug")]
+        [Command("names", 1, 2, "names [server] <channel>", "Lists users on a channel.", Permission = ".debug")]
         public void CommandNames(object sender, CommandEventArgs e) {
             IrcClient targetClient; string targetChannel;
 
@@ -381,7 +381,7 @@ namespace BotControl {
             e.Whisper(string.Join(" ", targetClient.Channels[targetChannel].Users.Select(user => Colours.Gray + user.Status.GetPrefixes() + Colours.Reset + user.Nickname)));
         }
 
-        [Command("who", 1, 2, "who [server] <nickname>", "Returns a user's hostmask.", ".debug")]
+        [Command("who", 1, 2, "who [server] <nickname>", "Returns a user's hostmask.", Permission = ".debug")]
         public void CommandWho(object sender, CommandEventArgs e) {
             IrcClient targetClient; string targetNickname;
 
@@ -407,7 +407,7 @@ namespace BotControl {
             e.Whisper(string.Join(" ", targetClient.Users[targetNickname].ToString()));
         }
 
-        [Command("channels", 1, 2, "channels [server] <nickname>", "Lists channels a user is on.", ".debug")]
+        [Command("channels", 1, 2, "channels [server] <nickname>", "Lists channels a user is on.", Permission = ".debug")]
         public void CommandChannels(object sender, CommandEventArgs e) {
             IrcClient targetClient; string targetNickname;
 

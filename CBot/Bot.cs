@@ -64,7 +64,7 @@ namespace CBot {
         private static ConsoleClient consoleClient;
 
         /// <summary>The minimum compatible plugin API version with this version of CBot.</summary>
-        public static readonly Version MinPluginVersion = new Version(3, 6);
+        public static readonly Version MinPluginVersion = new Version(3, 7);
 
         /// <summary>Indicates whether there are any NickServ-based permissions.</summary>
         internal static bool commandCallbackNeeded;
@@ -1106,6 +1106,16 @@ namespace CBot {
 				plugin.Key = entry.Key;
                 plugin.Channels = entry.Channels ?? new string[0];
 				entry.Obj = plugin;
+
+				foreach (var command in plugin.Commands.Values) {
+					command.Attribute.plugin = plugin;
+					try {
+						command.Attribute.SetPriorityHandler();
+					} catch (Exception ex) {
+						throw new InvalidPluginException(entry.Filename, $"Could not resolve the command priority handler of {command.Attribute.Names[0]}.", ex);
+					}
+				}
+
                 Plugins.Add(entry);
 
                 x2 = Console.CursorLeft; y2 = Console.CursorTop;
@@ -1387,61 +1397,149 @@ namespace CBot {
 			NewPlugins = null;
 		}
 
-		/// <summary>Runs a global command (/plugin:command) in a message.</summary>
+		private static async Task<(Plugin plugin, Command command)?> GetCommand(IrcUser sender, IrcMessageTarget target, string pluginKey, string label, string parameters) {
+			IEnumerable<PluginEntry> plugins;
+
+			if (pluginKey != null) {
+				PluginEntry plugin;
+				if (Bot.Plugins.TryGetValue(pluginKey, out plugin)) {
+					plugins = new[] { plugin };
+				} else
+					return null;
+			} else
+				plugins = Bot.Plugins;
+
+			// Find matching commands.
+			var e = new CommandEventArgs(sender.Client, target, sender, null);
+			var commands = new Heap<(PluginEntry plugin, Command command, int priority)>(Comparer<(PluginEntry plugin, Command command, int priority)>.Create((c1, c2) =>
+				c1.priority.CompareTo(c2.priority)
+			));
+
+			foreach (var plugin in plugins) {
+				var commands2 = await plugin.Obj.CheckCommands(sender, target, label, parameters, pluginKey != null);
+				foreach (var command2 in commands2) {
+					commands.Enqueue((plugin, command2, command2.Attribute.PriorityHandler.Invoke(e)));
+				}
+			}
+
+			if (commands.Count == 0) return null;
+
+			// Execute the command with highest priority.
+			var commandEntry = commands.Peek();
+			return (commandEntry.plugin.Obj, commandEntry.command);
+		}
+
+		/// <summary>Runs a command (/command or /plugin:command) in a message.</summary>
 		/// <param name="sender">The user sending the message.</param>
 		/// <param name="target">The target of the event: the sender or a channel.</param>
 		/// <param name="message">The message text.</param>
 		private static async Task<bool> CheckCommands(IrcUser sender, IrcMessageTarget target, string message) {
-            // Check commands.
-            string commandString; string prefix; string label; string parameters;
-            if (IsCommand(target as IrcChannel, message, out commandString, out prefix)) {
-                int pos = commandString.IndexOf(' ');
-                if (pos == -1) {
-                    label = commandString;
-                    parameters = null;
-                } else {
-                    label = commandString.Substring(0, pos);
-                    parameters = commandString.Substring(pos + 1);
-                }
+			if (!IsCommand(target, message, out var pluginKey, out var label, out var prefix, out var parameters)) return false;
 
-                int pos2 = label.IndexOf(':');
-                if (pos2 != -1) {
-                    PluginEntry plugin;
-					if (Bot.Plugins.TryGetValue(label.Substring(0, pos2), out plugin)) {
-						label = label.Substring(pos2 + 1);
-						var command = plugin.Obj.GetCommand(target, label);
-						if (command != null) {
-							await plugin.Obj.RunCommand(sender, target, command, parameters, false);
-							return true;
-						}
-					}
-                }
-            }
+			var command = await GetCommand(sender, target, pluginKey, label, parameters);
+			if (command == null) return false;
+
+			// Check for permissions.
+			var attribute = command.Value.command.Attribute;
+			string permission;
+			if (attribute.Permission == null)
+				permission = null;
+			else if (attribute.Permission != "" && attribute.Permission.StartsWith("."))
+				permission = command.Value.plugin.Key + attribute.Permission;
+			else
+				permission = attribute.Permission;
+
+			try {
+				if (permission != null && !await Bot.CheckPermissionAsync(sender, permission)) {
+					if (attribute.NoPermissionsMessage != null) Bot.Say(sender.Client, sender.Nickname, attribute.NoPermissionsMessage);
+					return true;
+				}
+
+				// Parse the parameters.
+				string[] fields = parameters?.Split((char[]) null, attribute.MaxArgumentCount, StringSplitOptions.RemoveEmptyEntries)
+									  ?? new string[0];
+				if (fields.Length < attribute.MinArgumentCount) {
+					Bot.Say(sender.Client, sender.Nickname, "Not enough parameters.");
+					Bot.Say(sender.Client, sender.Nickname, string.Format("The correct syntax is \u000312{0}\u000F.", attribute.Syntax.ReplaceCommands(sender.Client, target.Target)));
+					return true;
+				}
+
+				// Run the command.
+				// TODO: Run it on a separate thread?
+				var entry = Bot.GetClientEntry(sender.Client);
+				try {
+					entry.CurrentPlugin = command.Value.plugin;
+					entry.CurrentProcedure = command.Value.command.Handler.GetMethodInfo();
+					CommandEventArgs e = new CommandEventArgs(sender.Client, target, sender, fields);
+					command.Value.command.Handler.Invoke(command.Value.plugin, e);
+				} catch (Exception ex) {
+					Bot.LogError(command.Value.plugin.Key, command.Value.command.Handler.GetMethodInfo().Name, ex);
+					while (ex is TargetInvocationException || ex is AggregateException) ex = ex.InnerException;
+					Bot.Say(sender.Client, target.Target, "\u00034The command failed. This incident has been logged. ({0})", ex.Message.Replace('\n', ' '));
+				}
+				entry.CurrentPlugin = null;
+				entry.CurrentProcedure = null;
+			} catch (AsyncRequestDisconnectedException) {
+			} catch (AsyncRequestErrorException ex) {
+				sender.Say("\u00034There was a problem looking up your account name: " + ex.Message);
+			}
+
+			return true;
+		}
+
+		/// <summary>Runs triggers matched by a message.</summary>
+		/// <param name="sender">The user sending the message.</param>
+		/// <param name="target">The target of the event: the sender or a channel.</param>
+		/// <param name="message">The message text.</param>
+		private static async Task<bool> CheckTriggers(IrcUser sender, IrcMessageTarget target, string message) {
+			foreach (var pluginEntry in Bot.Plugins) {
+				var result = await pluginEntry.Obj.CheckTriggers(sender, target, message);
+				if (result) return true;
+			}
 			return false;
-        }
+		}
 
-        public static bool IsCommand(IrcMessageTarget target, string message) => Bot.IsCommand(target, message, out message, out message);
-        public static bool IsCommand(IrcMessageTarget target, string message, out string command, out string prefix) {
+		public static bool IsCommand(IrcMessageTarget target, string message) => Bot.IsCommand(target, message, out _, out _, out _, out _);
+        public static bool IsCommand(IrcMessageTarget target, string message, out string plugin, out string label, out string prefix, out string parameters) {
             Match match = Regex.Match(message, @"^" + Regex.Escape(target?.Client?.Me?.Nickname ?? Bot.DefaultNicknames[0]) + @"\.*[:,-]? ", RegexOptions.IgnoreCase);
             if (match.Success) message = message.Substring(match.Length);
 
+			prefix = null;
             foreach (string p in Bot.GetCommandPrefixes(target as IrcChannel)) {
                 if (message.StartsWith(p)) {
-                    command = message.Substring(p.Length);
+                    message = message.Substring(p.Length);
                     prefix = p;
-                    return true;
+					break;
                 }
             }
 
-            if (match.Success) {
-                command = message;
-                prefix = "";
-                return true;
+            if (prefix == null && !match.Success) {
+				label = null;
+				plugin = null;
+				parameters = null;
+				return false;
             }
 
-            command = null;
-            prefix = null;
-            return false;
+			var pos = message.IndexOf(' ');
+			if (pos >= 0) {
+				label = message.Substring(0, pos);
+				do {
+					++pos;
+				} while (pos < message.Length && message[pos] == ' ');
+				parameters = message.Substring(pos);
+			} else {
+				parameters = null;
+				label = message;
+			}
+
+			pos = label.IndexOf(":");
+			if (pos >= 0) {
+				plugin = label.Substring(0, pos);
+				label = label.Substring(pos + 1);
+			} else
+				plugin = null;
+
+            return true;
         }
 
         /// <summary>
@@ -2025,13 +2123,10 @@ namespace CBot {
 		private static void OnCapabilitiesAdded(object sender, CapabilitiesAddedEventArgs e)           { foreach (var entry in Bot.Plugins) if (entry.Obj.OnCapabilitiesAdded(sender, e)) return; }
         private static void OnCapabilitiesDeleted(object sender, CapabilitiesEventArgs e)              { foreach (var entry in Bot.Plugins) if (entry.Obj.OnCapabilitiesDeleted(sender, e)) return; }
 		private static async void OnChannelAction(object sender, ChannelMessageEventArgs e) {
-            foreach (var entry in Bot.Plugins) {
-                if (entry.Obj.OnChannelAction(sender, e)) return;
-                if (entry.Obj.IsActiveChannel(e.Channel) && await entry.Obj.CheckCommands(e.Sender, e.Channel, e.Message)) return;
-            }
-            Bot.CheckCommands(e.Sender, e.Channel, e.Message);
-        }
-        private static void OnChannelAdmin(object sender, ChannelStatusChangedEventArgs e)             { foreach (var entry in Bot.Plugins) if (entry.Obj.OnChannelAdmin(sender, e)) return; }
+			foreach (var entry in Bot.Plugins) if (entry.Obj.OnChannelAction(sender, e)) return;
+			if (await Bot.CheckTriggers(e.Sender, e.Channel, "ACTION " + e.Message)) return;
+		}
+		private static void OnChannelAdmin(object sender, ChannelStatusChangedEventArgs e)             { foreach (var entry in Bot.Plugins) if (entry.Obj.OnChannelAdmin(sender, e)) return; }
         private static void OnChannelBan(object sender, ChannelListChangedEventArgs e)                 { foreach (var entry in Bot.Plugins) if (entry.Obj.OnChannelBan(sender, e)) return; }
         private static void OnChannelBanList(object sender, ChannelModeListEventArgs e)                { foreach (var entry in Bot.Plugins) if (entry.Obj.OnChannelBanList(sender, e)) return; }
         private static void OnChannelBanListEnd(object sender, ChannelModeListEndEventArgs e)          { foreach (var entry in Bot.Plugins) if (entry.Obj.OnChannelBanListEnd(sender, e)) return; }
@@ -2110,9 +2205,9 @@ namespace CBot {
         private static async void OnChannelMessage(object sender, ChannelMessageEventArgs e) {
             foreach (var entry in Bot.Plugins) {
                 if (entry.Obj.OnChannelMessage(sender, e)) return;
-                if (entry.Obj.IsActiveChannel(e.Channel) && await entry.Obj.CheckCommands(e.Sender, e.Channel, e.Message)) return;
             }
-            await Bot.CheckCommands(e.Sender, e.Channel, e.Message);
+			if (await Bot.CheckCommands(e.Sender, e.Channel, e.Message)) return;
+			if (await Bot.CheckTriggers(e.Sender, e.Channel, e.Message)) return;
         }
         private static void OnChannelMessageDenied(object sender, ChannelJoinDeniedEventArgs e)        { foreach (var entry in Bot.Plugins) if (entry.Obj.OnChannelMessageDenied(sender, e)) return; }
         private static void OnChannelModeChanged(object sender, ChannelModeChangedEventArgs e)         { foreach (var entry in Bot.Plugins) if (entry.Obj.OnChannelModeChanged(sender, e)) return; }
@@ -2186,23 +2281,20 @@ namespace CBot {
         private static void OnPingReply(object sender, PingEventArgs e)                                { foreach (var entry in Bot.Plugins) if (entry.Obj.OnPingReply(sender, e)) return; }
         private static void OnPingRequest(object sender, PingEventArgs e)                              { foreach (var entry in Bot.Plugins) if (entry.Obj.OnPingRequest(sender, e)) return; }
         private static async void OnPrivateAction(object sender, PrivateMessageEventArgs e) {
-            foreach (var entry in Bot.Plugins) {
-                if (entry.Obj.OnPrivateAction(sender, e)) return;
-                if (entry.Obj.IsActivePM(e.Sender) && await entry.Obj.CheckCommands(e.Sender, e.Sender, e.Message)) return;
-            }
-            await Bot.CheckCommands(e.Sender, e.Sender, e.Message);
-        }
-        private static void OnPrivateCTCP(object sender, PrivateMessageEventArgs e) {
+			foreach (var entry in Bot.Plugins) if (entry.Obj.OnPrivateAction(sender, e)) return;
+			if (await Bot.CheckTriggers(e.Sender, e.Sender, "ACTION " + e.Message)) return;
+		}
+		private static void OnPrivateCTCP(object sender, PrivateMessageEventArgs e) {
             foreach (var entry in Bot.Plugins) if (entry.Obj.OnPrivateCTCP(sender, e)) return;
             Bot.OnCTCPMessage((IrcClient) sender, e.Sender.Nickname, e.Message);
         }
         private static async void OnPrivateMessage(object sender, PrivateMessageEventArgs e) {
             foreach (var entry in Bot.Plugins) {
                 if (entry.Obj.OnPrivateMessage(sender, e)) return;
-                if (entry.Obj.IsActivePM(e.Sender) && await entry.Obj.CheckCommands(e.Sender, e.Sender, e.Message)) return;
             }
-            await Bot.CheckCommands(e.Sender, e.Sender, e.Message);
-            Bot.NickServCheck((IrcClient) sender, e.Sender, e.Message);
+			if (await Bot.CheckCommands(e.Sender, e.Sender, e.Message)) return;
+			if (await Bot.CheckTriggers(e.Sender, e.Sender, e.Message)) return;
+			Bot.NickServCheck((IrcClient) sender, e.Sender, e.Message);
         }
         private static void OnPrivateNotice(object sender, PrivateMessageEventArgs e) {
             foreach (var entry in Bot.Plugins) if (entry.Obj.OnPrivateNotice(sender, e)) return;

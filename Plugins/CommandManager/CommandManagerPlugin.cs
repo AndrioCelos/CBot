@@ -9,14 +9,13 @@ using CBot;
 using AnIRC;
 
 namespace CommandManager {
-    [ApiVersion(3, 6)]
+    [ApiVersion(3, 7)]
     public class CommandManagerPlugin : Plugin {
         private Dictionary<string, Tuple<string, DateTime>> commandListCache = new Dictionary<string, Tuple<string, DateTime>>();
 
         public override string Name => "Command Manager";
 
-        [Command("addalias", 2, 2, "addalias <alias> <command>", "Adds an alias to a command.",
-            ".addalias", CommandScope.Global | CommandScope.Channel | CommandScope.PM)]
+        [Command("addalias", 2, 2, "addalias <alias> <command>", "Adds an alias to a command.", Permission = ".addalias")]
         public async void CommandAddAlias(object sender, CommandEventArgs e) {
             string alias = e.Parameters[1];
             Command command;
@@ -58,8 +57,7 @@ namespace CommandManager {
             }
         }
 
-        [Command("delalias", 2, 2, "delalias <alias>", "Removes an alias from a command.",
-            ".delalias", CommandScope.Global | CommandScope.Channel | CommandScope.PM)]
+        [Command("delalias", 2, 2, "delalias <alias>", "Removes an alias from a command.", Permission = ".delalias")]
         public async void CommandDeleteAlias(object sender, CommandEventArgs e) {
             string alias = e.Parameters[0];
             Command command;
@@ -101,7 +99,7 @@ namespace CommandManager {
         }
 
         [Command("addtrigger", 1, 1, "addtrigger /<regex>/ <command>", "Sets up a trigger that runs a command.",
-            ".addtrigger", CommandScope.Global | CommandScope.Channel | CommandScope.PM)]
+			Permission = ".addtrigger")]
         public async void CommandAddTrigger(object sender, CommandEventArgs e) {
             var match = Regex.Match(e.Parameters[0], @"(?:/(\\.|[^\/])*/)?(\S+)(?>\s+)(.+)");
             if (!match.Success) return;
