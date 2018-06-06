@@ -1397,7 +1397,7 @@ namespace CBot {
 			NewPlugins = null;
 		}
 
-		private static async Task<(Plugin plugin, Command command)?> GetCommand(IrcUser sender, IrcMessageTarget target, string pluginKey, string label, string parameters) {
+		public static async Task<(Plugin plugin, Command command)?> GetCommand(IrcUser sender, IrcMessageTarget target, string pluginKey, string label, string parameters) {
 			IEnumerable<PluginEntry> plugins;
 
 			if (pluginKey != null) {
@@ -1407,7 +1407,7 @@ namespace CBot {
 				} else
 					return null;
 			} else
-				plugins = Bot.Plugins;
+				plugins = Bot.Plugins.Where(p => p.Obj.IsActiveTarget(target));
 
 			// Find matching commands.
 			var e = new CommandEventArgs(sender.Client, target, sender, null);
@@ -1492,7 +1492,7 @@ namespace CBot {
 		/// <param name="target">The target of the event: the sender or a channel.</param>
 		/// <param name="message">The message text.</param>
 		private static async Task<bool> CheckTriggers(IrcUser sender, IrcMessageTarget target, string message) {
-			foreach (var pluginEntry in Bot.Plugins) {
+			foreach (var pluginEntry in Bot.Plugins.Where(p => p.Obj.IsActiveTarget(target))) {
 				var result = await pluginEntry.Obj.CheckTriggers(sender, target, message);
 				if (result) return true;
 			}
