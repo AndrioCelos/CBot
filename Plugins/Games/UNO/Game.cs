@@ -119,7 +119,7 @@ namespace UNO {
                     try {
                         // Send the request to random.org.
                         var response = Plugin.randomClient.GenerateIntegers(this.Discards.Count, 0, this.Discards.Count - 1, true, false);
-                        deal = new GameRecord.Shuffle() { cards = cards, random = response.RandomObject["random"], signature = response.Signature };
+                        deal = new GameRecord.Shuffle() { cards = cards, random = response.RPCObject, signature = response.Signature };
 
                         this.Deck.Clear();
                         foreach (var i in response.Integers) {

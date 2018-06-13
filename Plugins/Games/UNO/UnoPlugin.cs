@@ -11,7 +11,7 @@ using System.Timers;
 using CBot;
 using AnIRC;
 
-using Demot.RandomOrgApi;
+using Demot.RandomOrgJsonRPC;
 
 using Timer = System.Timers.Timer;
 
@@ -48,7 +48,7 @@ namespace UNO {
         public LeaderboardMode JSONLeaderboard;
 
         public int GameCount { get; set; }
-        internal RandomOrgApiClient randomClient;
+        internal RandomJsonRPCClient randomClient;
 
         // Game rules
         public bool AIEnabled;
@@ -187,7 +187,7 @@ namespace UNO {
             this.LoadStats();
 
             if (this.RandomOrgAPIKey != null) {
-                this.randomClient = new RandomOrgApiClient(this.RandomOrgAPIKey, this.UserAgent) {
+                this.randomClient = new RandomJsonRPCClient(this.RandomOrgAPIKey, this.UserAgent) {
                     MaxBlockingTime = 10000
                 };
             }

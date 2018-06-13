@@ -52,13 +52,16 @@
     <WarningLevel>4</WarningLevel>
   </PropertyGroup>
   <ItemGroup>
-    <Reference Include="Newtonsoft.Json, Version=10.0.0.0, Culture=neutral, PublicKeyToken=30ad4fe6b2a6aeed, processorArchitecture=MSIL">
-      <HintPath>..\..\..\packages\Newtonsoft.Json.10.0.3\lib\net45\Newtonsoft.Json.dll</HintPath>
+    <Reference Include="Newtonsoft.Json, Version=11.0.0.0, Culture=neutral, PublicKeyToken=30ad4fe6b2a6aeed, processorArchitecture=MSIL">
+      <HintPath>..\..\..\packages\Newtonsoft.Json.11.0.2\lib\net45\Newtonsoft.Json.dll</HintPath>
     </Reference>
     <Reference Include="System" />
-    <Reference Include="Demot.RandomOrgApi">
-      <HintPath>References\Demot.RandomOrgApi.dll</HintPath>
-    </Reference>
+    <Reference Include="System.ComponentModel.Composition" />
+    <Reference Include="System.IO.Compression" />
+    <Reference Include="System.Net.Http" />
+    <Reference Include="System.Numerics" />
+    <Reference Include="System.Xml" />
+    <Reference Include="System.Xml.Linq" />
   </ItemGroup>
   <ItemGroup>
     <Compile Include="Card.cs" />
@@ -77,8 +80,12 @@
       <Name>AnIRC</Name>
     </ProjectReference>
     <ProjectReference Include="..\..\..\CBot\CBot.csproj">
-      <Project>{C734F450-74BA-4ECF-AB7B-3B5ED3E4CD76}</Project>
+      <Project>{443cf20b-2ec3-4e17-aced-0b741df4b8f6}</Project>
       <Name>CBot</Name>
+    </ProjectReference>
+    <ProjectReference Include="..\..\..\References\RandomOrgJson-RPC\Api\Demot.RandomOrgJsonRPC.csproj">
+      <Project>{a685522e-1383-4f8c-b0ab-429ee56268c5}</Project>
+      <Name>Demot.RandomOrgJsonRPC</Name>
     </ProjectReference>
   </ItemGroup>
   <ItemGroup>
