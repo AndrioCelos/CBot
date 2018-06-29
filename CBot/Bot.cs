@@ -111,12 +111,18 @@ namespace CBot {
             if (client == null) {
                 return Bot.GetCommandPrefixes(channel);
             } else {
-                return Bot.GetCommandPrefixes(client.Extensions.NetworkName + "/" + channel);
+                return Bot.GetCommandPrefixes(client.NetworkName + "/" + channel);
             }
         }
+		/// <summary>Returns the command prefixes in use in a specified channel.</summary>
+		/// <param name="target">The channel or query target to check.</param>
+		/// <returns>The specified channel's command prefixes, or the default set if no custom set is present.</returns>
+		public static string[] GetCommandPrefixes(IrcMessageTarget target) {
+			return Bot.GetCommandPrefixes(target.Client.NetworkName + "/" + target.Target);
+		}
 
-        /// <summary>Sets up an IRC network configuration and adds it to the list of loaded networks.</summary>
-        public static void AddNetwork(ClientEntry network) {
+		/// <summary>Sets up an IRC network configuration and adds it to the list of loaded networks.</summary>
+		public static void AddNetwork(ClientEntry network) {
             SetUpNetwork(network);
             IrcClientAdded?.Invoke(null, new IrcClientEventArgs(network));
             Clients.Add(network);
@@ -1434,7 +1440,7 @@ namespace CBot {
 		/// <param name="target">The target of the event: the sender or a channel.</param>
 		/// <param name="message">The message text.</param>
 		private static async Task<bool> CheckCommands(IrcUser sender, IrcMessageTarget target, string message) {
-			if (!IsCommand(target, message, out var pluginKey, out var label, out var prefix, out var parameters)) return false;
+			if (!IsCommand(target, message, target is IrcChannel, out var pluginKey, out var label, out var prefix, out var parameters)) return false;
 
 			var command = await GetCommand(sender, target, pluginKey, label, parameters);
 			if (command == null) return false;
@@ -1460,7 +1466,7 @@ namespace CBot {
 									  ?? new string[0];
 				if (fields.Length < attribute.MinArgumentCount) {
 					Bot.Say(sender.Client, sender.Nickname, "Not enough parameters.");
-					Bot.Say(sender.Client, sender.Nickname, string.Format("The correct syntax is \u000312{0}\u000F.", attribute.Syntax.ReplaceCommands(sender.Client, target.Target)));
+					Bot.Say(sender.Client, sender.Nickname, string.Format("The correct syntax is \u0002{0}\u000F.", attribute.Syntax.ReplaceCommands(target)));
 					return true;
 				}
 
@@ -1499,8 +1505,8 @@ namespace CBot {
 			return false;
 		}
 
-		public static bool IsCommand(IrcMessageTarget target, string message) => Bot.IsCommand(target, message, out _, out _, out _, out _);
-        public static bool IsCommand(IrcMessageTarget target, string message, out string plugin, out string label, out string prefix, out string parameters) {
+		public static bool IsCommand(IrcMessageTarget target, string message, bool requirePrefix) => Bot.IsCommand(target, message, requirePrefix, out _, out _, out _, out _);
+        public static bool IsCommand(IrcMessageTarget target, string message, bool requirePrefix, out string plugin, out string label, out string prefix, out string parameters) {
             Match match = Regex.Match(message, @"^" + Regex.Escape(target?.Client?.Me?.Nickname ?? Bot.DefaultNicknames[0]) + @"\.*[:,-]? ", RegexOptions.IgnoreCase);
             if (match.Success) message = message.Substring(match.Length);
 
@@ -1513,7 +1519,7 @@ namespace CBot {
                 }
             }
 
-            if (prefix == null && !match.Success) {
+            if (prefix == null && !match.Success && requirePrefix) {
 				label = null;
 				plugin = null;
 				parameters = null;
@@ -2094,30 +2100,34 @@ namespace CBot {
             Bot.Say(client, channel, string.Format(format, args), options);
         }
 
-        /// <summary>Replaces commands prefixed with a ! in the given text with the correct command prefix.</summary>
-        /// <param name="text">The text to edit.</param>
-        /// <param name="client">The IRC connection on which the channel to use a command prefix for is.</param>
-        /// <param name="channel">The channel to use a command prefix for.</param>
-        /// <returns>A copy of text with commands prefixed with a ! replaced with the correct command prefix.</returns>
-        /// <remarks>This method will also correctly replace commands prefixed with an IRC formatting code followed by a !.</remarks>
-        public static string ReplaceCommands(this string text, IrcClient client, string channel) {
-            return Bot.ReplaceCommands(text, client, channel, "!");
-        }
-        /// <summary>Replaces commands in the given text with the correct command prefix.</summary>
-        /// <param name="text">The text to edit.</param>
-        /// <param name="client">The IRC connection on which the channel to use a command prefix for is.</param>
-        /// <param name="channel">The channel to use a command prefix for.</param>
-        /// <param name="prefix">The command prefix to replace in the text.</param>
-        /// <returns>A copy of text with commands prefixed with the given prefix replaced with the correct command prefix.</returns>
-        /// <remarks>This method will also correctly replace commands prefixed with an IRC formatting code followed by the given prefix.</remarks>
-        public static string ReplaceCommands(this string text, IrcClient client, string channel, string prefix) {
-            string replace = Bot.GetCommandPrefixes(client, channel)[0].ToString();
-            if (replace == "$") replace = "$$";
-            return Regex.Replace(text, @"(?<=(?:^|[\s\x00-\x20])(?:\x03(\d{0,2}(,\d{1,2})?)?|[\x00-\x1F])?)" + Regex.Escape(prefix) + @"(?=(?:\x03(\d{0,2}(,\d{1,2})?)?|[\x00-\x1F])?\w)", replace);
-        }
+		/// <summary>Replaces commands in the given text with the correct command prefix.</summary>
+		/// <param name="text">The text to edit.</param>
+		/// <param name="target">The channel to use a command prefix for.</param>
+		/// <returns>A copy of text with commands prefixed with the given prefix replaced with the correct command prefix.</returns>
+		/// <remarks>This method will also correctly replace commands prefixed with an IRC formatting code followed by the given prefix.</remarks>
+		public static string ReplaceCommands(this string text, IrcMessageTarget target)
+			=> ReplaceCommands(text, "!", Bot.GetCommandPrefixes(target)[0].ToString());
+		/// <summary>Replaces commands in the given text with the correct command prefix.</summary>
+		/// <param name="text">The text to edit.</param>
+		/// <param name="target">The channel to use a command prefix for.</param>
+		/// <param name="oldPrefix">The command prefix to replace in the text.</param>
+		/// <returns>A copy of text with commands prefixed with the given prefix replaced with the correct command prefix.</returns>
+		/// <remarks>This method will also correctly replace commands prefixed with an IRC formatting code followed by the given prefix.</remarks>
+		public static string ReplaceCommands(this string text, IrcMessageTarget target, string oldPrefix)
+			=> ReplaceCommands(text, oldPrefix, Bot.GetCommandPrefixes(target)[0].ToString());
+		/// <summary>Replaces commands in the given text with the correct command prefix.</summary>
+		/// <param name="text">The text to edit.</param>
+		/// <param name="oldPrefix">The command prefix to replace in the text.</param>
+		/// <param name="newPrefix">The command prefix to substitute.</param>
+		/// <returns>A copy of <paramref name="text"/> with commands prefixed with the given prefix replaced with the correct command prefix.</returns>
+		/// <remarks>This method will also correctly replace commands prefixed with an IRC formatting code followed by the given prefix.</remarks>
+		public static string ReplaceCommands(this string text, string oldPrefix, string newPrefix) {
+			if (newPrefix == "$") newPrefix = "$$";  // '$' must be escaped in the regex substitution.
+			return Regex.Replace(text, @"(?<=(?:^|[\s\x00-\x20])(?:\x03(\d{0,2}(,\d{1,2})?)?|[\x00-\x1F])?)" + Regex.Escape(oldPrefix) + @"(?=(?:\x03(\d{0,2}(,\d{1,2})?)?|[\x00-\x1F])?\w)", newPrefix);
+		}
 
-        #region Event handlers
-        private static void OnAwayCancelled(object sender, AwayEventArgs e)                            { foreach (var entry in Bot.Plugins) if (entry.Obj.OnAwayCancelled(sender, e)) return; }
+		#region Event handlers
+		private static void OnAwayCancelled(object sender, AwayEventArgs e)                            { foreach (var entry in Bot.Plugins) if (entry.Obj.OnAwayCancelled(sender, e)) return; }
         private static void OnAwayMessage(object sender, AwayMessageEventArgs e)                       { foreach (var entry in Bot.Plugins) if (entry.Obj.OnAwayMessage(sender, e)) return; }
         private static void OnAwaySet(object sender, AwayEventArgs e)                                  { foreach (var entry in Bot.Plugins) if (entry.Obj.OnAwaySet(sender, e)) return; }
 		private static void OnCapabilitiesAdded(object sender, CapabilitiesAddedEventArgs e)           { foreach (var entry in Bot.Plugins) if (entry.Obj.OnCapabilitiesAdded(sender, e)) return; }

@@ -15,6 +15,7 @@ using CBot;
 using AnIRC;
 
 using Timer = System.Timers.Timer;
+using Newtonsoft.Json;
 
 namespace BattleBot {
     [ApiVersion(3, 7)]
@@ -176,6 +177,12 @@ namespace BattleBot {
         }
 
         public override void Initialize() {
+			if (this.Channels.All(s => s == "*" || s.EndsWith("/*"))) {
+				Console.WriteLine("There seems to be no Arena channel assigned.");
+				Console.WriteLine("The first non-wildcard channel listed for this plugin in the bot's config will be used as the Arena channel.");
+				throw new InvalidOperationException("No valid Arena channel is assigned.");
+			}
+
             this.ArenaNickname = "BattleArena";
             this.OwnCharacters = new Dictionary<string, OwnCharacter>(StringComparer.OrdinalIgnoreCase);
             this.Characters = new Dictionary<string, Character>(StringComparer.OrdinalIgnoreCase);
@@ -199,7 +206,7 @@ namespace BattleBot {
             this.RNG = new Random();
 
             this.LoadConfig(Key);
-            this.LoadData("BattleArena-" + Key + ".ini");
+            this.LoadData();
         }
 
         public override void OnSave() {
@@ -442,9 +449,19 @@ namespace BattleBot {
         }
 
         private void LoadData() {
-            this.LoadData("BattleArena-" + this.Key + ".ini");
+			var file = Path.Combine("data", this.Key, "entities.json");
+			if (File.Exists(file)) {
+				var serializer = new JsonSerializer();
+				using (var reader = new JsonTextReader(new StreamReader(File.Open(file, FileMode.Open)))) {
+					var data = serializer.Deserialize<(Dictionary<string, Character> Characters, Dictionary<string, Weapon> Weapons, Dictionary<string, Technique> Techniques)>(reader);
+					this.Characters = data.Characters;
+					this.Weapons = data.Weapons;
+					this.Techniques = data.Techniques;
+				}
+			} else
+				this.LoadDataOld("BattleArena-" + this.Key + ".ini");
         }
-        private void LoadData(string filename) {
+        private void LoadDataOld(string filename) {
             if (!File.Exists(filename)) return;
             StreamReader reader = new StreamReader(filename);
             string[] section = new string[0];
@@ -824,10 +841,21 @@ namespace BattleBot {
         }
 
         public void SaveData() {
-            this.SaveData("BattleArena-" + this.Key + ".ini");
+			//this.SaveData("BattleArena-" + this.Key + ".ini");
+
+			var data = new { this.Characters, this.Weapons, this.Techniques };
+			Directory.CreateDirectory(Path.Combine("data", this.Key));
+
+			var serializer = new JsonSerializer();
+			using (var jsonWriter = new JsonTextWriter(new StreamWriter(File.Open(Path.Combine("data", this.Key, "entities.json"), FileMode.Create)))) {
+				serializer.Serialize(jsonWriter, data);
+			}
+
+			this.SaveActivity();
         }
 
-        public void SaveData(string filename) {
+		[Obsolete("Being replaced with a JSON file.")]
+        public void SaveDataOld(string filename) {
             using (var writer = new StreamWriter(filename)) {
                 foreach (KeyValuePair<string, OwnCharacter> character in this.OwnCharacters) {
                     writer.WriteLine("[Me:{0}]", character.Key);
@@ -977,35 +1005,36 @@ namespace BattleBot {
 
                 writer.Close();
             }
-
-            // Save activity reports.
-            if (this.ActivityReports.Count != 0) {
-                Directory.CreateDirectory(this.Key + "-Activity");
-                foreach (var report in this.ActivityReports) {
-                    using (var writer = new BinaryWriter(File.Open(Path.Combine(this.Key + "-Activity", report.Key + ".dat"), FileMode.Create, FileAccess.Write))) {
-                        writer.Write((short) 1);  // Version field
-
-                        for (int i = 0; i < report.Value.Data.Count; ++i)
-                            writer.Write(report.Value.Data[i]);
-
-                        if (report.Value.LastData != null) {
-                            writer.Write(true);
-                            for (int i = 0; i < report.Value.LastData.Count; ++i)
-                                writer.Write(report.Value.LastData[i]);
-                        } else
-                            writer.Write(false);
-
-                        writer.Write(report.Value.LastCheck.ToBinary());
-
-                        writer.Close();
-                    }
-                }
-            }
         }
-#endregion
 
-#region Commands
-        [Command("set", 1, 2, "set <property> [value]", "Changes settings for this plugin", Permission = ".set")]
+		public void SaveActivity() {
+			var file = Path.Combine("data", this.Key, "activity.dat");
+			if (this.ActivityReports.Count != 0) {
+				foreach (var report in this.ActivityReports) {
+					using (var writer = new BinaryWriter(File.Open(file, FileMode.Create, FileAccess.Write))) {
+						writer.Write((short) 1);  // Version field
+
+						for (int i = 0; i < report.Value.Data.Count; ++i)
+							writer.Write(report.Value.Data[i]);
+
+						if (report.Value.LastData != null) {
+							writer.Write(true);
+							for (int i = 0; i < report.Value.LastData.Count; ++i)
+								writer.Write(report.Value.LastData[i]);
+						} else
+							writer.Write(false);
+
+						writer.Write(report.Value.LastCheck.ToBinary());
+
+						writer.Close();
+					}
+				}
+			}
+		}
+		#endregion
+
+		#region Commands
+		[Command("set", 1, 2, "set <property> [value]", "Changes settings for this plugin", Permission = ".set")]
         public void CommandSet(object sender, CommandEventArgs e) {
             string property; string value;
             property = e.Parameters[0];
@@ -2533,8 +2562,8 @@ namespace BattleBot {
             if (this.IsAdminChecking && (DateTime.Now - this.IsAdminChecked) < TimeSpan.FromSeconds(15)) {
                 this.IsAdmin = true;
                 this.IsAdminChecking = false;
-                this.IsAdminCheckTimer.Interval = 21600000;  // 8 hours
-                this.IsAdminCheckTimer.Start();
+                //this.IsAdminCheckTimer.Interval = 21600000;  // 8 hours
+                //this.IsAdminCheckTimer.Start();
                 this.BattleAction(true, "!toggle AI system");
                 this.WriteLine(2, 7, "I'm a bot admin.");
             }
@@ -2544,8 +2573,8 @@ namespace BattleBot {
             if (this.IsAdminChecking) {
                 this.IsAdmin = false;
                 this.IsAdminChecking = false;
-                this.IsAdminCheckTimer.Interval = 21600000;  // 8 hours
-                this.IsAdminCheckTimer.Start();
+                //this.IsAdminCheckTimer.Interval = 21600000;  // 8 hours
+                //this.IsAdminCheckTimer.Start();
                 this.WriteLine(2, 7, "I'm not a bot admin.");
             } else {
                 this.CheckAdmin();
@@ -2556,10 +2585,28 @@ namespace BattleBot {
             // Check for admin status.
             this.IsAdminChecking = true;
             this.IsAdminChecked = DateTime.Now;
-            this.BattleAction(true, "!toggle AI system");
-            this.IsAdminCheckTimer.Interval = 30000;
-            this.IsAdminCheckTimer.Start();
+			if (this.Version > new ArenaVersion(4, 0, new DateTime(2018, 1, 15))) {
+				this.BattleAction(true, "!bot admin list");
+			} else {
+				// To check whether the bot has admin status, we will run a command that requires admin status and check whether it does anything.
+				// `!toggle ai system` was chosen because it is unlikely to disrupt the game much if successful.
+				this.BattleAction(true, "!toggle AI system");
+			}
+			this.IsAdminCheckTimer.Interval = 30000;
+			this.IsAdminCheckTimer.Start();
         }
+
+		[ArenaRegex(@"^\x033Bot Admins:\x0312 (.*)")]
+		internal void OnBotAdminList(object sender, TriggerEventArgs e) {
+			var admins = e.Match.Groups[1].Value.Split(new[] { ", " }, 0);
+			this.IsAdmin = admins.Contains(this.LoggedIn, StringComparer.InvariantCultureIgnoreCase);
+			this.IsAdminChecking = false;
+			if (this.IsAdmin) {
+				this.WriteLine(2, 7, "I'm a bot admin.");
+			} else {
+				this.WriteLine(2, 7, "I'm not a bot admin.");
+			}
+		}
 
         [ArenaRegex(@"^\x0310\x02([^\x02]*) \x02(.*)")]
         internal async void OnIdentify(object sender, TriggerEventArgs e) {

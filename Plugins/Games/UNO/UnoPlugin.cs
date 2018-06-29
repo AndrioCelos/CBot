@@ -1415,7 +1415,7 @@ namespace UNO {
                         game.TurnStartTime = DateTime.Now;
                         game.WaitTime = this.EntryTime;
                         game.GameTimer.Start();
-                        e.Reply("\u000312Starting in \u0002{0}\u0002 seconds. Say \u000311!ujoin\u000312 if you wish to join the game.", this.EntryTime);
+                        e.Reply("\u000312Starting in \u0002{0}\u0002 seconds. Say \u000311{1}ujoin\u000312 if you wish to join the game.", this.EntryTime, Bot.GetCommandPrefixes(e.Target)[0]);
                         if (!game.Connection.CaseMappingComparer.Equals(e.Sender.Nickname, game.Connection.Me.Nickname))
                             this.EntryHints(game, e.Sender.Nickname);
                     }
@@ -1435,7 +1435,7 @@ namespace UNO {
             else {
                 PlayerSettings playerSettings;
                 if (this.PlayerSettings.TryGetValue(e.Sender.Nickname, out playerSettings) && !playerSettings.AllowDuelWithBot) {
-                    e.Fail("You have requested I not enter a duel with you, {0}. To change this, enter \u0002!uset AllowDuelBot yes\u0002.", e.Sender.Nickname);
+                    e.Fail($"You have requested I not enter a duel with you, {0}. To change this, enter \u0002{Bot.GetCommandPrefixes(e.Target)[0]}uset AllowDuelBot yes\u0002.", e.Sender.Nickname);
                     return;
                 }
 
@@ -2005,7 +2005,7 @@ namespace UNO {
 			return 1;
 		}
 
-		[Trigger(@"^pl\s*(.*)", Scope = CommandScope.Channel)]
+		[Trigger(@"^pl\s*(.*)")]
         public void RegexPlay(object sender, TriggerEventArgs e) {
             Game game; int index; Card card; Colour colour;
             bool success = UnoPlugin.TryParseCard(e.Match.Groups[1].Value, out card, out colour);
@@ -2017,13 +2017,13 @@ namespace UNO {
                     // In a two-player game, you can play a card right on top of your own Wild Draw Four.
                     e.Fail("Please choose a colour for your wild card. Say \u0002red\u0002, \u0002yellow\u0002, \u0002green\u0002 or \u0002blue\u0002.");
                 } else if (game.DrawFourChallenger == index && (!Progressive || card != Card.WildDrawFour)) {
-                    e.Fail("That's a wild draw four. You must either \u0002!challenge\u0002 it, or say \u0002!draw\u0002 to take the four cards. Enter \u0002!uhelp drawfour\u0002 for more info.");
+                    e.Fail(Bot.ReplaceCommands("That's a wild draw four. You must either \u0002!challenge\u0002 it, or say \u0002!draw\u0002 to take the four cards. Enter \u0002!uhelp drawfour\u0002 for more info.", e.Target));
                 } else if (Progressive && index == game.Turn && (game.DrawCount > 0 && card.Rank != game.UpCard.Rank)) {
-                    e.Fail("A Draw card has been played against you. You must either stack your own card of the same type, or say \u0002!draw\u0002 to take the penalty.");
+                    e.Fail(Bot.ReplaceCommands("A Draw card has been played against you. You must either stack your own card of the same type, or say \u0002!draw\u0002 to take the penalty.", e.Target));
                 } else if (Progressive && game.DrawCount >= ProgressiveCap) {
                     e.Fail("You cannot stack any more.");
                 } else if (!success) {
-                    e.Fail("Oops! That's not a valid card. Enter \u0002!uhelp commands\u0002 if you're stuck.");
+                    e.Fail(Bot.ReplaceCommands("Oops! That's not a valid card. Enter \u0002!uhelp commands\u0002 if you're stuck.", e.Target));
                 } else {
                     this.PlayCheck(game, index, card, colour);
                 }
@@ -2042,13 +2042,13 @@ namespace UNO {
                     // In a two-player game, you can play a card right on top of your own Wild Draw Four.
                     e.Fail("Please choose a colour for your wild card. Say \u0002red\u0002, \u0002yellow\u0002, \u0002green\u0002 or \u0002blue\u0002.");
                 } else if (game.DrawFourChallenger == index && (!Progressive || card != Card.WildDrawFour)) {
-                    e.Fail("That's a wild draw four. You must either \u0002!challenge\u0002 it, or say \u0002!draw\u0002 to take the four cards. Enter \u0002!uhelp drawfour\u0002 for more info.");
+                    e.Fail(Bot.ReplaceCommands("That's a wild draw four. You must either \u0002!challenge\u0002 it, or say \u0002!draw\u0002 to take the four cards. Enter \u0002!uhelp drawfour\u0002 for more info.", e.Target));
                 } else if (Progressive && index == game.Turn && (game.DrawCount > 0 && card.Rank != game.UpCard.Rank)) {
-                    e.Fail("A Draw card has been played against you. You must either stack your own card of the same type, or say \u0002!draw\u0002 to take the penalty.");
+                    e.Fail(Bot.ReplaceCommands("A Draw card has been played against you. You must either stack your own card of the same type, or say \u0002!draw\u0002 to take the penalty.", e.Target));
                 } else if (Progressive && game.DrawCount >= ProgressiveCap) {
                     e.Fail("You cannot stack any more.");
                 } else if (!success) {
-                    e.Fail("Oops! That's not a valid card. Enter \u0002!uhelp commands\u0002 if you're stuck.");
+                    e.Fail(Bot.ReplaceCommands("Oops! That's not a valid card. Enter \u0002!uhelp commands\u0002 if you're stuck.", e.Target));
                 } else {
                     this.PlayCheck(game, index, card, colour);
                 }
@@ -2475,7 +2475,7 @@ namespace UNO {
             }
         }
 
-        [Trigger(@"^dr(?!\S)", Scope = CommandScope.Channel)]
+        [Trigger(@"^dr(?!\S)")]
         public void RegexDraw(object sender, TriggerEventArgs e) {
             Game game; int index;
             if (!this.GameTurnCheck(e.Client, e.Target.Target, e.Sender.Nickname, true, out game, out index))
@@ -2501,7 +2501,7 @@ namespace UNO {
             } else if (game.DrawCount == 0 && game.WildColour.HasFlag(Colour.None) && game.UpCard.IsWild && playerIndex != game.DrawFourChallenger) {
                 Bot.Say(game.Connection, game.Players[playerIndex].Name, "You must choose a colour for the wild card if you decline to discard.");
             } else if (game.DrawnCard != Card.None && playerIndex == game.Turn) {
-                Bot.Say(game.Connection, game.Players[playerIndex].Name, "You've already drawn a card this turn. Say \u0002!pass\u0002 to end your turn.");
+                Bot.Say(game.Connection, game.Players[playerIndex].Name, Bot.ReplaceCommands("You've already drawn a card this turn. Say \u0002!pass\u0002 to end your turn.", new IrcMessageTarget(game.Connection, game.Channel)));
             } else {
                 this.IdleSkip(game, playerIndex);
                 if (game.Ended) return;
@@ -2542,7 +2542,7 @@ namespace UNO {
             }
         }
 
-        [Trigger(@"^pa(?!\S)", Scope = CommandScope.Channel)]
+        [Trigger(@"^pa(?!\S)")]
         public void RegexPass(object sender, TriggerEventArgs e) {
             Game game; int index;
             if (!this.GameTurnCheck(e.Client, e.Target.Target, e.Sender.Nickname, true, out game, out index))
@@ -2568,9 +2568,9 @@ namespace UNO {
             } else if (game.WildColour.HasFlag(Colour.None) && game.UpCard.IsWild) {
                 Bot.Say(game.Connection, game.Players[playerIndex].Name, "You must choose a colour for the wild card if you decline to discard.");
             } else if (game.DrawFourChallenger == playerIndex) {
-                Bot.Say(game.Connection, game.Players[playerIndex].Name, "That's a wild draw four. You must either \u0002!challenge\u0002 it, or say \u0002!draw\u0002 to take the four cards. Enter \u0002!uhelp drawfour\u0002 for more info.");
+                Bot.Say(game.Connection, game.Players[playerIndex].Name, Bot.ReplaceCommands("That's a wild draw four. You must either \u0002!challenge\u0002 it, or say \u0002!draw\u0002 to take the four cards. Enter \u0002!uhelp drawfour\u0002 for more info.", new IrcMessageTarget(game.Connection, game.Channel)));
             } else if ((game.DrawnCard == Card.None || playerIndex != game.Turn) && (game.Deck.Count >= 1 || game.Discards.Count >= 2)) {
-                Bot.Say(game.Connection, game.Players[playerIndex].Name, "You must \u0002!draw\u0002 a card before passing.");
+                Bot.Say(game.Connection, game.Players[playerIndex].Name, Bot.ReplaceCommands("You must \u0002!draw\u0002 a card before passing.", new IrcMessageTarget(game.Connection, game.Channel)));
             } else {
                 game.GameTimer.Stop();
                 this.IdleSkip(game, playerIndex);
@@ -2584,7 +2584,7 @@ namespace UNO {
             }
         }
 
-        [Trigger(@"^co (\S+)\s*$", Scope = CommandScope.Channel)]
+        [Trigger(@"^co (\S+)\s*$")]
         public void RegexColour(object sender, TriggerEventArgs e) {
             Game game; int index; Colour colour;
             UnoPlugin.TryParseColour(e.Match.Groups[1].Value, out colour);
@@ -2595,7 +2595,7 @@ namespace UNO {
                     this.ColourCheck(game, index, colour);
             }
         }
-        [Trigger(@"^(?:(Red)|(Yellow)|(Green)|(Blue))(?:!|~|\.*)$", Scope = CommandScope.Channel)]
+        [Trigger(@"^(?:(Red)|(Yellow)|(Green)|(Blue))(?:!|~|\.*)$")]
         public void RegexColour2(object sender, TriggerEventArgs e) {
             Game game; int index; Colour colour;
             if (e.Match.Groups[1].Success)
@@ -2633,8 +2633,9 @@ namespace UNO {
             if (!game.WildColour.HasFlag(Colour.Pending) && (!game.WildColour.HasFlag(Colour.None) || !game.UpCard.IsWild)) {
                 if (showMessages) Bot.Say(game.Connection, game.Players[playerIndex].Name, "Use that command after you play a wild card.");
             } else if (game.DrawFourChallenger == playerIndex) {
-                if (showMessages) Bot.Say(game.Connection, game.Players[playerIndex].Name, "That's a wild draw four. You must either \u0002!challenge\u0002 it, or say \u0002!draw\u0002 to take the four cards. Enter \u0002!uhelp drawfour\u0002 for more info.");
-            } else {
+                if (showMessages) Bot.Say(game.Connection, game.Players[playerIndex].Name, $"That's a wild draw four. You must either \u0002{Bot.GetCommandPrefixes(game.Connection, game.Channel)[0]}challenge\u0002 it, or say \u0002!draw\u0002 to take the four cards. Enter \u0002!uhelp drawfour\u0002 for more info.");
+
+			} else {
 				string colourMessage;
 				switch (colour) {
 					case Colour.Red: colourMessage = "\u00034red"; break;
@@ -2746,9 +2747,9 @@ namespace UNO {
                     else if (!player.Hints) return;
 
                     if (game.HintParameters == null)
-                        game.Connection.Send("NOTICE " + game.Players[game.HintRecipient].Name + " :\u00032[\u000312?\u00032]\u000F " + UnoPlugin.Hints[game.Hint]);
+                        game.Connection.Send("NOTICE " + game.Players[game.HintRecipient].Name + " :\u00032[\u000312?\u00032]\u000F " + Bot.ReplaceCommands(UnoPlugin.Hints[game.Hint], new IrcMessageTarget(game.Connection, game.Channel)));
                     else
-                        game.Connection.Send("NOTICE " + game.Players[game.HintRecipient].Name + " :\u00032[\u000312?\u00032]\u000F " + string.Format(UnoPlugin.Hints[game.Hint], game.HintParameters));
+                        game.Connection.Send("NOTICE " + game.Players[game.HintRecipient].Name + " :\u00032[\u000312?\u00032]\u000F " + string.Format(Bot.ReplaceCommands(UnoPlugin.Hints[game.Hint], new IrcMessageTarget(game.Connection, game.Channel)), game.HintParameters));
 
                     if (game.Hint <= 2) game.Hint = 0;
                     player.HintsSeen[game.Hint] = true;
@@ -3289,7 +3290,7 @@ namespace UNO {
 #endregion
 
 #region Reminder commands
-        [Trigger(@"^tu(?!\S)", Scope = CommandScope.Channel)]
+        [Trigger(@"^tu(?!\S)")]
         public void RegexTurn(object sender, TriggerEventArgs e) {
             this.CommandTurn(sender, new CommandEventArgs(e.Client, e.Target, e.Sender,
                 new string[] { e.Match.Length > 2 ? "" : null }));
@@ -3317,7 +3318,7 @@ namespace UNO {
             }
         }
 
-        [Trigger(@"^cd(?!\S)", Scope = CommandScope.Channel)]
+        [Trigger(@"^cd(?!\S)")]
         public void RegexUpCard(object sender, TriggerEventArgs e) {
             this.CommandUpCard(sender, new CommandEventArgs(e.Client, e.Target, e.Sender,
                 new string[] { e.Match.Length > 2 ? "" : null }));
@@ -3361,7 +3362,7 @@ namespace UNO {
             }
         }
 
-        [Trigger(@"^ca(?!\S)", Scope = CommandScope.Channel)]
+        [Trigger(@"^ca(?!\S)")]
         public void RegexHand(object sender, TriggerEventArgs e) {
             this.CommandHand(sender, new CommandEventArgs(e.Client, e.Target, e.Sender,
                 new string[] { e.Match.Length > 2 ? "" : null }));
@@ -3390,7 +3391,7 @@ namespace UNO {
             }
         }
 
-        [Trigger(@"^ct(?!\S)", Scope = CommandScope.Channel)]
+        [Trigger(@"^ct(?!\S)")]
         public void RegexCount(object sender, TriggerEventArgs e) {
             this.CommandCount(sender, new CommandEventArgs(e.Client, e.Target, e.Sender,
                 new string[] { e.Match.Length > 2 ? "" : null }));
@@ -3442,7 +3443,7 @@ namespace UNO {
             }
         }
 
-        [Trigger(@"^ti(?!\S)", Scope = CommandScope.Channel)]
+        [Trigger(@"^ti(?!\S)")]
         public void RegexTime(object sender, TriggerEventArgs e) {
             this.CommandTime(sender, new CommandEventArgs(e.Client, e.Target, e.Sender,
                 new string[] { e.Match.Length > 2 ? "" : null }));

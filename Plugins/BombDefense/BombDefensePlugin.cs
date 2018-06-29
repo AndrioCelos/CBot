@@ -23,7 +23,7 @@ namespace BombDefense {
             RejoinTimer.Elapsed += RejoinTimer_Elapsed;
         }
 
-        [Trigger(@"^Bomb has been planted on (\S+)\.", Scope = CommandScope.Channel)]
+        [Trigger(@"^Bomb has been planted on (\S+)\.")]
 		public void OnBomb(object sender, TriggerEventArgs e) {
             if (e.Client.CaseMappingComparer.Equals(e.Match.Groups[1], e.Client.Me.Nickname) &&
 					e.Channel.Users[e.Sender.Nickname].Status >= ChannelStatus.Halfop) {
@@ -34,7 +34,7 @@ namespace BombDefense {
             }
         }
 
-		[Trigger(@"^stuffs the bomb into (\S+)'s pants. +The display reads \[\x02(\d+)\x02\] seconds.", Scope = CommandScope.Channel)]
+		[Trigger(@"^stuffs the bomb into (\S+)'s pants. +The display reads \[\x02(\d+)\x02\] seconds.")]
 		public void OnBomb2(object sender, TriggerEventArgs e) {
 			if (e.Client.CaseMappingComparer.Equals(e.Match.Groups[1], e.Client.Me.Nickname) && 
 					e.Channel.Users[e.Sender.Nickname].Status >= ChannelStatus.Halfop) {
@@ -42,7 +42,7 @@ namespace BombDefense {
 			}
 		}
 
-		[Trigger(@"^D\w+ the bomb by cutting the correct wire with ""cutwire <color>""\. There are \w+ wires\. They are (.*)\.$", Scope = CommandScope.Channel)]
+		[Trigger(@"^D\w+ the bomb by cutting the correct wire with ""cutwire <color>""\. There are \w+ wires\. They are (.*)\.$")]
 		public void OnDescription(object sender, TriggerEventArgs e) {
 			if (e.Client == defuseClient && e.Channel.Users[e.Sender.Nickname].Status >= ChannelStatus.Halfop) {
 				mode = 1;
@@ -52,7 +52,7 @@ namespace BombDefense {
 			}
 		}
 
-		[Trigger(@"^D\w+ the bomb by cutting the correct wire with ""cutwire <color>""\. There is one wire\. It is (.*)\.$", Scope = CommandScope.Channel)]
+		[Trigger(@"^D\w+ the bomb by cutting the correct wire with ""cutwire <color>""\. There is one wire\. It is (.*)\.$")]
 		public void OnDescription2(object sender, TriggerEventArgs e) {
 			if (e.Client == defuseClient && e.Channel.Users[e.Sender.Nickname].Status >= ChannelStatus.Halfop) {
 				mode = 1;

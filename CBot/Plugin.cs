@@ -203,7 +203,7 @@ namespace CBot {
 									  ?? new string[0];
 				if (fields.Length < command.Attribute.MinArgumentCount) {
 					Bot.Say(sender.Client, sender.Nickname, "Not enough parameters.");
-					Bot.Say(sender.Client, sender.Nickname, string.Format("The correct syntax is \u000312{0}\u000F.", command.Attribute.Syntax.ReplaceCommands(sender.Client, target.Target)));
+					Bot.Say(sender.Client, sender.Nickname, string.Format("The correct syntax is \u000312{0}\u000F.", command.Attribute.Syntax.ReplaceCommands(target)));
 					return;
 				}
 

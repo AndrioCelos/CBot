@@ -128,41 +128,54 @@ namespace CBot {
 	/// CBot will call the method in response to a message matching the regular expression from a user on IRC in one of the plugin's assigned channels.
 	/// </summary>
 	[AttributeUsage(AttributeTargets.Method)]
-    public class TriggerAttribute : Attribute {
-        /// <summary>The regular expressions that will trigger this procedure.</summary>
-        public List<Regex> Patterns { get; }
-        /// <summary>
-        /// The permission required to use the command. A value of null requires no permission.
-        /// If this starts with a dot, it will be considered as prefixed with the plugin's key.
-        /// </summary>
-        public string Permission { get; set; }
-        /// <summary>
-        /// The message that will be given to users who give this command without permission to use it.
-        /// Defaults to "You don't have access to this command."
-        /// </summary>
-        public string NoPermissionsMessage { get; set; }
+	public class TriggerAttribute : Attribute {
+		/// <summary>The regular expressions that will trigger this procedure.</summary>
+		public List<Regex> Patterns { get; }
+		/// <summary>
+		/// The permission required to use the command. A value of null requires no permission.
+		/// If this starts with a dot, it will be considered as prefixed with the plugin's key.
+		/// </summary>
+		public string Permission { get; set; }
+		/// <summary>
+		/// The message that will be given to users who give this command without permission to use it.
+		/// Defaults to "You don't have access to this command."
+		/// </summary>
+		public string NoPermissionsMessage { get; set; }
 		/// <summary>The scopes in which this procedure can be triggered.</summary>
-		public CommandScope Scope { get; set; }
+		public CommandScope Scope { get; set; } = CommandScope.Channel | CommandScope.PM;
 		/// <summary>If true, the procedure will only trigger if the message starts with the bot's nickname.</summary>
 		public bool MustUseNickname { get; set; }
 
-		/// <summary>Initializes a new <see cref="TriggerAttribute"/> with the specified pattern and without requiring the message to highlight the bot.</summary>
-		/// <param name="pattern">The regular expression that will trigger this procedure.</param>
-		public TriggerAttribute(string pattern) : this(pattern, false) { }
-		/// <summary>Initializes a new <see cref="TriggerAttribute"/> with the specified patterns and without requiring the message to highlight the bot.</summary>
-		/// <param name="patterns">The regular expressions that will trigger this procedure.</param>
-		public TriggerAttribute(string[] patterns) : this(patterns, false) { }
 		/// <summary>Initializes a new <see cref="TriggerAttribute"/> with the specified data.</summary>
 		/// <param name="pattern">The regular expression that will trigger this procedure.</param>
-		/// <param name="mustUseNickname">If true, the procedure will only trigger if the message starts with the bot's nickname.</param>
-		public TriggerAttribute(string pattern, bool mustUseNickname) : this(new List<Regex>(1) { new Regex(pattern, RegexOptions.Compiled) }, mustUseNickname) { }
+		public TriggerAttribute(string pattern) : this(pattern, RegexOptions.IgnoreCase) { }
+		/// <summary>Initializes a new <see cref="TriggerAttribute"/> with the specified data.</summary>
+		/// <param name="pattern">The regular expression that will trigger this procedure.</param>
+		/// <param name="options">The options to apply to the expression. <see cref="RegexOptions.Compiled"/> is implied. <see cref="RegexOptions.IgnoreCase"/> is the default.</param>
+		public TriggerAttribute(string pattern, RegexOptions options) {
+			this.Patterns = new List<Regex>(1) { new Regex(pattern, RegexOptions.Compiled | options) };
+		}
 		/// <summary>Initializes a new <see cref="TriggerAttribute"/> with the specified data.</summary>
 		/// <param name="patterns">The regular expressions that will trigger this procedure.</param>
-		/// <param name="mustUseNickname">If true, the procedure will only trigger if the message starts with the bot's nickname.</param>
-		public TriggerAttribute(string[] patterns, bool mustUseNickname) : this(new List<Regex>(patterns.Select(s => new Regex(s, RegexOptions.Compiled))), mustUseNickname) { }
-		private TriggerAttribute(List<Regex> patterns, bool mustUseNickname) {
-            this.Patterns = patterns;
-            this.MustUseNickname = mustUseNickname;
-        }
-    }
+		public TriggerAttribute(string[] patterns) : this(patterns, RegexOptions.IgnoreCase) { }
+		/// <summary>Initializes a new <see cref="TriggerAttribute"/> with the specified data.</summary>
+		/// <param name="patterns">The regular expressions that will trigger this procedure.</param>
+		/// <param name="options">The options to apply to the expressions. <see cref="RegexOptions.Compiled"/> is implied. <see cref="RegexOptions.IgnoreCase"/> is the default.</param>
+		public TriggerAttribute(string[] patterns, RegexOptions options) {
+			this.Patterns = new List<Regex>(patterns.Length);
+			for (int i = 0; i < patterns.Length; ++i) {
+				this.Patterns[i] = new Regex(patterns[i], RegexOptions.Compiled | options);
+			}
+		}
+		/// <summary>Initializes a new <see cref="TriggerAttribute"/> with the specified data.</summary>
+		/// <param name="patterns">The regular expressions that will trigger this procedure.</param>
+		/// <param name="options">The options to apply to the expressions. <see cref="RegexOptions.Compiled"/> is implied. <see cref="RegexOptions.IgnoreCase"/> is the default.</param>
+		public TriggerAttribute(string[] patterns, RegexOptions[] options) {
+			if (patterns.Length != options.Length) throw new ArgumentException($"{nameof(patterns)} and {nameof(options)} must have the same length.");
+			this.Patterns = new List<Regex>(patterns.Length);
+			for (int i = 0; i < patterns.Length; ++i) {
+				this.Patterns[i] = new Regex(patterns[i], RegexOptions.Compiled | options[i]);
+			}
+		}
+	}
 }

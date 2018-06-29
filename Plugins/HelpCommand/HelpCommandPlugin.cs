@@ -24,7 +24,7 @@ namespace HelpCommand {
 		public async void CommandHelp(object sender, CommandEventArgs e)
 			=> await this.ShowHelp(e.Target, e.Sender, e.Parameters.Length >= 1 ? e.Parameters[0] : null);
 
-		[Trigger(@"^\s*help\s*$", Scope = CommandScope.PM)]
+		[Trigger(@"^\s*help\s*$")]
 		public async void TriggerHelp(object sender, TriggerEventArgs e)
 			=> await this.ShowHelp(e.Target, e.Sender, null);
 
@@ -37,7 +37,7 @@ namespace HelpCommand {
 					if (text != null) {
 						anyText = true;
 						foreach (var line in text.Split(new[] { "\r\n", "\n", "\r" }, StringSplitOptions.None)) {
-							Bot.Say(user.Client, user.Nickname, Bot.ReplaceCommands(line, target.Client, target.Target));
+							Bot.Say(user.Client, user.Nickname, Bot.ReplaceCommands(line, target));
 							Thread.Sleep(600);
 						}
 					}
@@ -47,46 +47,40 @@ namespace HelpCommand {
 			if (!anyText) {
 				// If they typed a command label, run `!cmdinfo`.
 				if (!await showCommandInfo(target, user, topic))
-					Bot.Say(user.Client, user.Nickname, $"I have no information on that topic. Use {Colours.Bold}{Bot.ReplaceCommands("!cmdlist", target.Client, target.Target)}{Colours.Bold} for a list of commands.");
+					Bot.Say(user.Client, user.Nickname, $"I have no information on that topic. Use {Colours.Bold}{Bot.ReplaceCommands("!cmdlist", target)}{Colours.Bold} for a list of commands.");
 			}
 		}
 
-		private async Task<bool> showCommandInfo(IrcMessageTarget target, IrcUser user, string label) {
-			Command command;
-			foreach (var pluginEntry in Bot.Plugins) {
-				if (!pluginEntry.Obj.Commands.TryGetValue(label, out command)) continue;
+		private async Task<bool> showCommandInfo(IrcMessageTarget target, IrcUser user, string message) {
+            if (!Bot.IsCommand(target, message, false, out var pluginKey, out var label, out var prefix, out var parameters)) return false;
 
-				// Check the scope.
-				if ((command.Attribute.Scope & CommandScope.PM) == 0 && !(target is IrcChannel)) continue;
-				if ((command.Attribute.Scope & CommandScope.Channel) == 0 && target is IrcChannel) continue;
+            var result = await Bot.GetCommand(user, target, pluginKey, label, parameters);
+			if (result == null) return false;
+			var command = result.Value.command;
 
-				// Check for permissions.
-				string permission;
-				if (command.Attribute.Permission == null)
-					permission = null;
-				else if (command.Attribute.Permission != "" && command.Attribute.Permission.StartsWith("."))
-					permission = this.Key + command.Attribute.Permission;
-				else
-					permission = command.Attribute.Permission;
+            // Check for permissions.
+            var attribute = command.Attribute;
+            string permission;
+            if (attribute.Permission == null)
+                permission = null;
+            else if (attribute.Permission != "" && attribute.Permission.StartsWith("."))
+                permission = result.Value.plugin.Key + attribute.Permission;
+            else
+                permission = attribute.Permission;
 
-				if (permission != null) {
-					if (!await Bot.CheckPermissionAsync(user, permission)) {
-						if (command.Attribute.NoPermissionsMessage != null) {
-							Bot.Say(user.Client, user.Nickname, command.Attribute.NoPermissionsMessage);
-							return true;
-						}
-						return false;
-					}
-				}
+            if (permission != null && !await Bot.CheckPermissionAsync(user, permission)) {
+                if (attribute.NoPermissionsMessage != null) Bot.Say(user.Client, user.Nickname, attribute.NoPermissionsMessage);
+                return true;
+            }
 
-				Bot.Say(user.Client, user.Nickname, Colours.Bold + "Aliases:" + Colours.Bold + " " + string.Join(" ", command.Attribute.Names));
-				Bot.Say(user.Client, user.Nickname, Colours.Bold + "Syntax:" + Colours.Bold + " " + command.Attribute.Syntax);
-				Bot.Say(user.Client, user.Nickname, command.Attribute.Description);
+			Bot.Say(user.Client, user.Nickname, Colours.Bold + "Aliases:" + Colours.Bold + " " + string.Join(" ", command.Attribute.Names));
+#if (DEBUG)
+			Bot.Say(user.Client, user.Nickname, Colours.Bold + "Priority:" + Colours.Bold + " " + command.Attribute.PriorityHandler.Invoke(new CommandEventArgs(target.Client, target, user, new string[0])));
+#endif
+			Bot.Say(user.Client, user.Nickname, Colours.Bold + "Syntax:" + Colours.Bold + " " + command.Attribute.Syntax);
+			Bot.Say(user.Client, user.Nickname, command.Attribute.Description);
 
-				return true;
-			}
-
-			return false;
+			return true;
 		}
 
 		[Command("cmdlist", 0, 1, "cmdlist [plugin]", "Returns a list of my commands.")]
@@ -135,6 +129,8 @@ namespace HelpCommand {
 				}
 
 				if (commands.Count != 0) {
+					commands.Sort();
+
 					StringBuilder builder = isGeneral ? generalBuilder : channelBuilder;
 					builder.AppendFormat(" \u00034[{0}]\u000F ", pluginEntry.Key);
 					builder.Append(string.Join(" ", commands));
@@ -150,7 +146,7 @@ namespace HelpCommand {
 		[Command("cmdinfo", 1, 1, "cmdinfo <command>", "Returns information on a command.")]
 		public async void CommandCommandInfo(object sender, CommandEventArgs e) {
 			if (!await showCommandInfo(e.Target, e.Sender, e.Parameters[0])) {
-				e.Whisper($"I don't recognise that command. Use {Colours.Bold}{Bot.ReplaceCommands("!cmdlist", e.Client, e.Target.Target)}{Colours.Bold} for a list of commands.");
+				e.Whisper($"I don't recognise that command. Use {Colours.Bold}{Bot.ReplaceCommands("!cmdlist", e.Target)}{Colours.Bold} for a list of commands.");
 			}
 		}
 	}

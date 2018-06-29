@@ -357,7 +357,7 @@ namespace GreedyDice {
                 game.TurnNumber = 1;
                 game.RNG = new Random();
                 Bot.Say(game.Connection, game.Channel, "\u00039The game of Greedy Dice has started!");
-                Bot.Say(game.Connection, game.Channel, "\u000312\u0002{0}\u0002, it's your turn. Enter \u000311{1}\u000312 to roll the dice.", game.Players[game.Turn].Name, Bot.ReplaceCommands("!droll", game.Connection, game.Channel));
+                Bot.Say(game.Connection, game.Channel, "\u000312\u0002{0}\u0002, it's your turn. Enter \u000311{1}\u000312 to roll the dice.", game.Players[game.Turn].Name, Bot.ReplaceCommands("!droll", new IrcMessageTarget(game.Connection, game.Channel)));
                 game.Players[game.Turn].CanMove = true;
                 this.StartGameTimer(game);
             }
@@ -415,7 +415,7 @@ namespace GreedyDice {
                         Bot.Say(game.Connection, game.Channel, "\u000312\u0002{0}\u0002 rolled \u0002{1}\u0003 {2}\u000312,99\u0002 Since you haven't got any points, I won't count that.",
                             game.Players[playerIndex].Name, GreedyDicePlugin.RollFaces[roll1], GreedyDicePlugin.RollFaces[roll2]);
                         Thread.Sleep(600);
-                        Bot.Say(game.Connection, game.Channel, Bot.ReplaceCommands("\u000312Say \u000311!droll\u000312 to roll the dice again.", game.Connection, game.Channel));
+                        Bot.Say(game.Connection, game.Channel, Bot.ReplaceCommands("\u000312Say \u000311!droll\u000312 to roll the dice again.", new IrcMessageTarget(game.Connection, game.Channel)));
                     }
                     this.AICheck(game);
                 } else {
@@ -436,7 +436,7 @@ namespace GreedyDice {
                 game.TurnScore += score;
                 if (game.TurnScore == score && !game.IsAIUp) {
                     Thread.Sleep(600);
-                    Bot.Say(game.Connection, game.Players[playerIndex].Name, Bot.ReplaceCommands("\u000312Enter \u000311!droll\u000312 to roll again, or \u000311!dpass\u000312 to take your score.", game.Connection, game.Channel));
+                    Bot.Say(game.Connection, game.Players[playerIndex].Name, Bot.ReplaceCommands("\u000312Enter \u000311!droll\u000312 to roll again, or \u000311!dpass\u000312 to take your score.", new IrcMessageTarget(game.Connection, game.Channel)));
                 }
                 this.StartGameTimer(game);
                 this.AICheck(game);
@@ -518,9 +518,9 @@ namespace GreedyDice {
             if (enable) {
                 game.Players[game.Turn].CanMove = true;
                 if (game.IsAIUp)
-                    Bot.Say(game.Connection, game.Channel, "\u000312It's now \u0002my\u0002 turn.", game.Players[game.Turn].Name, Bot.ReplaceCommands("!droll", game.Connection, game.Channel));
+                    Bot.Say(game.Connection, game.Channel, "\u000312It's now \u0002my\u0002 turn.", game.Players[game.Turn].Name, Bot.ReplaceCommands("!droll", new IrcMessageTarget(game.Connection, game.Channel)));
                 else
-                    Bot.Say(game.Connection, game.Channel, "\u000312\u0002{0}\u0002, it's your turn. Enter \u000311{1}\u000312 to roll the dice.", game.Players[game.Turn].Name, Bot.ReplaceCommands("!droll", game.Connection, game.Channel));
+                    Bot.Say(game.Connection, game.Channel, "\u000312\u0002{0}\u0002, it's your turn. Enter \u000311{1}\u000312 to roll the dice.", game.Players[game.Turn].Name, Bot.ReplaceCommands("!droll", new IrcMessageTarget(game.Connection, game.Channel)));
                 this.StartGameTimer(game);
                 this.AICheck(game);
             }
