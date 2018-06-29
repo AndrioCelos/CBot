@@ -13,6 +13,7 @@ namespace UNO {
         public bool CanMove;
         public DateTime DisconnectedAt;
         public int Rank;
+		public bool QuitWithoutPenalty;
 
         public Player(string name) {
             this.Name = name;

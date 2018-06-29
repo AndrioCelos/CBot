@@ -72,6 +72,10 @@ namespace UNO {
         public int ParticipationBonus;
         public int QuitPenalty;
 
+		public int QuitsAllowedWithoutPenalty = 2;
+		public TimeSpan QuitsAllowedTime = TimeSpan.FromDays(1);
+		public Dictionary<string, (int count, DateTime lastTime)> Quits = new Dictionary<string, (int, DateTime)>(IrcStringComparer.RFC1459);
+
         public string GuideURL;
         public string RandomOrgAPIKey;
         public string UserAgent;
@@ -1637,33 +1641,55 @@ namespace UNO {
                 game.Players.RemoveAt(index);
                 this.CheckPlayerCount(game);
             } else {
-                game.Players[index].Rank = game.Players.Count(player => player.Presence != PlayerPresence.Left);
+				if (!this.Quits.TryGetValue(game.Players[index].Name, out var quits)) {
+					quits.count = 1;
+				} else if (DateTime.UtcNow - quits.lastTime >= this.QuitsAllowedTime) {
+					quits.count = 1;
+				} else {
+					++quits.count;
+				}
+				quits.lastTime = DateTime.UtcNow;
+				this.Quits[game.Players[index].Name] = quits;
+
+				bool penalise = quits.count > this.QuitsAllowedWithoutPenalty;
+
+				game.Players[index].Rank = game.Players.Count(player => player.Presence != PlayerPresence.Left);
                 game.Players[index].Presence = PlayerPresence.Left;
-                game.Players[index].BasePoints -= this.QuitPenalty;
+				if (penalise) {
+					game.Players[index].BasePoints -= this.QuitPenalty;
+					this.StreakLoss(game, game.Players[index]);
+				} else
+					game.Players[index].QuitWithoutPenalty = true;
 
-                this.StreakLoss(game, game.Players[index]);
-
-                // If only one player remains, declare them the winner.
-                int survivor = -1; int outCount = 0;
+				// If only one player remains, declare them the winner.
+				int survivor = -1; bool everyoneQuitWithoutPenalty = true;
                 for (int i = 0; i < game.Players.Count; i++) {
-                    if (game.Players[i].Presence == PlayerPresence.Playing) {
-                        if (survivor == -1)
-                            survivor = i;
-                        else {
-                            survivor = -2;
-                            break;
-                        }
-                    } else if (game.Players[i].Presence >= PlayerPresence.Out)
-                        outCount++;
+					if (game.Players[i].Presence == PlayerPresence.Playing) {
+						if (survivor == -1)
+							survivor = i;
+						else {
+							survivor = -2;
+							break;
+						}
+					} else
+						everyoneQuitWithoutPenalty &= game.Players[i].QuitWithoutPenalty;
                 }
                 if (survivor != -2) {
                     game.GameTimer.Stop();
-                    if (survivor != -1) {
-						game.Players[survivor].Presence = PlayerPresence.OutByDefault;
-                        game.Turn = survivor;
-                        this.AwardPoints(game, survivor);
-                    }
-                    this.EndGame(game);
+
+					// If all but one player quit without penalty, we'll end without scoring.
+					if (everyoneQuitWithoutPenalty) {
+						game.Ended = true;
+						this.Games.Remove(game.Connection.NetworkName + "/" + game.Channel);
+						Bot.Say(game.Connection, game.Channel, "\u000313The game has been cancelled.");
+					} else {
+						if (survivor != -1) {
+							game.Players[survivor].Presence = PlayerPresence.OutByDefault;
+							game.Turn = survivor;
+							this.AwardPoints(game, survivor);
+						}
+						this.EndGame(game);
+					}
                 } else {
                     // Was it the leaving player's turn?
                     if (game.Turn == index) {
