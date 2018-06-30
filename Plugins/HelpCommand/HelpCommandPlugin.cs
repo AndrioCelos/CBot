@@ -52,26 +52,26 @@ namespace HelpCommand {
 		}
 
 		private async Task<bool> showCommandInfo(IrcMessageTarget target, IrcUser user, string message) {
-            if (!Bot.IsCommand(target, message, false, out var pluginKey, out var label, out var prefix, out var parameters)) return false;
+			if (!Bot.IsCommand(target, message, false, out var pluginKey, out var label, out var prefix, out var parameters)) return false;
 
-            var result = await Bot.GetCommand(user, target, pluginKey, label, parameters);
+			var result = await Bot.GetCommand(user, target, pluginKey, label, parameters);
 			if (result == null) return false;
 			var command = result.Value.command;
 
-            // Check for permissions.
-            var attribute = command.Attribute;
-            string permission;
-            if (attribute.Permission == null)
-                permission = null;
-            else if (attribute.Permission != "" && attribute.Permission.StartsWith("."))
-                permission = result.Value.plugin.Key + attribute.Permission;
-            else
-                permission = attribute.Permission;
+			// Check for permissions.
+			var attribute = command.Attribute;
+			string permission;
+			if (attribute.Permission == null)
+				permission = null;
+			else if (attribute.Permission != "" && attribute.Permission.StartsWith("."))
+				permission = result.Value.plugin.Key + attribute.Permission;
+			else
+				permission = attribute.Permission;
 
-            if (permission != null && !await Bot.CheckPermissionAsync(user, permission)) {
-                if (attribute.NoPermissionsMessage != null) Bot.Say(user.Client, user.Nickname, attribute.NoPermissionsMessage);
-                return true;
-            }
+			if (permission != null && !await Bot.CheckPermissionAsync(user, permission)) {
+				if (attribute.NoPermissionsMessage != null) Bot.Say(user.Client, user.Nickname, attribute.NoPermissionsMessage);
+				return true;
+			}
 
 			Bot.Say(user.Client, user.Nickname, Colours.Bold + "Aliases:" + Colours.Bold + " " + string.Join(" ", command.Attribute.Names));
 #if (DEBUG)

@@ -5,39 +5,39 @@ using System.Reflection;
 using System.Text.RegularExpressions;
 
 namespace CBot {
-    /// <summary>
-    /// When attached to a plugin's main class, specifies the version of CBot that the plugin is written for.
-    /// CBot will not load plugins with no <see cref="ApiVersionAttribute"/>, or with one not matching CBot.
-    /// </summary>
-    [AttributeUsage(AttributeTargets.Class, AllowMultiple = false)]
-    public class ApiVersionAttribute : Attribute {
-        public Version Version { get; }
+	/// <summary>
+	/// When attached to a plugin's main class, specifies the version of CBot that the plugin is written for.
+	/// CBot will not load plugins with no <see cref="ApiVersionAttribute"/>, or with one not matching CBot.
+	/// </summary>
+	[AttributeUsage(AttributeTargets.Class, AllowMultiple = false)]
+	public class ApiVersionAttribute : Attribute {
+		public Version Version { get; }
 
-        public ApiVersionAttribute(Version version) {
-            this.Version = version;
-        }
-        public ApiVersionAttribute(string version) {
-            this.Version = new Version(version);
-        }
-        public ApiVersionAttribute(int major, int minor) {
-            this.Version = new Version(major, minor);
-        }
-    }
+		public ApiVersionAttribute(Version version) {
+			this.Version = version;
+		}
+		public ApiVersionAttribute(string version) {
+			this.Version = new Version(version);
+		}
+		public ApiVersionAttribute(int major, int minor) {
+			this.Version = new Version(major, minor);
+		}
+	}
 
-    /// <summary>
-    /// Identifies a method in a plugin's main class as a command handler.
-    /// CBot will call the method in response to a command from a user on IRC in one of the plugin's assigned channels.
-    /// </summary>
-    [AttributeUsage(AttributeTargets.Method)]
-    public class CommandAttribute : Attribute {
-        /// <summary>The names that can be used to make this command.</summary>
-        public List<string> Names { get; }
-        /// <summary>A human-readable example of the syntax of the command.</summary>
-        public string Syntax { get; set; }
-        /// <summary>A brief description of the command.</summary>
-        public string Description { get; set; }
-        /// <summary>The minimum number of parameters this command can take.</summary>
-        public short MinArgumentCount { get; set; }
+	/// <summary>
+	/// Identifies a method in a plugin's main class as a command handler.
+	/// CBot will call the method in response to a command from a user on IRC in one of the plugin's assigned channels.
+	/// </summary>
+	[AttributeUsage(AttributeTargets.Method)]
+	public class CommandAttribute : Attribute {
+		/// <summary>The names that can be used to make this command.</summary>
+		public List<string> Names { get; }
+		/// <summary>A human-readable example of the syntax of the command.</summary>
+		public string Syntax { get; set; }
+		/// <summary>A brief description of the command.</summary>
+		public string Description { get; set; }
+		/// <summary>The minimum number of parameters this command can take.</summary>
+		public short MinArgumentCount { get; set; }
 		/// <summary>The maximum number of parameters this command can take.</summary>
 		public short MaxArgumentCount { get; set; }
 		/// <summary>

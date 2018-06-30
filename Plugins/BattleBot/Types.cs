@@ -4,160 +4,160 @@ using System.Text.RegularExpressions;
 using CBot;
 
 namespace BattleBot {
-    public enum Category : short {
-        Player = 1,
-        Ally = 2,
-        Monster = 4
-    }
+	public enum Category : short {
+		Player = 1,
+		Ally = 2,
+		Monster = 4
+	}
 
-    public enum Gender : short {
-        Male,
-        Female,
-        None,
-        Unknown = -1
-    }
+	public enum Gender : short {
+		Male,
+		Female,
+		None,
+		Unknown = -1
+	}
 
-    public enum Size : short {
-        Small = 1,
-        Medium = 0,
-        Large = 2,
-        Other = -1
-    }
+	public enum Size : short {
+		Small = 1,
+		Medium = 0,
+		Large = 2,
+		Other = -1
+	}
 
-    public enum Presence : short {
-        Alive,
-        Dead,
-        RunAway
-    }
+	public enum Presence : short {
+		Alive,
+		Dead,
+		RunAway
+	}
 
-    public enum StatusEffect : short {
-        None,
-        TimeStop,
-        Poison,
-        HeavyPoison,
-        Silence,
-        Blind,
-        Drunk,
-        Virus,
-        Amnesia,
-        Paralysis,
-        Zombie,
-        Slow,
-        Stun,
-        Curse,
-        Charm,
-        Intimidate,
-        DefenseDown,
-        StrengthDown,
-        IntDown,
-        Petrify,
-        Bored,
-        Confuse,
-        RemoveBoost,
-        DefenseUp,
-        Random = short.MaxValue
-    }
+	public enum StatusEffect : short {
+		None,
+		TimeStop,
+		Poison,
+		HeavyPoison,
+		Silence,
+		Blind,
+		Drunk,
+		Virus,
+		Amnesia,
+		Paralysis,
+		Zombie,
+		Slow,
+		Stun,
+		Curse,
+		Charm,
+		Intimidate,
+		DefenseDown,
+		StrengthDown,
+		IntDown,
+		Petrify,
+		Bored,
+		Confuse,
+		RemoveBoost,
+		DefenseUp,
+		Random = short.MaxValue
+	}
 
-    [Flags]
-    public enum BattleCondition {
-        None = 0,
-        CurseNight = 1,
-        BloodMoon = 2,
-        NoTechniques = 4,
-        [System.ComponentModel.EditorBrowsable(System.ComponentModel.EditorBrowsableState.Never)]
-        MeleeLock = 4,
-        ItemLock = 8,
-        WeatherLock = 16,
-        NoFleeing = 32,
-        NoSkills = 64,
-        NoQuicksilver = 128,
-        NoIgnitions = 256,
-        NoPlayerIgnitions = 512,
-        NoMech = 1024,
-        NoSummons = 2048,
-        NoAllies = 4096,
-        NoTrusts = 8192,
-        NoBattlefieldEvents = 16384,
-        EnhanceMelee = 32768,
-        EnhanceTechniques = 65536,
-        EnhanceItems = 131072
-    }
+	[Flags]
+	public enum BattleCondition {
+		None = 0,
+		CurseNight = 1,
+		BloodMoon = 2,
+		NoTechniques = 4,
+		[System.ComponentModel.EditorBrowsable(System.ComponentModel.EditorBrowsableState.Never)]
+		MeleeLock = 4,
+		ItemLock = 8,
+		WeatherLock = 16,
+		NoFleeing = 32,
+		NoSkills = 64,
+		NoQuicksilver = 128,
+		NoIgnitions = 256,
+		NoPlayerIgnitions = 512,
+		NoMech = 1024,
+		NoSummons = 2048,
+		NoAllies = 4096,
+		NoTrusts = 8192,
+		NoBattlefieldEvents = 16384,
+		EnhanceMelee = 32768,
+		EnhanceTechniques = 65536,
+		EnhanceItems = 131072
+	}
 
-    public enum BattleType : short {
-        Normal,
-        Boss,
-        OrbFountain,
-        Gauntlet,
-        Mimic,
-        NPC,
-        President,
-        PvP,
-        Siege,
-        Assault,
-        Dungeon,
-        DragonHunt,
-        Torment
-    }
+	public enum BattleType : short {
+		Normal,
+		Boss,
+		OrbFountain,
+		Gauntlet,
+		Mimic,
+		NPC,
+		President,
+		PvP,
+		Siege,
+		Assault,
+		Dungeon,
+		DragonHunt,
+		Torment
+	}
 
-    public enum TechniqueType : short {
-        Attack,
-        AoEAttack,
-        Heal,
-        AoEHeal,
-        Suicide,
-        AoESuicide,
-        StealPower,
-        Boost,
-        FinalGetsuga,
-        Buff,
-        ClearStatusNegative,
-        ClearStatusPositive,
-        Unknown = short.MaxValue
-    }
+	public enum TechniqueType : short {
+		Attack,
+		AoEAttack,
+		Heal,
+		AoEHeal,
+		Suicide,
+		AoESuicide,
+		StealPower,
+		Boost,
+		FinalGetsuga,
+		Buff,
+		ClearStatusNegative,
+		ClearStatusPositive,
+		Unknown = short.MaxValue
+	}
 
-    public class UnmatchedName {
-        public string Name;
-        public Category Category;
-        public string Description;
-    }
+	public class UnmatchedName {
+		public string Name;
+		public Category Category;
+		public string Description;
+	}
 
-    public class OwnCharacter {
-        public string FullName;
-        public string Password;
-    }
+	public class OwnCharacter {
+		public string FullName;
+		public string Password;
+	}
 
-    [AttributeUsage(AttributeTargets.Method)]
-    public class ArenaRegexAttribute : Attribute {
-        public Regex[] Patterns { get; set; }
-        public bool StripFormats { get; set; }
+	[AttributeUsage(AttributeTargets.Method)]
+	public class ArenaRegexAttribute : Attribute {
+		public Regex[] Patterns { get; set; }
+		public bool StripFormats { get; set; }
 
-        public ArenaRegexAttribute(string pattern)
-            : this(pattern, RegexOptions.IgnoreCase | RegexOptions.Compiled) { }
-        public ArenaRegexAttribute(string pattern, RegexOptions options)
-            : this(new[] { new Regex(pattern, options) }) { }
-        public ArenaRegexAttribute(string pattern, bool stripFormats)
-            : this(new[] { new Regex(pattern, RegexOptions.IgnoreCase | RegexOptions.Compiled) }, stripFormats) { }
-        public ArenaRegexAttribute(string pattern, RegexOptions options, bool stripFormats)
-            : this(new[] { new Regex(pattern, options) }, stripFormats) { }
-        public ArenaRegexAttribute(string[] pattern)
-            : this(pattern.Select(p => new Regex(p, RegexOptions.IgnoreCase | RegexOptions.Compiled)).ToArray()) { }
-        public ArenaRegexAttribute(string[] pattern, bool stripFormats)
-            : this(pattern.Select(p => new Regex(p, RegexOptions.IgnoreCase | RegexOptions.Compiled)).ToArray(), stripFormats) { }
-        public ArenaRegexAttribute(Regex[] patterns)
-            : this(patterns, false) { }
-        public ArenaRegexAttribute(Regex[] patterns, bool stripFormats) {
-            this.Patterns = patterns;
-            this.StripFormats = stripFormats;
-        }
-    }
+		public ArenaRegexAttribute(string pattern)
+			: this(pattern, RegexOptions.IgnoreCase | RegexOptions.Compiled) { }
+		public ArenaRegexAttribute(string pattern, RegexOptions options)
+			: this(new[] { new Regex(pattern, options) }) { }
+		public ArenaRegexAttribute(string pattern, bool stripFormats)
+			: this(new[] { new Regex(pattern, RegexOptions.IgnoreCase | RegexOptions.Compiled) }, stripFormats) { }
+		public ArenaRegexAttribute(string pattern, RegexOptions options, bool stripFormats)
+			: this(new[] { new Regex(pattern, options) }, stripFormats) { }
+		public ArenaRegexAttribute(string[] pattern)
+			: this(pattern.Select(p => new Regex(p, RegexOptions.IgnoreCase | RegexOptions.Compiled)).ToArray()) { }
+		public ArenaRegexAttribute(string[] pattern, bool stripFormats)
+			: this(pattern.Select(p => new Regex(p, RegexOptions.IgnoreCase | RegexOptions.Compiled)).ToArray(), stripFormats) { }
+		public ArenaRegexAttribute(Regex[] patterns)
+			: this(patterns, false) { }
+		public ArenaRegexAttribute(Regex[] patterns, bool stripFormats) {
+			this.Patterns = patterns;
+			this.StripFormats = stripFormats;
+		}
+	}
 
-    public class ArenaTrigger {
-        public ArenaRegexAttribute Attribute { get; }
-        public PluginTriggerHandler Handler { get; }
+	public class ArenaTrigger {
+		public ArenaRegexAttribute Attribute { get; }
+		public PluginTriggerHandler Handler { get; }
 
-        public ArenaTrigger(ArenaRegexAttribute attribute, PluginTriggerHandler handler) {
-            this.Attribute = attribute;
-            this.Handler = handler;
-        }
-    }
+		public ArenaTrigger(ArenaRegexAttribute attribute, PluginTriggerHandler handler) {
+			this.Attribute = attribute;
+			this.Handler = handler;
+		}
+	}
 }
