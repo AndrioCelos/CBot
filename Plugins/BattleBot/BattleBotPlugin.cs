@@ -1359,6 +1359,100 @@ namespace BattleBot {
             }
         }
 
+		[Command(new[] { "grepsrc" }, 2, 2, "grepsrc [file] <text>|/<regex>/", "Searches for text in the game's source code.")]
+		public void CommandGrepSource(object sender, CommandEventArgs e) {
+			if (this.ArenaDirectory == null) {
+				e.Fail("I don't have access to the Arena data folder.");
+				return;
+			}
+
+			var matchingFiles = new List<(string file, List<(int lineNumber, string text)>)>();
+			int totalMatches = 0;
+
+			Regex regex; MatchCollection matches;
+			var regexMatch = Regex.Match(e.Parameters[1], @"^/((?:\\/|[^/])*)(?:/(.*))?");
+			if (regexMatch.Success) {
+				try {
+					regex = new Regex(regexMatch.Groups[1].Value, RegexOptions.Compiled | RegexOptions.IgnoreCase);
+				} catch (ArgumentException ex) {
+					e.Fail("Invalid regular expression: " + ex.Message);
+					return;
+				}
+			} else
+				regex = new Regex(Regex.Escape(e.Parameters[1]), RegexOptions.Compiled | RegexOptions.IgnoreCase);
+
+			foreach (string file in this.getSourcePaths().Where(f => e.Parameters[0] == "*" || e.Parameters[0].Equals(Path.GetFileName(f), StringComparison.InvariantCultureIgnoreCase))) {
+				int lineNumber = 1;
+				var matchingLines2 = new List<(int lineNumber, string text)>();
+
+				using (var reader = new StreamReader(File.Open(file, FileMode.Open, FileAccess.Read, FileShare.ReadWrite))) {
+					while (!reader.EndOfStream) {
+						string line = reader.ReadLine();
+						matches = regex.Matches(line);
+
+						if (matches.Count != 0) {
+							for (int i = matches.Count - 1; i >= 0; --i) {
+								Match match = matches[i];
+								line = line.Insert(match.Index + match.Length, Colours.Reset).Insert(match.Index, Colours.Red);
+							}
+
+							matchingLines2.Add((lineNumber, line));
+							++totalMatches;
+						}
+
+						++lineNumber;
+					}
+				}
+
+				if (matchingLines2.Count != 0) {
+					var path = file.Replace(this.ArenaDirectory, "").TrimStart(new[] { '/', '\\' }).Replace('\\', '/');
+					matchingFiles.Add((path, matchingLines2));
+				}
+			}
+
+			if (totalMatches == 0)
+				e.Reply("No matches.");
+			else if (totalMatches <= 4) {
+				e.Reply($"{totalMatches} matching {(totalMatches == 1 ? "line" : "lines")} in {matchingFiles.Count} {(matchingFiles.Count == 1 ? "file" : "files")}:");
+				foreach (var file in matchingFiles) {
+					foreach (var line in file.Item2) {
+						e.Reply("http://tinyurl.com/z4gbdun/" + file.file + "#L" + line.lineNumber + " - " + line.text);
+					}
+				}
+			} else if (matchingFiles.Count <= 4) {
+				e.Reply($"{totalMatches} matching {(totalMatches == 1 ? "line" : "lines")} in {matchingFiles.Count} {(matchingFiles.Count == 1 ? "file" : "files")}:");
+				foreach (var file in matchingFiles) {
+					e.Reply("http://tinyurl.com/z4gbdun/" + file.file + " - " + string.Join(", ", file.Item2.Take(30).Select(line => line.lineNumber)));
+				}
+			} else {
+				e.Reply($"{totalMatches} matching {(totalMatches == 1 ? "line" : "lines")} in {matchingFiles.Count} {(matchingFiles.Count == 1 ? "file" : "files")}:");
+				e.Reply(string.Join(", ", matchingFiles.Take(20).Select(file => file.file)));
+			}
+		}
+
+		private IEnumerable<string> getSourcePaths() {
+			if (this.ArenaDirectory == null) throw new InvalidOperationException(nameof(ArenaDirectory) + " is not set.");
+			foreach (string path in getSourcePaths(this.ArenaDirectory)) yield return path;
+			yield return Path.Combine(this.ArenaDirectory, "characters", "new_chr.char");
+			foreach (string path in getSourcePaths(Path.Combine(this.ArenaDirectory, "bosses"))) yield return path;
+			foreach (string path in getSourcePaths(Path.Combine(this.ArenaDirectory, "dbs"))) yield return path;
+			foreach (string path in getSourcePaths(Path.Combine(this.ArenaDirectory, "dungeons"))) yield return path;
+			foreach (string path in getSourcePaths(Path.Combine(this.ArenaDirectory, "lsts"))) yield return path;
+			foreach (string path in getSourcePaths(Path.Combine(this.ArenaDirectory, "monsters"))) yield return path;
+			foreach (string path in getSourcePaths(Path.Combine(this.ArenaDirectory, "npcs"))) yield return path;
+			foreach (string path in getSourcePaths(Path.Combine(this.ArenaDirectory, "summons"))) yield return path;
+		}
+
+		private static IEnumerable<string> getSourcePaths(string baseDirectory) {
+			foreach (string file in Directory.GetFiles(baseDirectory)) {
+				string extension = Path.GetExtension(file);
+				if (extension.Equals(".mrc", StringComparison.OrdinalIgnoreCase) || extension.Equals(".als", StringComparison.OrdinalIgnoreCase) ||
+					extension.Equals(".char", StringComparison.OrdinalIgnoreCase) || extension.Equals(".db", StringComparison.OrdinalIgnoreCase) ||
+					extension.Equals(".lst", StringComparison.OrdinalIgnoreCase))
+					yield return file;
+			}
+		}
+
         [Command("control", 1, 1, "control <nickname>", "Instructs me to control another character",
 			Permission = ".control", Scope = CommandScope.Channel)]
         public async void CommandControl(object sender, CommandEventArgs e) {

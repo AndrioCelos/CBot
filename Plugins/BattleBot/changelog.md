@@ -1,3 +1,7 @@
+Version 2.11 – 30 June 2018
+---------------------------
+* Added the `!grepsrc` command. If the bot has access to the Arena working directory, it allows users to search the source code.
+
 Version 2.7.6 – 14 February 2015
 --------------------------------
 
