@@ -14,6 +14,7 @@ namespace UNO {
 		public DateTime DisconnectedAt;
 		public int Rank;
 		public bool QuitWithoutPenalty;
+		public bool CalledUno;
 
 		public Player(string name) {
 			this.Name = name;

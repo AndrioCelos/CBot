@@ -1,3 +1,8 @@
+Version 1.14 – 8 August 2018
+----------------------------
+
+* Implemented the penalty for not calling UNO.
+
 Version 1.12.1 – 8 February 2017
 ------------------------------
 

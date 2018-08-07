@@ -26,7 +26,7 @@ namespace UNO {
 			/*  4 */ "Your goal is to go out, by playing all of your cards, before the other players do. There are special action cards that, when played, can hinder the next player from doing this.",
 			/*  5 */ "If you lose track of the game, try using these commands: \u0002!hand !upcard !count !turn !time",
 			/*  6 */ "Reverse cards act like Skips with two players. Go again!",
-			/*  7 */ "In UNO, you must call 'UNO!' when you're down to one card. I don't enforce this rule here, though.",
+			/*  7 */ "In UNO, you must call 'UNO!' when you're down to one card. If you don't and another player catches you, you have to draw two cards.",
 			/*  8 */ "Keep in mind that I enforce a time limit. If you time out twice in a row, you'll be presumed gone.",
 			/*  9 */ "I'm afraid you've timed out. It's still your turn, and you may still play if {0} doesn't jump in first.",
 			/* 10 */ "Remember, you're not allowed to play a Wild Draw Four if you hold a card whose colour matches the up-card. You may \u0002!challenge\u0002 this Wild Draw Four if you think it's illegal; otherwise, \u0002!draw\u0002.",
@@ -1907,6 +1907,7 @@ namespace UNO {
 				messageBuilder.Append(UnoPlugin.ShowCard(card));
 				game.Players[playerIndex].Hand.Add(card);
 			}
+			game.Players[playerIndex].CalledUno = false;
 			if (showMessage && game.Players[playerIndex].Name != game.Connection.Me.Nickname)
 				Bot.Say(game.Connection, game.Players[playerIndex].Name, messageBuilder.ToString());
 
@@ -2055,7 +2056,8 @@ namespace UNO {
 			}
 		}
 
-		public bool GameTurnCheck(IrcClient connection, string channel, string nickname, bool showMessages, out Game game, out int index) {
+		/// <summary>Checks for a game ongoing in the specified channel and whether the specified player is in it.</summary>
+		public bool GameCheck(IrcClient connection, string channel, string nickname, bool showMessages, out Game game, out int index) {
 			if (!this.Games.TryGetValue(connection.NetworkName + "/" + channel, out game)) {
 				if (showMessages)
 					Bot.Say(connection, nickname, "There's no game going on at the moment.");
@@ -2073,12 +2075,18 @@ namespace UNO {
 						if (showMessages)
 							Bot.Say(connection, nickname, "You're not in this game, {0}.", nickname);
 						return false;
-					} else if (!game.Players[index].CanMove) {
-						if (showMessages)
-							Bot.Say(connection, nickname, "It's not your turn.");
-						return false;
 					}
 				}
+			}
+			return true;
+		}
+		/// <summary>Checks for a game ongoing in the specified channel and whether the specified player may take a turn.</summary>
+		public bool GameTurnCheck(IrcClient connection, string channel, string nickname, bool showMessages, out Game game, out int index) {
+			if (!this.GameCheck(connection, channel, nickname, showMessages, out game, out index)) return false;
+			if (!game.Players[index].CanMove) {
+				if (showMessages)
+					Bot.Say(connection, nickname, "It's not your turn.");
+				return false;
 			}
 			return true;
 		}
@@ -2421,7 +2429,7 @@ namespace UNO {
 						else
 							Bot.Say(game.Connection, game.Players[playerIndex].Name, "Congratulations: you won \u0002{0}\u0002 points.", totalPoints);
 					}
-				} else if (hasUNO) {
+				} else if (hasUNO && game.Players[playerIndex].CalledUno) {
 					Thread.Sleep(600);
 					Bot.Say(game.Connection, game.Channel, "\u000313\u0002{0}\u0002 has UNO!", game.Players[playerIndex].Name);
 				}
@@ -2670,14 +2678,54 @@ namespace UNO {
 			}
 		}
 
-		[Command(new string[] { "challenge", "uchallenge" }, 0, 0, "challenge", "Allows you to challenge a Wild Draw Four played on you.",
+		[Command(new string[] { "call" }, 0, 0, "call", "Announces that you are down to one card. Failure to do this can get you a two-card penalty.",
+			Scope = CommandScope.Channel, PriorityHandlerName = nameof(GameCommandPriority))]
+		public void CommandCall(object sender, CommandEventArgs e) {
+			if (!this.GameCheck(e.Client, e.Target.Target, e.Sender.Nickname, true, out var game, out var index))
+				return;
+			this.CallUno(game, index);
+		}
+
+		[Trigger(@"^UNO\W*$", Scope = CommandScope.Channel)]
+		public void TriggerCall(object sender, TriggerEventArgs e) {
+			if (!this.GameCheck(e.Client, e.Target.Target, e.Sender.Nickname, false, out var game, out var index))
+				return;
+			this.CallUno(game, index);
+		}
+
+		public void CallUno(Game game, int playerIndex) {
+			if (game.Players[playerIndex].CalledUno)
+				Bot.Say(game.Connection, game.Players[playerIndex].Name, "You already called UNO.");
+			else {
+				game.Players[playerIndex].CalledUno = true;
+				Bot.Say(game.Connection, game.Players[playerIndex].Name, "You've called UNO!");
+			}
+		}
+
+		[Command(new string[] { "challenge", "uchallenge" }, 0, 0, "challenge", "Challenges a failure to call UNO or a Wild Draw Four.",
 			Scope = CommandScope.Channel, PriorityHandlerName = nameof(GameCommandPriority))]
 		public void CommandChallenge(object sender, CommandEventArgs e) {
 			Game game; int index;
-			if (!this.GameTurnCheck(e.Client, e.Target.Target, e.Sender.Nickname, true, out game, out index))
+			if (!this.GameCheck(e.Client, e.Target.Target, e.Sender.Nickname, true, out game, out index))
 				return;
 			lock (game.Lock) {
-				if (game.DrawFourChallenger == index) {
+				// If someone forgot to call UNO, challenge that first.
+				// Note that you can only challenge that before the next player makes a move.
+				int lastPlayerIndex;
+				if (game.IsReversed) {
+					lastPlayerIndex = game.Turn + 1;
+					if (lastPlayerIndex >= game.Players.Count) lastPlayerIndex = 0;
+				} else {
+					lastPlayerIndex = game.Turn - 1;
+					if (lastPlayerIndex < 0) lastPlayerIndex = game.Players.Count - 1;
+				}
+				var lastPlayer = game.Players[lastPlayerIndex];
+				if (!lastPlayer.CalledUno && lastPlayer.Hand.Count == 1) {
+					lastPlayer.CalledUno = true;  // Can only challenge once per offence.
+					Bot.Say(game.Connection, game.Channel, $"\u000312\u0002{lastPlayer.Name}\u0002 was challenged for not calling UNO and must draw 2 cards.");
+					this.DealCards(game, lastPlayerIndex, 2);
+				} else if (game.DrawFourChallenger == index) {
+					// You can only challenge a Wild Draw Four if you're its target.
 					this.DrawFourChallenge(game, index);
 				} else {
 					Bot.Say(game.Connection, game.Players[index].Name, "There's nothing to challenge.");
@@ -3425,9 +3473,12 @@ namespace UNO {
 							messageBuilder.Append(" \u0002\u000314left the game");
 						else if (player.Presence == PlayerPresence.Out)
 							messageBuilder.Append(" \u0002\u000315is out");
-						else if (player.Hand.Count == 1)
-							messageBuilder.Append(" \u0002\u00034has UNO");
-						else
+						else if (player.Hand.Count == 1) {
+							if (player.CalledUno)
+								messageBuilder.Append(" \u0002\u00034has UNO");
+							else
+								messageBuilder.AppendFormat(" \u0002\u000Fholds {0} card", player.Hand.Count);
+						} else
 							messageBuilder.AppendFormat(" \u0002\u000Fholds {0} cards", player.Hand.Count);
 
 						++n;
