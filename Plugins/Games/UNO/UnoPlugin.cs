@@ -1965,11 +1965,42 @@ namespace UNO {
 			} else
 				game.Players[playerIndex].SortHandByColour();
 
+			// Show the player's hand.
 			messageBuilder.Append("You hold:");
 			foreach (var card in game.Players[playerIndex].Hand) {
 				messageBuilder.Append(" ");
 				messageBuilder.Append(UnoPlugin.ShowCard(card));
 			}
+
+			// Show the next few players and how many cards they hold.
+			messageBuilder.Append(" - Next: ");
+			int playerIndex2 = playerIndex;
+			for (int count = 0; count < 3; ++count) {
+				Player player2;
+				do {
+					if (game.IsReversed) {
+						--playerIndex2;
+						if (playerIndex2 < 0) playerIndex2 = game.Players.Count - 1;
+					} else {
+						++playerIndex2;
+						if (playerIndex2 >= game.Players.Count) playerIndex2 = 0;
+					}
+					player2 = game.Players[playerIndex2];
+				} while (player2.Presence != PlayerPresence.Playing);
+				if (playerIndex2 == playerIndex) break;
+
+				if (count > 0) messageBuilder.Append(", ");
+				messageBuilder.Append(Colours.Bold);
+				messageBuilder.Append(player2.Name);
+				messageBuilder.Append(Colours.Bold + " (");
+				if (player2.CalledUno && player2.Hand.Count == 1) {
+					messageBuilder.Append("\u00034UNO\u000F)");
+				} else {
+					messageBuilder.Append(player2.Hand.Count);
+					messageBuilder.Append("🂠)");
+				}
+			}
+
 			Bot.Say(game.Connection, game.Players[playerIndex].Name, messageBuilder.ToString());
 		}
 
@@ -2711,26 +2742,33 @@ namespace UNO {
 			lock (game.Lock) {
 				// If someone forgot to call UNO, challenge that first.
 				// Note that you can only challenge that before the next player makes a move.
-				int lastPlayerIndex;
-				if (game.IsReversed) {
-					lastPlayerIndex = game.Turn + 1;
-					if (lastPlayerIndex >= game.Players.Count) lastPlayerIndex = 0;
-				} else {
-					lastPlayerIndex = game.Turn - 1;
-					if (lastPlayerIndex < 0) lastPlayerIndex = game.Players.Count - 1;
-				}
-				var lastPlayer = game.Players[lastPlayerIndex];
-				if (!lastPlayer.CalledUno && lastPlayer.Hand.Count == 1) {
-					lastPlayer.CalledUno = true;  // Can only challenge once per offence.
-					Bot.Say(game.Connection, game.Channel, $"\u000312\u0002{lastPlayer.Name}\u0002 was challenged for not calling UNO and must draw 2 cards.");
-					this.DealCards(game, lastPlayerIndex, 2);
-				} else if (game.DrawFourChallenger == index) {
+				if (TryChallengeUno(game, index)) return;
+				if (game.DrawFourChallenger == index) {
 					// You can only challenge a Wild Draw Four if you're its target.
 					this.DrawFourChallenge(game, index);
 				} else {
 					Bot.Say(game.Connection, game.Players[index].Name, "There's nothing to challenge.");
 				}
 			}
+		}
+
+		public bool TryChallengeUno(Game game, int playerIndex) {
+			int lastPlayerIndex;
+			if (game.IsReversed) {
+				lastPlayerIndex = game.Turn + 1;
+				if (lastPlayerIndex >= game.Players.Count) lastPlayerIndex = 0;
+			} else {
+				lastPlayerIndex = game.Turn - 1;
+				if (lastPlayerIndex < 0) lastPlayerIndex = game.Players.Count - 1;
+			}
+			var lastPlayer = game.Players[lastPlayerIndex];
+			if (!lastPlayer.CalledUno && lastPlayer.Hand.Count == 1) {
+				lastPlayer.CalledUno = true;  // Can only challenge once per offence.
+				Bot.Say(game.Connection, game.Channel, $"\u000312\u0002{lastPlayer.Name}\u0002 was challenged for not calling UNO and must draw 2 cards.");
+				this.DealCards(game, lastPlayerIndex, 2);
+				return true;
+			}
+			return false;
 		}
 
 		public void DrawFourChallenge(Game game, int playerIndex) {
@@ -2889,120 +2927,122 @@ namespace UNO {
 			lock (game.Lock) {
 				int playerIndex = game.IndexOf(game.Connection.Me.Nickname);
 
-				if (playerIndex != -1 && game.Players[playerIndex].CanMove) {
-					var upCard = game.UpCard;
-					Colour currentColour = (upCard.IsWild ? game.WildColour : upCard.Colour);
+				if (playerIndex < 0 || !game.Players[playerIndex].CanMove) return;  // Not our turn.
 
-					Card drawStack = Card.None;
-					if (game.DrawCount > 0) {
-						// Someone has played a Draw card on the bot.
-						foreach (var card in game.Players[playerIndex].Hand) {
-							if (upCard != Card.WildDrawFour && card.Rank == Rank.DrawTwo) {
-								drawStack = card;
-								break;
-							} else if (upCard == Card.WildDrawFour && card == Card.WildDrawFour) {
+				this.TryChallengeUno(game, playerIndex);
+
+				var upCard = game.UpCard;
+				Colour currentColour = (upCard.IsWild ? game.WildColour : upCard.Colour);
+
+				Card drawStack = Card.None;
+				if (game.DrawCount > 0) {
+					// Someone has played a Draw card on the bot.
+					foreach (var card in game.Players[playerIndex].Hand) {
+						if (upCard != Card.WildDrawFour && card.Rank == Rank.DrawTwo) {
+							drawStack = card;
+							break;
+						} else if (upCard == Card.WildDrawFour && card == Card.WildDrawFour) {
+							// Check the legality of the Wild Draw Four.
+							foreach (var card2 in game.Players[playerIndex].Hand) {
+								if (!card2.IsWild && card2.Colour == currentColour) {
+									continue;
+								}
+							}
+							drawStack = card;
+							break;
+						}
+					}
+				}
+				if (drawStack != Card.None) {
+					// Stack a Draw card.
+					if (drawStack.IsWild)
+						this.AIPlay(game, playerIndex, drawStack, this.AIChooseColour(game, playerIndex));
+					else
+						this.AIPlay(game, playerIndex, drawStack, Colour.None);
+				} else if (playerIndex == game.Turn && game.WildColour.HasFlag(Colour.Pending)) {
+					// We need to choose a colour for a wild card.
+					this.ColourCheck(game, playerIndex, this.AIChooseColour(game, playerIndex));
+				} else if (game.DrawFourChallenger == playerIndex) {
+					// Someone has played a Wild Draw Four on the bot.
+					int score = 0;
+					score -= game.Players[playerIndex].Hand.Count * 2;
+					score += game.Players[game.DrawFourUser].Hand.Count;
+					if (game.WildColour == game.DrawFourBadColour) score += 8;
+
+					if (score >= 4 && game.RNG.NextDouble() < (score * 0.08)) {
+						Bot.Say(game.Connection, game.Channel, "\u000313\u0002I\u0002 challenge the Wild Draw Four.");
+						this.DrawFourChallenge(game, playerIndex);
+					} else
+						this.DrawCheck(game, playerIndex);
+				} else if (game.DrawCount > 0) {
+					this.DrawCheck(game, playerIndex);
+				} else if (playerIndex == game.Turn && game.DrawnCard != Card.None) {
+					// We've already drawn a card this turn.
+					// Check that it is valid.
+					if (game.DrawnCard == Card.WildDrawFour) {
+						if (this.WildDrawFour == WildDrawFourRule.DisallowBluffing ||
+							(this.WildDrawFour == WildDrawFourRule.AllowBluffing && game.RNG.Next(100) < 75)) {
+							foreach (var card in game.Players[playerIndex].Hand) {
+								if (card.IsWild && card.Colour == currentColour) {
+									PassCheck(game, playerIndex);
+									return;
+								}
+							}
+						}
+					} else if (!game.DrawnCard.IsWild && currentColour != Colour.None) {
+						// If it's not a wild card, it must be the same colour or rank.
+						if (game.DrawnCard.Colour != currentColour &&
+							(upCard.IsWild || game.DrawnCard.Rank != upCard.Rank)) {
+							PassCheck(game, playerIndex);
+							return;
+						}
+					}
+					if (game.DrawnCard.IsWild)
+						this.AIPlay(game, playerIndex, game.DrawnCard, this.AIChooseColour(game, playerIndex));
+					else
+						this.AIPlay(game, playerIndex, game.DrawnCard, Colour.None);
+				} else {
+					// We need to play a card or draw.
+					var cards = new List<Card>(8);
+					foreach (var card in game.Players[playerIndex].Hand) {
+						bool legal = false;
+						if (currentColour == Colour.None)
+							legal = true;
+						else if (card == Card.WildDrawFour) {
+							legal = true;
+							if (this.WildDrawFour == WildDrawFourRule.DisallowBluffing ||
+								(this.WildDrawFour == WildDrawFourRule.AllowBluffing && game.RNG.Next(8) != 0)) {
 								// Check the legality of the Wild Draw Four.
 								foreach (var card2 in game.Players[playerIndex].Hand) {
 									if (!card2.IsWild && card2.Colour == currentColour) {
-										continue;
-									}
-								}
-								drawStack = card;
-								break;
-							}
-						}
-					}
-					if (drawStack != Card.None) {
-						// Stack a Draw card.
-						if (drawStack.IsWild)
-							PlayCheck(game, playerIndex, drawStack, this.AIChooseColour(game, playerIndex));
-						else
-							PlayCheck(game, playerIndex, drawStack, Colour.None);
-					} else if (playerIndex == game.Turn && game.WildColour.HasFlag(Colour.Pending)) {
-						// We need to choose a colour for a wild card.
-						this.ColourCheck(game, playerIndex, this.AIChooseColour(game, playerIndex));
-					} else if (game.DrawFourChallenger == playerIndex) {
-						// Someone has played a Wild Draw Four on the bot.
-						int score = 0;
-						score -= game.Players[playerIndex].Hand.Count * 2;
-						score += game.Players[game.DrawFourUser].Hand.Count;
-						if (game.WildColour == game.DrawFourBadColour) score += 8;
-
-						if (score >= 4 && game.RNG.NextDouble() < (score * 0.08)) {
-							Bot.Say(game.Connection, game.Channel, "\u000313\u0002I\u0002 challenge the Wild Draw Four.");
-							this.DrawFourChallenge(game, playerIndex);
-						} else
-							this.DrawCheck(game, playerIndex);
-					} else if (game.DrawCount > 0) {
-						this.DrawCheck(game, playerIndex);
-					} else if (playerIndex == game.Turn && game.DrawnCard != Card.None) {
-						// We've already drawn a card this turn.
-						// Check that it is valid.
-						if (game.DrawnCard == Card.WildDrawFour) {
-							if (this.WildDrawFour == WildDrawFourRule.DisallowBluffing ||
-								(this.WildDrawFour == WildDrawFourRule.AllowBluffing && game.RNG.Next(100) < 75)) {
-								foreach (var card in game.Players[playerIndex].Hand) {
-									if (card.IsWild && card.Colour == currentColour) {
-										PassCheck(game, playerIndex);
-										return;
+										legal = false;
+										break;
 									}
 								}
 							}
-						} else if (!game.DrawnCard.IsWild && currentColour != Colour.None) {
+						} else if (card == Card.Wild)
+							legal = true;
+						else {
 							// If it's not a wild card, it must be the same colour or rank.
-							if (game.DrawnCard.Colour != currentColour &&
-								(upCard.IsWild || game.DrawnCard.Rank != upCard.Rank)) {
-								PassCheck(game, playerIndex);
-								return;
-							}
+							if (card.Colour == currentColour || (!upCard.IsWild && card.Rank == upCard.Rank))
+								legal = true;
 						}
-						if (game.DrawnCard.IsWild)
-							PlayCheck(game, playerIndex, game.DrawnCard, this.AIChooseColour(game, playerIndex));
-						else
-							PlayCheck(game, playerIndex, game.DrawnCard, Colour.None);
-					} else {
-						// We need to play a card or draw.
-						var cards = new List<Card>(8);
-						foreach (var card in game.Players[playerIndex].Hand) {
-							bool legal = false;
-							if (currentColour == Colour.None)
-								legal = true;
-							else if (card == Card.WildDrawFour) {
-								legal = true;
-								if (this.WildDrawFour == WildDrawFourRule.DisallowBluffing ||
-									(this.WildDrawFour == WildDrawFourRule.AllowBluffing && game.RNG.Next(8) != 0)) {
-									// Check the legality of the Wild Draw Four.
-									foreach (var card2 in game.Players[playerIndex].Hand) {
-										if (!card2.IsWild && card2.Colour == currentColour) {
-											legal = false;
-											break;
-										}
-									}
-								}
-							} else if (card == Card.Wild)
-								legal = true;
-							else {
-								// If it's not a wild card, it must be the same colour or rank.
-								if (card.Colour == currentColour || (!upCard.IsWild && card.Rank == upCard.Rank))
-									legal = true;
-							}
-							if (legal)
-								cards.Add(card);
-						}
+						if (legal)
+							cards.Add(card);
+					}
 
-						if (cards.Count == 0) {
-							// No cards; we have to draw.
-							if (game.WildColour.HasFlag(Colour.None) && upCard.IsWild)
-								this.ColourCheck(game, playerIndex, this.AIChooseColour(game, playerIndex));
-							this.DrawCheck(game, playerIndex);
-						} else {
-							// Pick a random card to play.
-							var card = cards[game.RNG.Next(cards.Count)];
-							if (card.IsWild)
-								PlayCheck(game, playerIndex, card, this.AIChooseColour(game, playerIndex));
-							else
-								PlayCheck(game, playerIndex, card, Colour.None);
-						}
+					if (cards.Count == 0) {
+						// No cards; we have to draw.
+						if (game.WildColour.HasFlag(Colour.None) && upCard.IsWild)
+							this.ColourCheck(game, playerIndex, this.AIChooseColour(game, playerIndex));
+						this.DrawCheck(game, playerIndex);
+					} else {
+						// Pick a random card to play.
+						var card = cards[game.RNG.Next(cards.Count)];
+						if (card.IsWild)
+							this.AIPlay(game, playerIndex, card, this.AIChooseColour(game, playerIndex));
+						else
+							this.AIPlay(game, playerIndex, card, Colour.None);
 					}
 				}
 			}
@@ -3026,6 +3066,14 @@ namespace UNO {
 			if (colour == -1)
 				colour = game.RNG.Next(4);
 			return (Colour) (colour << 4);
+		}
+		internal void AIPlay(Game game, int playerIndex, Card card, Colour colour) {
+			var player = game.Players[playerIndex];
+			if (player.Hand.Count == 2) {
+				// TODO: Currently the bot will always call UNO. This may be changed later.
+				player.CalledUno = true;
+			}
+			this.PlayCheck(game, playerIndex, card, colour);
 		}
 
 		public void IdleCheck(Game game) {
