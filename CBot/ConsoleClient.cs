@@ -9,17 +9,16 @@ namespace CBot {
 	/// We do this by emulating an IRC network with an <see cref="IrcClient"/> subclass.
 	/// </summary>
 	internal class ConsoleClient : IrcClient {
-		private static object consoleLock = new object();
+		private static readonly object consoleLock = new();
 
-		internal ConsoleClient() : base(new IrcLocalUser(Bot.DefaultNicknames[0], Bot.DefaultNicknames[0], Bot.DefaultNicknames[0]), "!Console") {
-			this.Address = "!Console";
-		}
+		internal ConsoleClient(Bot bot) : base(new IrcLocalUser(bot.DefaultNicknames[0], bot.DefaultNicknames[0], bot.DefaultNicknames[0]), "!Console")
+			=> this.Address = "!Console";
 
 		public override void Connect(string host, int port) {
 			this.LastSpoke = DateTime.Now;
 			this.State = IrcClientState.Online;
 
-			this.ReceivedLine(":" + Me.Nickname + "!*@* JOIN #");
+			this.ReceivedLine(":" + this.Me.Nickname + "!*@* JOIN #");
 			this.ReceivedLine(":User!User@console JOIN #");
 		}
 
@@ -31,11 +30,11 @@ namespace CBot {
 			if ((line.Message.Equals("PRIVMSG", StringComparison.OrdinalIgnoreCase) || line.Message.Equals("NOTICE", StringComparison.OrdinalIgnoreCase)) &&
 				(line.Parameters[0] == "#" || IrcStringComparer.RFC1459.Equals(line.Parameters[0], "User"))) {
 				// Emulate a channel message to # or PM to 'User' by sticking it on the console.
-				writeMessage(line.Parameters[1]);
+				WriteMessage(line.Parameters[1]);
 			}
 		}
 
-		public static void writeMessage(string message) {
+		public static void WriteMessage(string message) {
 			lock (consoleLock) {
 				ConsoleColor originalBackground; ConsoleColor originalForeground;
 				originalBackground = Console.BackgroundColor;
@@ -69,9 +68,9 @@ namespace CBot {
 							colour = num;
 							break;
 						} else if (c == '\u000F') {  // Reset
-							colourChanged = (colour != -1);
+							colourChanged = colour != -1;
 							colour = -1;
-							backgroundColourChanged = (backgroundColour != -2);
+							backgroundColourChanged = backgroundColour != -2;
 							backgroundColour = -2;
 							bold = false;
 							italic = false;
@@ -79,7 +78,7 @@ namespace CBot {
 							strikethrough = false;
 							break;
 						} else if (c == '\u0003') {  // Colour
-							Match match = Regex.Match(message.Substring(i), @"^\x03(\d\d?)(?:,(\d\d?))?");
+							var match = Regex.Match(message[i..], @"^\x03(\d\d?)(?:,(\d\d?))?");
 							if (match.Success) {
 								colour = short.Parse(match.Groups[1].Value);
 								colourChanged = true;
@@ -90,9 +89,9 @@ namespace CBot {
 								}
 								i += match.Length - 1;
 							} else {
-								colourChanged = (colour != -1);
+								colourChanged = colour != -1;
 								colour = -1;
-								backgroundColourChanged = (backgroundColour != -2);
+								backgroundColourChanged = backgroundColour != -2;
 								backgroundColour = -2;
 							}
 							break;
@@ -146,7 +145,7 @@ namespace CBot {
 						}
 					}
 					if (bold && Environment.OSVersion.Platform != PlatformID.Unix) {
-						if (Console.ForegroundColor >= ConsoleColor.DarkBlue && Console.ForegroundColor <= ConsoleColor.DarkYellow)
+						if (Console.ForegroundColor is >= ConsoleColor.DarkBlue and <= ConsoleColor.DarkYellow)
 							Console.ForegroundColor += 8;
 						else if (Console.ForegroundColor == ConsoleColor.DarkGray)
 							Console.ForegroundColor = ConsoleColor.Gray;
@@ -205,8 +204,6 @@ namespace CBot {
 			}
 		}
 
-		internal void Put(string Text) {
-			this.ReceivedLine(":User!User@console PRIVMSG " + Me.Nickname + " :" + Text);
-		}
+		internal void Put(string Text) => this.ReceivedLine(":User!User@console PRIVMSG " + this.Me.Nickname + " :" + Text);
 	}
 }

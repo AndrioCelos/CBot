@@ -17,8 +17,8 @@ namespace CBot {
 		public string Avatar;
 
 		public string[] CommandPrefixes = new[] { "!" };
-		public Dictionary<string, string[]> ChannelCommandPrefixes = new Dictionary<string, string[]>(StringComparer.OrdinalIgnoreCase);
+		public Dictionary<string, string[]> ChannelCommandPrefixes = new(StringComparer.OrdinalIgnoreCase);
 
-		public List<ClientEntry> Networks = new List<ClientEntry>();
+		public List<ClientEntry> Networks = new();
 	}
 }

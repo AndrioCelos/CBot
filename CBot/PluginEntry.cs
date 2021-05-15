@@ -22,7 +22,7 @@ namespace CBot {
 
 		private string[] channels;
 		public string[] Channels {
-			get { return this.Obj?.Channels ?? this.channels;  }
+			get => this.Obj?.Channels ?? this.channels;
 			set {
 				if (this.Obj == null) this.channels = value;
 				else this.Obj.Channels = value;

@@ -38,14 +38,14 @@ namespace CBot {
 		///         RequestMask         = *IDENTIFY*
 		/// </remarks>
 		public NickServSettings() {
-			this.RegisteredNicknames = new string[0];
+			this.RegisteredNicknames = Array.Empty<string>();
 			this.AnyNickname = false;
 			this.UseGhostCommand = true;
 			this.GhostCommand = "PRIVMSG $target :GHOST $nickname $password";
 			this.IdentifyCommand = "PRIVMSG $target :IDENTIFY $password";
 			this.Hostmask = "NickServ!*@*";
 			this.RequestMask = "*IDENTIFY*";
-			this.IdentifyTime = default(DateTime);
+			this.IdentifyTime = default;
 		}
 	}
 }

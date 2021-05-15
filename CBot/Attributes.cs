@@ -13,15 +13,9 @@ namespace CBot {
 	public class ApiVersionAttribute : Attribute {
 		public Version Version { get; }
 
-		public ApiVersionAttribute(Version version) {
-			this.Version = version;
-		}
-		public ApiVersionAttribute(string version) {
-			this.Version = new Version(version);
-		}
-		public ApiVersionAttribute(int major, int minor) {
-			this.Version = new Version(major, minor);
-		}
+		public ApiVersionAttribute(Version version) => this.Version = version;
+		public ApiVersionAttribute(string version) => this.Version = new Version(version);
+		public ApiVersionAttribute(int major, int minor) => this.Version = new Version(major, minor);
 	}
 
 	/// <summary>
@@ -59,7 +53,7 @@ namespace CBot {
 			get => this.priority;
 			set {
 				this.priority = value;
-				this.PriorityHandler = (e => this.priority);
+				this.PriorityHandler = e => this.priority;
 			}
 		}
 		private string priorityHandlerName;
@@ -72,7 +66,7 @@ namespace CBot {
 			}
 		}
 		/// <summary>Returns or sets a delegate that determines the priority for the command. This property cannot be set as an attribute parameter.</summary>
-		public PluginCommandPriorityHandler PriorityHandler { get; set; } = (e => 10);
+		public PluginCommandPriorityHandler PriorityHandler { get; set; } = e => 10;
 
 		internal Plugin plugin;
 
@@ -152,9 +146,8 @@ namespace CBot {
 		/// <summary>Initializes a new <see cref="TriggerAttribute"/> with the specified data.</summary>
 		/// <param name="pattern">The regular expression that will trigger this procedure.</param>
 		/// <param name="options">The options to apply to the expression. <see cref="RegexOptions.Compiled"/> is implied. <see cref="RegexOptions.IgnoreCase"/> is the default.</param>
-		public TriggerAttribute(string pattern, RegexOptions options) {
-			this.Patterns = new List<Regex>(1) { new Regex(pattern, RegexOptions.Compiled | options) };
-		}
+		public TriggerAttribute(string pattern, RegexOptions options)
+			=> this.Patterns = new List<Regex>(1) { new Regex(pattern, RegexOptions.Compiled | options) };
 		/// <summary>Initializes a new <see cref="TriggerAttribute"/> with the specified data.</summary>
 		/// <param name="patterns">The regular expressions that will trigger this procedure.</param>
 		public TriggerAttribute(string[] patterns) : this(patterns, RegexOptions.IgnoreCase) { }

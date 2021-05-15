@@ -8,9 +8,7 @@ namespace CBot {
 	public class IrcClientEventArgs : EventArgs {
 		public ClientEntry Entry { get; }
 
-		public IrcClientEventArgs(ClientEntry entry) {
-			this.Entry = entry;
-		}
+		public IrcClientEventArgs(ClientEntry entry) => this.Entry = entry;
 	}
 
 	/// <summary>

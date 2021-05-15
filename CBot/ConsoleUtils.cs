@@ -2,11 +2,11 @@ using System;
 
 namespace CBot {
 	public static class ConsoleUtils {
-		public static bool UseDarkGray = true;
+		public static bool UseDarkGray { get; set; }
 
-		private static object writeLock = new object();
-		private static string[] colours = new string[] { "BLACK"    , "DKBLUE"   , "DKGREEN"  , "DKCYAN"   , "DKRED"    , "DKMAGENTA", "DKYELLOW" , "GRAY"       ,
-														 "DKGRAY"   , "BLUE"     , "GREEN"    , "CYAN"     , "RED"      , "MAGENTA"  , "YELLOW"   , "WHITE"       };
+		private static readonly object writeLock = new();
+		private static readonly string[] colours = new string[] { "BLACK"    , "DKBLUE"   , "DKGREEN"  , "DKCYAN"   , "DKRED"    , "DKMAGENTA", "DKYELLOW" , "GRAY"       ,
+		                                                          "DKGRAY"   , "BLUE"     , "GREEN"    , "CYAN"     , "RED"      , "MAGENTA"  , "YELLOW"   , "WHITE"       };
 
 		private static void WriteSub(string text, ConsoleColor originalForeground, ConsoleColor originalBackground) {
 			if (text == null) return;
@@ -15,10 +15,10 @@ namespace CBot {
 			while (pos < text.Length) {
 				int pos2 = text.IndexOf('%', pos);
 				if (pos2 == -1) {
-					Console.Write(text.Substring(pos));
+					Console.Write(text[pos..]);
 					return;
 				}
-				if (pos2 != pos) Console.Write(text.Substring(pos, pos2 - pos));
+				if (pos2 != pos) Console.Write(text[pos..pos2]);
 				if (pos < text.Length - 1) {
 					bool flag = false;
 					switch (text[pos2 + 1]) {
@@ -65,7 +65,6 @@ namespace CBot {
 						case 'N':
 						case 'n':
 							Console.WriteLine();
-							pos2 += 2;
 							continue;
 						case 'O':
 						case 'o':
@@ -90,8 +89,8 @@ namespace CBot {
 		}
 		private static void WriteSub(string format, params object[] args) {
 			int i = 0; int open = -1; int index = -1; int start = 0;
-			ConsoleColor originalForeground = Console.ForegroundColor;
-			ConsoleColor originalBackground = Console.BackgroundColor;
+			var originalForeground = Console.ForegroundColor;
+			var originalBackground = Console.BackgroundColor;
 
 			while (i < format.Length) {
 				char c = format[i];
@@ -100,7 +99,7 @@ namespace CBot {
 					if (i != format.Length - 1 && format[i + 1] == '}') {
 						if (index == -1) {
 							if (i != start)
-								ConsoleUtils.WriteSub(format.Substring(start, i - start), originalForeground, originalBackground);
+								WriteSub(format[start..i], originalForeground, originalBackground);
 							Console.Write("}");
 							start = i + 2;
 						}
@@ -111,22 +110,22 @@ namespace CBot {
 						if (open == -1)
 							Console.Write((args[index] ?? "").ToString());
 						else
-							Console.Write("{0" + format.Substring(open, i - open) + "}", args[index]);
+							Console.Write("{0" + format[open..i] + "}", args[index]);
 						open = -1;
 						index = -1;
 						start = i + 1;
 					}
 				} else if (open == -1) {
 					if (index == -2) {
-						if (c < '0' || c > '9')
+						if (c is < '0' or > '9')
 							throw new FormatException();
-						index = (int) (c - '0');
+						index = c - '0';
 					} else if (index != -1) {
 						if (c != ' ') {
-							if (c == ',' || c == ':') {
+							if (c is ',' or ':') {
 								open = i;
 							} else {
-								if (c < '0' || c > '9')
+								if (c is < '0' or > '9')
 									throw new FormatException();
 								index = index * 10 + (int) (c - '0');
 							}
@@ -135,14 +134,14 @@ namespace CBot {
 						if (i != format.Length - 1 && format[i + 1] == '{') {
 							if (index == -1) {
 								if (i != start)
-									ConsoleUtils.WriteSub(format.Substring(start, i - start), originalForeground, originalBackground);
+									WriteSub(format[start..i], originalForeground, originalBackground);
 								Console.Write("{");
 								start = i + 2;
 							}
 							++i;
 						} else if (open == -1) {
 							if (i != start)
-								ConsoleUtils.WriteSub(format.Substring(start, i - start), originalForeground, originalBackground);
+								WriteSub(format[start..i], originalForeground, originalBackground);
 							index = -2;
 						} else
 							throw new FormatException();
@@ -153,32 +152,30 @@ namespace CBot {
 			if (index != -1)
 				throw new FormatException();
 			if (i != start)
-				ConsoleUtils.WriteSub(format.Substring(start, i - start), originalForeground, originalBackground);
+				WriteSub(format[start..i], originalForeground, originalBackground);
 		}
 
 		public static void Write(string text)
 		{
 			lock (writeLock)
-				ConsoleUtils.WriteSub(text, Console.ForegroundColor, Console.BackgroundColor);
+				WriteSub(text, Console.ForegroundColor, Console.BackgroundColor);
 		}
 		public static void Write(string format, params object[] args)
 		{
 			lock (writeLock)
-				ConsoleUtils.WriteSub(format, args);
+				WriteSub(format, args);
 		}
-		public static void WriteLine() {
-			Console.WriteLine();
-		}
+		public static void WriteLine() => Console.WriteLine();
 		public static void WriteLine(string text)
 		{
 			lock (writeLock) {
-				ConsoleUtils.Write(text);
+				Write(text);
 				Console.WriteLine();
 			}
 		}
 		public static void WriteLine(string format, params object[] args) {
 			lock (writeLock) {
-				ConsoleUtils.WriteSub(format, args);
+				WriteSub(format, args);
 				Console.WriteLine();
 			}
 		}

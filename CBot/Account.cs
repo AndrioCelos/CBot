@@ -87,13 +87,13 @@ namespace CBot {
 		///     'Why does the hashing code on this page compare the hashes in "length-constant" time?'
 		/// </remarks>
 		public static bool SlowEquals(byte[] v1, byte[] v2) {
-			if (v1 == null) return (v2 == null);
+			if (v1 == null) return v2 == null;
 			if (v2 == null) return false;
 
 			int diff = v1.Length ^ v2.Length;  // The xor operation returns 0 if, and only if, the operands are identical.
 			for (int i = 0; i < v1.Length && i < v2.Length; ++i)
-				diff |= (v1[i] ^ v2[i]);
-			return (diff == 0);
+				diff |= v1[i] ^ v2[i];
+			return diff == 0;
 		}
 	}
 

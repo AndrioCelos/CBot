@@ -15,12 +15,12 @@ namespace CBot {
 		/// <summary>Creates an InvalidPluginException object with the specified file path and detail message.</summary>
 		/// <param name="filePath">The file that an attempt was made to load.</param>
 		/// <param name="message">A human-readable message giving details on the problem.</param>
-		public InvalidPluginException(string filePath, string message) : base(message) { this.FilePath = FilePath; }
+		public InvalidPluginException(string filePath, string message) : base(message) => this.FilePath = filePath;
 		/// <summary>Creates an InvalidPluginException object with the specified file path, detail message and inner exception.</summary>
 		/// <param name="filePath">The file that an attempt was made to load.</param>
 		/// <param name="message">A human-readable message giving details on the problem.</param>
 		/// <param name="inner">The exception that caused this exception.</param>
-		public InvalidPluginException(string filePath, string message, Exception inner) : base(message, inner) { this.FilePath = FilePath; }
+		public InvalidPluginException(string filePath, string message, Exception inner) : base(message, inner) => this.FilePath = filePath;
 		protected InvalidPluginException(
 		  System.Runtime.Serialization.SerializationInfo info,
 		  System.Runtime.Serialization.StreamingContext context)

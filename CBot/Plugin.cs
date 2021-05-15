@@ -15,19 +15,18 @@ namespace CBot {
 
 	/// <summary>Provides a base class for CBot plugin main classes.</summary>
 	public abstract class Plugin {
-		private static Regex languageEscapeRegex = new Regex(@"\\(?:(n)|(r)|(t)|(\\)|(u)([0-9a-f]{4})?|($))", RegexOptions.Compiled | RegexOptions.IgnoreCase);
+		private static readonly Regex languageEscapeRegex = new(@"\\(?:(n)|(r)|(t)|(\\)|(u)([0-9a-f]{4})?|($))", RegexOptions.Compiled | RegexOptions.IgnoreCase);
 
-		private string[] _Channels = new string[0];
+		public Bot Bot { get; internal set; }
+
+		private string[] _Channels = Array.Empty<string>();
 		/// <summary>
 		/// Sets or returns the list of channels that this plugin will receive events for.
 		/// This property can be overridden.
 		/// </summary>
 		public virtual string[] Channels {
-			get { return this._Channels; }
-			set {
-				if (value == null) this._Channels = new string[0];
-				else this._Channels = value;
-			}
+			get => this._Channels;
+			set => this._Channels = value ?? Array.Empty<string>();
 		}
 
 		/// <summary>
@@ -59,13 +58,13 @@ namespace CBot {
 		///     {(} {)} {|} Escape, respectively, a (, ) or | character. (To escape a { or }, double it.)
 		///     ((option1||option2||option3))   Chooses one of the options at random each time. Can be nested and can contain other sequences.
 		/// </remarks>
-		protected Dictionary<string, string> language = new Dictionary<string,string>();
+		protected Dictionary<string, string> language = new();
 		/// <summary>
 		/// Contains the default message formats currently in use by this plugin.
 		/// When an entry is not found in the Language list, the function should fall back to this list.
 		/// </summary>
-		protected Dictionary<string, string> defaultLanguage = new Dictionary<string, string>();
-		private Random random = new Random();
+		protected Dictionary<string, string> defaultLanguage = new();
+		private readonly Random random = new();
 
 		/// <summary>
 		/// Creates a new instance of the Plugin class.
@@ -74,11 +73,11 @@ namespace CBot {
 			// Register commands and triggers.
 			foreach (var method in this.GetType().GetMethods()) {
 				foreach (var attribute in method.GetCustomAttributes()) {
-					if (attribute is CommandAttribute) {
-						foreach (var alias in ((CommandAttribute) attribute).Names)
-							this.Commands.Add(alias, new Command((CommandAttribute) attribute, (PluginCommandHandler) method.CreateDelegate(typeof(PluginCommandHandler), this)));
-					} else if (attribute is TriggerAttribute) {
-						this.Triggers.Add(new Trigger((TriggerAttribute) attribute, (PluginTriggerHandler) method.CreateDelegate(typeof(PluginTriggerHandler), this)));
+					if (attribute is CommandAttribute commandAttribute) {
+						foreach (var alias in commandAttribute.Names)
+							this.Commands.Add(alias, new Command(commandAttribute, (PluginCommandHandler) method.CreateDelegate(typeof(PluginCommandHandler), this)));
+					} else if (attribute is TriggerAttribute triggerAttribute) {
+						this.Triggers.Add(new Trigger(triggerAttribute, (PluginTriggerHandler) method.CreateDelegate(typeof(PluginTriggerHandler), this)));
 					}
 				}
 			}
@@ -99,7 +98,7 @@ namespace CBot {
 		/// <param name="target">The channel to check.</param>
 		/// <returns>True if the specified channel is in the Channels list; false otherwise.</returns>
 		public bool IsActiveTarget(IrcMessageTarget target) {
-			if (target is IrcUser) return this.IsActivePM((IrcUser) target);
+			if (target is IrcUser user) return this.IsActivePM(user);
 			foreach (string channelName in this.Channels) {
 				string[] fields = channelName.Split(new char[] { '/' }, 2);
 				if (fields.Length == 1)
@@ -141,15 +140,12 @@ namespace CBot {
 
 		public virtual async Task<IEnumerable<Command>> CheckCommands(IrcUser sender, IrcMessageTarget target, string label, string parameters, bool isGlobalCommand) {
 			var command = this.GetCommand(target, label, isGlobalCommand);
-			if (command != null) {
-				return new[] { command };
-			}
-			return Enumerable.Empty<Command>();
+			return command != null ? new[] { command } : Enumerable.Empty<Command>();
 		}
 
 		public virtual async Task<bool> CheckTriggers(IrcUser sender, IrcMessageTarget target, string message) {
 			if (this.Triggers.Count != 0) {
-				var trigger = this.GetTrigger(target, message, out Match match);
+				var trigger = this.GetTrigger(target, message, out var match);
 				if (trigger != null) {
 					await this.RunTrigger(sender, target, trigger, match);
 					return true;
@@ -163,14 +159,11 @@ namespace CBot {
 		/// <summary>Returns the command that matches the specified label and target, if any; otherwise, returns null.</summary>
 		public Command GetCommand(IrcMessageTarget target, string label, bool globalCommand) {
 			string alias = label.Split(new char[] { ' ' })[0];
-			Command command;
-			if (!this.Commands.TryGetValue(alias, out command)) return null;
+			if (!this.Commands.TryGetValue(alias, out var command)) return null;
 
 			// Check the scope.
-			if ((command.Attribute.Scope & CommandScope.PM) == 0 && !(target is IrcChannel)) return null;
-			if ((command.Attribute.Scope & CommandScope.Channel) == 0 && target is IrcChannel) return null;
-
-			return command;
+			return ((command.Attribute.Scope & CommandScope.PM) == 0 && !(target is IrcChannel)) ||
+				((command.Attribute.Scope & CommandScope.Channel) == 0 && target is IrcChannel) ? null : command;
 		}
 
 		/// <summary>
@@ -184,40 +177,35 @@ namespace CBot {
 		/// <returns>True if a command was matched (even if it was denied); false otherwise.</returns>
 		public async Task RunCommand(IrcUser sender, IrcMessageTarget target, Command command, string parameters, bool globalCommand = false) {
 			// Check for permissions.
-			string permission;
-			if (command.Attribute.Permission == null)
-				permission = null;
-			else if (command.Attribute.Permission != "" && command.Attribute.Permission.StartsWith("."))
-				permission = this.Key + command.Attribute.Permission;
-			else
-				permission = command.Attribute.Permission;
-
+			string permission = command.Attribute.Permission == null ? null
+				: command.Attribute.Permission.StartsWith(".") ? this.Key + command.Attribute.Permission
+				: command.Attribute.Permission;
 			try {
-				if (permission != null && !await Bot.CheckPermissionAsync(sender, permission)) {
+				if (permission != null && !await this.Bot.CheckPermissionAsync(sender, permission)) {
 					if (command.Attribute.NoPermissionsMessage != null) Bot.Say(sender.Client, sender.Nickname, command.Attribute.NoPermissionsMessage);
 					return;
 				}
 
 				// Parse the parameters.
 				string[] fields = parameters?.Split((char[]) null, command.Attribute.MaxArgumentCount, StringSplitOptions.RemoveEmptyEntries)
-									  ?? new string[0];
+									  ?? Array.Empty<string>();
 				if (fields.Length < command.Attribute.MinArgumentCount) {
 					Bot.Say(sender.Client, sender.Nickname, "Not enough parameters.");
-					Bot.Say(sender.Client, sender.Nickname, string.Format("The correct syntax is \u000312{0}\u000F.", command.Attribute.Syntax.ReplaceCommands(target)));
+					Bot.Say(sender.Client, sender.Nickname, string.Format("The correct syntax is \u000312{0}\u000F.", this.Bot.ReplaceCommands(command.Attribute.Syntax, target)));
 					return;
 				}
 
 				// Run the command.
 				// TODO: Run it on a separate thread?
-				var entry = Bot.GetClientEntry(sender.Client);
+				var entry = this.Bot.GetClientEntry(sender.Client);
 				try {
 					entry.CurrentPlugin = this;
 					entry.CurrentProcedure = command.Handler.GetMethodInfo();
-					CommandEventArgs e = new CommandEventArgs(sender.Client, target, sender, fields);
+					var e = new CommandEventArgs(sender.Client, target, sender, fields);
 					command.Handler.Invoke(this, e);
 				} catch (Exception ex) {
 					Bot.LogError(this.Key, command.Handler.GetMethodInfo().Name, ex);
-					while (ex is TargetInvocationException || ex is AggregateException) ex = ex.InnerException;
+					while (ex is TargetInvocationException or AggregateException) ex = ex.InnerException;
 					Bot.Say(sender.Client, target.Target, "\u00034The command failed. This incident has been logged. ({0})", ex.Message.Replace('\n', ' '));
 				}
 				entry.CurrentPlugin = null;
@@ -231,12 +219,12 @@ namespace CBot {
 		/// <summary>Returns the command that matches the specified label and target, if any; otherwise, returns null.</summary>
 		public Trigger GetTrigger(IrcMessageTarget target, string message, out Match match) {
 			var highlightMatch = Regex.Match(message, @"^" + Regex.Escape(target.Client.Me.Nickname) + @"\.*[:,-]? ", RegexOptions.IgnoreCase);
-			if (highlightMatch.Success) message = message.Substring(highlightMatch.Length);
+			if (highlightMatch.Success) message = message[highlightMatch.Length..];
 
 			foreach (var trigger in this.Triggers) {
 				if (trigger.Attribute.MustUseNickname && !highlightMatch.Success) continue;
 
-				foreach (Regex regex in trigger.Attribute.Patterns) {
+				foreach (var regex in trigger.Attribute.Patterns) {
 					match = regex.Match(message);
 					if (match.Success) {
 						// Check the scope.
@@ -259,30 +247,25 @@ namespace CBot {
 		/// <returns>True if a command was matched (even if it was denied); false otherwise.</returns>
 		public async Task RunTrigger(IrcUser sender, IrcMessageTarget target, Trigger trigger, Match match) {
 			// Check for permissions.
-			string permission;
-			if (trigger.Attribute.Permission == null)
-				permission = null;
-			else if (trigger.Attribute.Permission != "" && trigger.Attribute.Permission.StartsWith("."))
-				permission = this.Key + trigger.Attribute.Permission;
-			else
-				permission = trigger.Attribute.Permission;
-
+			string permission = trigger.Attribute.Permission == null ? null
+				: trigger.Attribute.Permission.StartsWith(".") ? this.Key + trigger.Attribute.Permission
+				: trigger.Attribute.Permission;
 			try {
-				if (permission != null && !await Bot.CheckPermissionAsync(sender, permission)) {
+				if (permission != null && !await this.Bot.CheckPermissionAsync(sender, permission)) {
 					if (trigger.Attribute.NoPermissionsMessage != null) Bot.Say(sender.Client, sender.Nickname, trigger.Attribute.NoPermissionsMessage);
 					return;
 				}
 
 				// Run the command.
 				// TODO: Run it on a separate thread.
-				var entry = Bot.GetClientEntry(sender.Client);
+				var entry = this.Bot.GetClientEntry(sender.Client);
 				try {
 					entry.CurrentPlugin = this;
 					entry.CurrentProcedure = trigger.Handler.GetMethodInfo();
 					trigger.Handler.Invoke(this, new TriggerEventArgs(sender.Client, target, sender, match));
 				} catch (Exception ex) {
 					Bot.LogError(this.Key, trigger.Handler.GetMethodInfo().Name, ex);
-					while (ex is TargetInvocationException || ex is AggregateException) ex = ex.InnerException;
+					while (ex is TargetInvocationException or AggregateException) ex = ex.InnerException;
 					Bot.Say(sender.Client, target.Target, "\u00034The command failed. This incident has been logged. ({0})", ex.Message);
 				}
 				entry.CurrentPlugin = null;
@@ -299,9 +282,8 @@ namespace CBot {
 		/// <param name="message">The text to send.</param>
 		/// <param name="options">A SayOptions value specifying how to send the message.</param>
 		/// <param name="exclude">A list of channel names that should be excloded. May be null or empty to exclude nothing.</param>
-		public void SayToAllChannels(string message, SayOptions options = 0, string[] exclude = null) {
-			this.SayToAllChannels(message, options, exclude, false, null, null, null);
-		}
+		public void SayToAllChannels(string message, SayOptions options = 0, string[] exclude = null)
+			=> this.SayToAllChannels(message, options, exclude, false, null, null, null);
 		/// <summary>
 		/// Invokes GetMessage and sends the result to all channels in which the bot is active. Channel names containing wildcards are excluded.
 		/// </summary>
@@ -311,21 +293,20 @@ namespace CBot {
 		/// <param name="options">A SayOptions value specifying how to send the message.</param>
 		/// <param name="exclude">A list of channel names that should be excloded. May be null or empty to exclude nothing.</param>
 		/// <param name="args">Implementation-defined elements to be included in the formatted message.</param>
-		public void SayLanguageToAllChannels(string key, string nickname, string channel, SayOptions options = 0, string[] exclude = null, params object[] args) {
-			this.SayToAllChannels(key, options, exclude, true, nickname, channel, args);
-		}
+		public void SayLanguageToAllChannels(string key, string nickname, string channel, SayOptions options = 0, string[] exclude = null, params object[] args)
+			=> this.SayToAllChannels(key, options, exclude, true, nickname, channel, args);
 
 		private void SayToAllChannels(string message, SayOptions options, string[] exclude, bool isLanguage, string nickname, string channel, params object[] args) {
-			if (message == null || message == "") return;
+			if (message is null or "") return;
 			if (this.Channels == null) return;
 
 			if ((options & SayOptions.Capitalise) != 0) {
 				char c = char.ToUpper(message[0]);
-				if (c != message[0]) message = c + message.Substring(1);
+				if (c != message[0]) message = c + message[1..];
 			}
 
-			List<string>[] privmsgTarget = new List<string>[Bot.Clients.Count];
-			List<string>[] noticeTarget = new List<string>[Bot.Clients.Count];
+			var privmsgTarget = new List<string>[this.Bot.Clients.Count];
+			var noticeTarget = new List<string>[this.Bot.Clients.Count];
 
 			foreach (string channel2 in this.Channels) {
 				string address;
@@ -344,10 +325,10 @@ namespace CBot {
 				bool notice = false;
 				string target = channel3;
 
-				for (int index = 0; index < Bot.Clients.Count; ++index) {
-					if (address == null || address == "*" || address.Equals(Bot.Clients[index].Client.Address, StringComparison.OrdinalIgnoreCase) || address.Equals(Bot.Clients[index].Name, StringComparison.OrdinalIgnoreCase)) {
-						if (Bot.Clients[index].Client.IsChannel(channel3)) {
-							if ((address == null || address == "*") && !Bot.Clients[index].Client.Channels.Contains(channel3)) continue;
+				for (int index = 0; index < this.Bot.Clients.Count; ++index) {
+					if (address == null || address == "*" || address.Equals(this.Bot.Clients[index].Client.Address, StringComparison.OrdinalIgnoreCase) || address.Equals(this.Bot.Clients[index].Name, StringComparison.OrdinalIgnoreCase)) {
+						if (this.Bot.Clients[index].Client.IsChannel(channel3)) {
+							if ((address == null || address == "*") && !this.Bot.Clients[index].Client.Channels.Contains(channel3)) continue;
 							if ((options & SayOptions.OpsOnly) != 0) {
 								target = "@" + channel3;
 								notice = true;
@@ -366,28 +347,22 @@ namespace CBot {
 							if (privmsgTarget[index] == null) privmsgTarget[index] = new List<string>();
 						}
 
-						List<string> selectedTarget;
-						if (notice)
-							selectedTarget = noticeTarget[index];
-						else
-							selectedTarget = privmsgTarget[index];
-
-						if (!selectedTarget.Contains(target))
-							selectedTarget.Add(target);
+						var selectedTarget = notice ? noticeTarget[index] : privmsgTarget[index];
+						if (!selectedTarget.Contains(target)) selectedTarget.Add(target);
 					}
 				}
 
 			}
 
 			string key = message;
-			for (int index = 0; index < Bot.Clients.Count; ++index) {
+			for (int index = 0; index < this.Bot.Clients.Count; ++index) {
 				if (isLanguage)
 					message = this.GetMessage(key, nickname, channel, args);
 
 				if (privmsgTarget[index] != null)
-					Bot.Clients[index].Client.Send("PRIVMSG {0} :{1}", string.Join(",", privmsgTarget[index]), message);
+					this.Bot.Clients[index].Client.Send("PRIVMSG {0} :{1}", string.Join(",", privmsgTarget[index]), message);
 				if (noticeTarget[index] != null)
-					Bot.Clients[index].Client.Send("NOTICE {0} :{1}", string.Join(",", noticeTarget[index]), message);
+					this.Bot.Clients[index].Client.Send("NOTICE {0} :{1}", string.Join(",", noticeTarget[index]), message);
 			}
 		}
 
@@ -400,44 +375,43 @@ namespace CBot {
 		/// <param name="args">Implementation-defined elements to be included in the formatted message.</param>
 		/// <returns>The formatted message, or null if the key given is not in either Language list.</returns>
 		public string GetMessage(string key, string nickname, string channel, params object[] args) {
-			string format;
-			if (!this.language.TryGetValue(key, out format))
+			if (!this.language.TryGetValue(key, out string format))
 				if (!this.defaultLanguage.TryGetValue(key, out format))
 					return null;
 
-			return string.Format(this.ProcessMessage(format, nickname, channel), args ?? new object[0]);
+			return string.Format(this.ProcessMessage(format, nickname, channel), args ?? Array.Empty<object>());
 		}
 		private string ProcessMessage(string format, string nickname, string channel) {
-			int braceLevel = 0;
-			StringBuilder builder = new StringBuilder(format.Length);
+			int braceLevel;
+			var builder = new StringBuilder(format.Length);
 
 			for (int i = 0; i < format.Length; ++i) {
 					if (i <= format.Length - 3 && format[i] == '{' && format.Substring(i, 3) == "{(}") {
-						builder.Append("(");
+						builder.Append('(');
 						i += 2;
 					} else if (i <= format.Length - 3 && format[i] == '{' && format.Substring(i, 3) == "{)}") {
-						builder.Append(")");
+						builder.Append(')');
 						i += 2;
 					} else if (i <= format.Length - 3 && format[i] == '{' && format.Substring(i, 3) == "{|}") {
-						builder.Append("|");
+						builder.Append('|');
 						i += 2;
 					} else if (i <= format.Length - 2 && format[i] == '(' && format[i + 1] == '(') {
 						i += 2;
 						int start = i;
 						braceLevel = 1;
-						List<Tuple<int, int>> options = new List<Tuple<int, int>>();
+						var options = new List<Tuple<int, int>>();
 
 						for (; i < format.Length; ++i) {
 							if (i < format.Length - 1) {
 								if (format[i] == '{' && i <= format.Length - 3) {
 									if (format.Substring(i, 3) == "{(}") {
-										builder.Append("(");
+										builder.Append('(');
 										i += 2;
 									} else if (format.Substring(i, 3) == "{)}") {
-										builder.Append(")");
+										builder.Append(')');
 										i += 2;
 									} else if (format.Substring(i, 3) == "{|}") {
-										builder.Append("|");
+										builder.Append('|');
 										i += 2;
 									}
 								} else if (braceLevel == 1 && format[i] == '|' && format[i + 1] == '|') {
@@ -462,8 +436,8 @@ namespace CBot {
 						}
 
 						// Pick an option at random.
-						Tuple<int, int> choice = options[this.random.Next(options.Count)];
-						builder.Append(ProcessMessage(format.Substring(choice.Item1, choice.Item2 - choice.Item1), nickname, channel));
+						var choice = options[this.random.Next(options.Count)];
+						builder.Append(this.ProcessMessage(format[choice.Item1..choice.Item2], nickname, channel));
 					} else if (i <= format.Length - 6 && format[i] == '{' && format.Substring(i, 6) == "{nick}") {
 						builder.Append(nickname);
 						i += 5;
@@ -479,59 +453,58 @@ namespace CBot {
 		}
 
 		internal void LoadLanguage() {
-			string path = Path.Combine(Bot.LanguagesPath, Bot.Language, this.Key + ".properties");
+			string path = Path.Combine(this.Bot.LanguagesPath, this.Bot.Language, this.Key + ".properties");
 			if (File.Exists(path)) {
 				this.LoadLanguage(path);
 			} else {
-				path = Path.Combine(Bot.LanguagesPath, "Default", this.Key + ".properties");
+				path = Path.Combine(this.Bot.LanguagesPath, "Default", this.Key + ".properties");
 				if (File.Exists(path)) {
 					this.LoadLanguage(path);
 				}
 			}
 		}
 		internal void LoadLanguage(string filePath) {
-			using (StreamReader reader = new StreamReader(File.Open(filePath, FileMode.Open, FileAccess.Read))) {
-				this.language.Clear();
-				while (!reader.EndOfStream) {
-					string s = reader.ReadLine().TrimStart();
-					if (s.Length == 0 || s[0] == '#' || s[0] == '!') continue;  // Ignore blank lines and comments.
+			using var reader = new StreamReader(File.Open(filePath, FileMode.Open, FileAccess.Read));
+			this.language.Clear();
+			while (!reader.EndOfStream) {
+				string s = reader.ReadLine().TrimStart();
+				if (s == "" || s[0] is '#' or '!') continue;  // Ignore blank lines and comments.
 
-					string[] fields = s.Split(new char[] { '=' }, 2);
-					if (fields.Length == 2) {
-						StringBuilder formatBuilder = new StringBuilder(fields[1].Length);
-						int pos = 0; Match m; bool nextLine;
-						do {
-							nextLine = false;
-							while ((m = languageEscapeRegex.Match(fields[1], pos)).Success) {
-								formatBuilder.Append(fields[1].Substring(pos, m.Index - pos));
-								if (m.Groups[1].Success) {
-									formatBuilder.Append("\n");
-								} else if (m.Groups[2].Success) {
-									formatBuilder.Append("\r");
-								} else if (m.Groups[3].Success) {
-									formatBuilder.Append("\t");
-								} else if (m.Groups[4].Success) {
-									formatBuilder.Append("\\");
-								} else if (m.Groups[5].Success) {
-									// Unicode escape.
-									if (m.Groups[6].Success) {
-										formatBuilder.Append((char) Convert.ToInt32(m.Groups[6].Value, 16));
-									} else {
-										throw new FormatException("Invalid unicode (\\u) escape sequence at '" + fields[0] + "' in " + filePath + ".");
-									}
-								} else if (m.Groups[7].Success) {
-									// Escaped newline; read another line and append that.
-									if (reader.EndOfStream) throw new FormatException("Backslash with nothing after it at '" + fields[0] + "' in " + filePath + ".");
-									fields[1] = reader.ReadLine().TrimStart();
-									nextLine = true;
+				string[] fields = s.Split(new char[] { '=' }, 2);
+				if (fields.Length == 2) {
+					var formatBuilder = new StringBuilder(fields[1].Length);
+					int pos = 0; Match m; bool nextLine;
+					do {
+						nextLine = false;
+						while ((m = languageEscapeRegex.Match(fields[1], pos)).Success) {
+							formatBuilder.Append(fields[1][pos..m.Index]);
+							if (m.Groups[1].Success) {
+								formatBuilder.Append('\n');
+							} else if (m.Groups[2].Success) {
+								formatBuilder.Append('\r');
+							} else if (m.Groups[3].Success) {
+								formatBuilder.Append('\t');
+							} else if (m.Groups[4].Success) {
+								formatBuilder.Append('\\');
+							} else if (m.Groups[5].Success) {
+								// Unicode escape.
+								if (m.Groups[6].Success) {
+									formatBuilder.Append((char) Convert.ToInt32(m.Groups[6].Value, 16));
+								} else {
+									throw new FormatException("Invalid unicode (\\u) escape sequence at '" + fields[0] + "' in " + filePath + ".");
 								}
-								pos += m.Length;
+							} else if (m.Groups[7].Success) {
+								// Escaped newline; read another line and append that.
+								if (reader.EndOfStream) throw new FormatException("Backslash with nothing after it at '" + fields[0] + "' in " + filePath + ".");
+								fields[1] = reader.ReadLine().TrimStart();
+								nextLine = true;
 							}
-						} while (nextLine);
-						formatBuilder.Append(fields[1].Substring(pos));
+							pos += m.Length;
+						}
+					} while (nextLine);
+					formatBuilder.Append(fields[1][pos..]);
 
-						this.language.Add(fields[0], formatBuilder.ToString());
-					}
+					this.language.Add(fields[0], formatBuilder.ToString());
 				}
 			}
 		}
@@ -557,18 +530,14 @@ namespace CBot {
 		/// This method is intended to be used to provide a standard means to tell plugins to clean up.
 		/// Failing to do so may cause unintended continued interaction.
 		/// </remarks>
-		public virtual void OnUnload() {
-			this.OnSave();
-		}
+		public virtual void OnUnload() => this.OnSave();
 
 		/// <summary>
 		/// Reports an exception to the user, and logs it.
 		/// </summary>
 		/// <param name="Procedure">The human-readable name of the procedure that had the problem.</param>
 		/// <param name="ex">The exception that was thrown.</param>
-		protected void LogError(string Procedure, Exception ex) {
-			Bot.LogError(this.Key, Procedure, ex);
-		}
+		protected void LogError(string Procedure, Exception ex) => Bot.LogError(this.Key, Procedure, ex);
 
 		/// <summary>When overridden, handles the AwayCancelled event. Return true to stop further processing of the event.</summary>
 		public virtual bool OnAwayCancelled(object sender, AwayEventArgs e) => false;

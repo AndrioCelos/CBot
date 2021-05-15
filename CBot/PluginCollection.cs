@@ -24,7 +24,7 @@ namespace CBot {
 			return -1;
 		}
 
-		public bool Contains(string key) => (this.IndexOf(key) != -1);
+		public bool Contains(string key) => this.IndexOf(key) != -1;
 
 		public bool TryGetValue(string key, out PluginEntry plugin) {
 			foreach (var _plugin in this) {
