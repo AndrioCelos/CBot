@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
+using System.Diagnostics.CodeAnalysis;
 
 namespace CBot {
 	public class PluginCollection : ReadOnlyCollection<PluginEntry> {
@@ -26,7 +27,7 @@ namespace CBot {
 
 		public bool Contains(string key) => this.IndexOf(key) != -1;
 
-		public bool TryGetValue(string key, out PluginEntry plugin) {
+		public bool TryGetValue(string key, [MaybeNullWhen(false)] out PluginEntry plugin) {
 			foreach (var _plugin in this) {
 				if (_plugin.Key.Equals(key, StringComparison.InvariantCultureIgnoreCase)) {
 					plugin = _plugin;

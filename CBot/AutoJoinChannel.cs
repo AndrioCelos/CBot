@@ -8,7 +8,7 @@ namespace CBot {
 		/// <summary>The channel name.</summary>
 		public string Channel;
 		/// <summary>A key needed to join the channel, if any.</summary>
-		public string Key;
+		public string? Key;
 
 		/// <summary>Creates an AutoJoinChannel value with the specified channel name and no key (null).</summary>
 		/// <param name="channel">The name of the channel.</param>
@@ -17,8 +17,8 @@ namespace CBot {
 		/// <summary>Creates an AutoJoinChannel value with the specified channel name and key.</summary>
 		/// <param name="channel">The name of the channel.</param>
 		/// <exception cref="ArgumentException">channel contains a delimiter (space, null, newline or comma).</exception>
-		public AutoJoinChannel(string channel, string key) {
-			if (channel != null && channel.IndexOfAny(new char[] { ' ', '\0', '\n', ',' }) != -1)
+		public AutoJoinChannel(string channel, string? key) {
+			if (channel.IndexOfAny(new char[] { ' ', '\0', '\n', ',' }) != -1)
 				throw new ArgumentException("Invalid characters in the channel name.", nameof(channel));
 
 			if (key != null && key.IndexOfAny(new char[] { ' ', '\0', '\n', ',' }) != -1)

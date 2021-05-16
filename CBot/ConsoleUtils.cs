@@ -87,7 +87,7 @@ namespace CBot {
 				pos = pos2 + 1;
 			}
 		}
-		private static void WriteSub(string format, params object[] args) {
+		private static void WriteSub(string format, params object?[] args) {
 			int i = 0; int open = -1; int index = -1; int start = 0;
 			var originalForeground = Console.ForegroundColor;
 			var originalBackground = Console.BackgroundColor;
@@ -160,7 +160,7 @@ namespace CBot {
 			lock (writeLock)
 				WriteSub(text, Console.ForegroundColor, Console.BackgroundColor);
 		}
-		public static void Write(string format, params object[] args)
+		public static void Write(string format, params object?[] args)
 		{
 			lock (writeLock)
 				WriteSub(format, args);
@@ -173,7 +173,7 @@ namespace CBot {
 				Console.WriteLine();
 			}
 		}
-		public static void WriteLine(string format, params object[] args) {
+		public static void WriteLine(string format, params object?[] args) {
 			lock (writeLock) {
 				WriteSub(format, args);
 				Console.WriteLine();

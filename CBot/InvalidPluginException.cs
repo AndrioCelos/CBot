@@ -4,7 +4,6 @@ namespace CBot {
 	/// <summary>
 	/// The exception that is thrown when an attempt is made to load an invalid plugin file.
 	/// </summary>
-	[Serializable]
 	public class InvalidPluginException : Exception {
 		/// <summary>The file that an attempt was made to load.</summary>
 		public string FilePath { get; }
@@ -21,9 +20,5 @@ namespace CBot {
 		/// <param name="message">A human-readable message giving details on the problem.</param>
 		/// <param name="inner">The exception that caused this exception.</param>
 		public InvalidPluginException(string filePath, string message, Exception inner) : base(message, inner) => this.FilePath = filePath;
-		protected InvalidPluginException(
-		  System.Runtime.Serialization.SerializationInfo info,
-		  System.Runtime.Serialization.StreamingContext context)
-			: base(info, context) { }
 	}
 }

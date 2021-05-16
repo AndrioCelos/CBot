@@ -1,7 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.IO;
-using System.Linq;
 using System.Text.RegularExpressions;
 
 using static System.StringSplitOptions;
@@ -11,10 +10,9 @@ namespace CBot {
 		public static void LoadConfig(Bot bot, Config config) {
 			if (File.Exists("CBotConfig.ini")) {
 				var file = IniFile.FromFile("CBotConfig.ini");
-				string value;
 
 				if (file.TryGetValue("Me", out var section)) {
-					if (section.TryGetValue("Nicknames", out value)) config.Nicknames = value.Split(new char[] { ',', ' ' }, RemoveEmptyEntries);
+					if (section.TryGetValue("Nicknames", out var value)) config.Nicknames = value.Split(new char[] { ',', ' ' }, RemoveEmptyEntries);
 					else if (section.TryGetValue("Nickname", out value)) config.Nicknames = new[] { value };
 
 					if (section.TryGetValue("Username", out value)) config.Ident = value;
@@ -26,34 +24,38 @@ namespace CBot {
 				}
 
 				if (file.TryGetValue("Prefixes", out section)) {
-					if (section.TryGetValue("Default", out value)) {
-						config.CommandPrefixes = value.Split((char[]) null, RemoveEmptyEntries);
+					if (section.TryGetValue("Default", out var value)) {
+						config.CommandPrefixes = value.Split((char[]?) null, RemoveEmptyEntries);
 						section.Remove("Default");
 					}
 
 					foreach (var item in section)
-						config.ChannelCommandPrefixes[item.Key] = item.Value.Split((char[]) null, RemoveEmptyEntries);
+						config.ChannelCommandPrefixes[item.Key] = item.Value.Split((char[]?) null, RemoveEmptyEntries);
 
 					file.Remove("Prefixes");
 				}
 
 				foreach (var section2 in file) {
-					var network = new ClientEntry(section2.Key);
+					string address; int port; bool tls = false;
 
-					if (section2.Value.TryGetValue("Address", out value)) {
+					if (section2.Value.TryGetValue("Address", out var value)) {
 						var fields = value.Split(new[] { ':' }, 2);
 						if (fields.Length == 2) {
-							network.Address = fields[0];
+							address = fields[0];
 							if (fields[1].StartsWith("+")) {
-								network.TLS = true;
-								network.Port = int.Parse(fields[1][1..]);
+								tls = true;
+								port = int.Parse(fields[1][1..]);
 							} else
-								network.Port = int.Parse(fields[1]);
+								port = int.Parse(fields[1]);
 						} else {
-							network.Address = fields[0];
+							address = fields[0];
 						}
-					}
-					if (section2.Value.TryGetValue("Port", out value)) network.Port = int.Parse(value);
+					} else continue;
+					port = section2.Value.TryGetValue("Port", out value) ? int.Parse(value)
+						: tls ? 6697 : 6667;
+
+					var network = new ClientEntry(section2.Key, address, port) { TLS = tls };
+
 					if (section2.Value.TryGetValue("Password", out value)) network.Password = value;
 
 					if (section2.Value.TryGetValue("Nicknames", out value)) network.Nicknames = value.Split(new char[] { ',', ' ' }, RemoveEmptyEntries);
@@ -70,16 +72,17 @@ namespace CBot {
 					if (section2.Value.TryGetValue("SASL-Username", out value)) network.SaslUsername = value;
 					if (section2.Value.TryGetValue("SASL-Password", out value)) network.SaslPassword = value;
 
-					bool nickServ = false; var registration = new NickServSettings();
-					if (section2.Value.TryGetValue("NickServ-Nicknames", out value)) { nickServ = true; registration.RegisteredNicknames = value.Split(new char[] { ',', ' ' }, RemoveEmptyEntries); }
-					if (section2.Value.TryGetValue("NickServ-Password", out value)) { nickServ = true; registration.Password = value; }
-					if (section2.Value.TryGetValue("NickServ-AnyNickname", out value)) { nickServ = true; registration.AnyNickname = Bot.ParseBoolean(value); }
-					if (section2.Value.TryGetValue("NickServ-UseGhostCommand", out value)) { nickServ = true; registration.UseGhostCommand = Bot.ParseBoolean(value); }
-					if (section2.Value.TryGetValue("NickServ-GhostCommand", out value)) { nickServ = true; registration.GhostCommand = value; }
-					if (section2.Value.TryGetValue("NickServ-IdentifyCommand", out value)) { nickServ = true; registration.IdentifyCommand = value; }
-					if (section2.Value.TryGetValue("NickServ-Hostmask", out value)) { nickServ = true; registration.Hostmask = value; }
-					if (section2.Value.TryGetValue("NickServ-RequestMask", out value)) { nickServ = true; registration.RequestMask = value; }
-					if (nickServ) network.NickServ = registration;
+					if (section2.Value.TryGetValue("NickServ-Nicknames", out var servicesNicknamesString) &&
+						section2.Value.TryGetValue("NickServ-Password", out var servicesPassword)) {
+						var registration = new NickServSettings(servicesNicknamesString.Split(new char[] { ',', ' ' }, RemoveEmptyEntries), servicesPassword,
+							section2.Value.TryGetValue("NickServ-AnyNickname", out value) && Bot.ParseBoolean(value),
+							section2.Value.TryGetValue("NickServ-UseGhostCommand", out value) && Bot.ParseBoolean(value));
+						if (section2.Value.TryGetValue("NickServ-GhostCommand", out value)) registration.GhostCommand = value;
+						if (section2.Value.TryGetValue("NickServ-IdentifyCommand", out value)) registration.IdentifyCommand = value;
+						if (section2.Value.TryGetValue("NickServ-Hostmask", out value)) registration.Hostmask = value;
+						if (section2.Value.TryGetValue("NickServ-RequestMask", out value)) registration.RequestMask = value;
+						network.NickServ = registration;
+					}
 
 					config.Networks.Add(network);
 				}
@@ -93,7 +96,7 @@ namespace CBot {
 			var file = IniFile.FromFile("CBotPlugins.ini");
 
 			foreach (var section in file) {
-				var channels = section.Value.TryGetValue("Channels", out string value)
+				var channels = section.Value.TryGetValue("Channels", out var value)
 					? value.Split(new[] { ',', ' ' }, RemoveEmptyEntries)
 					: Array.Empty<string>();
 				var entry = new PluginEntry(section.Key, section.Value["Filename"], channels);
@@ -108,23 +111,24 @@ namespace CBot {
 			bot.Accounts.Clear();
 			if (File.Exists("CBotUsers.ini")) {
 				try {
-					using var Reader = new StreamReader("CBotUsers.ini"); string Section = null;
-					Account newUser = null;
+					using var Reader = new StreamReader("CBotUsers.ini"); string? Section = null;
+					Account? newUser = null;
 
-					while (!Reader.EndOfStream) {
-						string s = Reader.ReadLine();
+					while (true) {
+						var s = Reader.ReadLine();
+						if (s is null) break;
 						if (Regex.IsMatch(s, @"^(?>\s*);")) continue;  // Comment check
 
 						var Match = Regex.Match(s, @"^\s*\[(?<Section>.*?)\]?\s*$");
 						if (Match.Success) {
-							if (Section != null) bot.Accounts.Add(Section, newUser);
+							if (Section is not null && newUser is not null) bot.Accounts.Add(Section, newUser);
 							Section = Match.Groups["Section"].Value;
 							if (!bot.Accounts.ContainsKey(Section)) {
-								newUser = new Account { Permissions = Array.Empty<string>() };
+								newUser = new(Array.Empty<string>());
 								if (Section.StartsWith("$a")) bot.commandCallbackNeeded = true;
-							}
+							} else newUser = null;
 						} else {
-							if (Section != null) {
+							if (newUser is not null) {
 								Match = Regex.Match(s, @"^\s*((?>[^=]*))=(.*)$");
 								if (Match.Success) {
 									string Field = Match.Groups[1].Value;
@@ -151,7 +155,7 @@ namespace CBot {
 						}
 					}
 
-					bot.Accounts.Add(Section, newUser);
+					if (Section is not null && newUser is not null) bot.Accounts.Add(Section, newUser);
 				} catch (Exception ex) {
 					ConsoleUtils.WriteLine("%cGRAY[%cREDERROR%cGRAY] %cWHITEI was unable to retrieve user data from the file: $k04" + ex.Message + "%r");
 				}

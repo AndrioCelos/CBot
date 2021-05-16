@@ -1,4 +1,5 @@
 ﻿using System.Collections.Generic;
+using System.Diagnostics.CodeAnalysis;
 using System.IO;
 
 namespace CBot {
@@ -19,18 +20,19 @@ namespace CBot {
 			}
 		}
 
-		public bool TryGetValue(string section, string key, out string value) {
+		public bool TryGetValue(string section, string key, [MaybeNullWhen(false)] out string value) {
 			if (!this.TryGetValue(section, out var dictionary)) { value = null; return false; }
-			return !dictionary.TryGetValue(key, out value);
+			return dictionary.TryGetValue(key, out value);
 		}
 
 		public static IniFile FromFile(string file) => FromFile(file, EqualityComparer<string>.Default);
 		public static IniFile FromFile(string file, IEqualityComparer<string> comparer) {
 			using var reader = new StreamReader(file); var result = new IniFile(comparer);
-			Dictionary<string, string> section = null;
+			Dictionary<string, string>? section = null;
 
 			while (!reader.EndOfStream) {
-				string line = reader.ReadLine().TrimStart();
+				var line = reader.ReadLine()?.TrimStart();
+				if (line == null) break;
 				if (line.StartsWith(";")) continue;  // Comment.
 				if (line.StartsWith("[")) {
 					// Section header.

@@ -1,6 +1,5 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.Linq;
 using System.Reflection;
 using System.Text.RegularExpressions;
 
@@ -38,12 +37,12 @@ namespace CBot {
 		/// The permission required to use the command. A value of null requires no permission.
 		/// If this starts with a dot, it will be considered as prefixed with the plugin's key.
 		/// </summary>
-		public string Permission { get; set; }
+		public string? Permission { get; set; }
 		/// <summary>
 		/// The message that will be given to users who give this command without permission to use it.
 		/// Defaults to "You don't have access to this command."
 		/// </summary>
-		public string NoPermissionsMessage { get; set; } = "You don't have access to this command.";
+		public string? NoPermissionsMessage { get; set; } = "You don't have access to this command.";
 		/// <summary>The scopes in which this command can be used.</summary>
 		public CommandScope Scope { get; set; } = CommandScope.Channel | CommandScope.PM | CommandScope.Global;
 		private int priority;
@@ -56,9 +55,9 @@ namespace CBot {
 				this.PriorityHandler = e => this.priority;
 			}
 		}
-		private string priorityHandlerName;
+		private string? priorityHandlerName;
 		/// <summary>Sets the name of the priority handler for the command. Should only be set from an attribute parameter using the <c>nameof</c> operator.</summary>
-		public string PriorityHandlerName {
+		public string? PriorityHandlerName {
 			get => this.priorityHandlerName;
 			set {
 				this.priorityHandlerName = value;
@@ -68,7 +67,7 @@ namespace CBot {
 		/// <summary>Returns or sets a delegate that determines the priority for the command. This property cannot be set as an attribute parameter.</summary>
 		public PluginCommandPriorityHandler PriorityHandler { get; set; } = e => 10;
 
-		internal Plugin plugin;
+		internal Plugin? plugin;
 
 		/// <summary>Initializes a new <see cref="CommandAttribute"/> with the specified parameters.</summary>
 		/// <param name="name">The name that can be used to give this command.</param>
@@ -109,10 +108,11 @@ namespace CBot {
 		}
 
 		internal void SetPriorityHandler() {
-			if (this.priorityHandlerName == null) return;
+			if (this.priorityHandlerName is null || this.plugin is null) return;
 
 			const BindingFlags bindingFlags = BindingFlags.InvokeMethod | BindingFlags.Public | BindingFlags.Instance;
 			var method = this.plugin.GetType().GetMethod(this.priorityHandlerName, bindingFlags, null, new[] { typeof(CommandEventArgs) }, null);
+			if (method is null) throw new MissingMethodException($"Priority handler {priorityHandlerName} was not found");
 			this.PriorityHandler = (PluginCommandPriorityHandler) method.CreateDelegate(typeof(PluginCommandPriorityHandler), this.plugin);
 		}
 	}
@@ -129,12 +129,12 @@ namespace CBot {
 		/// The permission required to use the command. A value of null requires no permission.
 		/// If this starts with a dot, it will be considered as prefixed with the plugin's key.
 		/// </summary>
-		public string Permission { get; set; }
+		public string? Permission { get; set; }
 		/// <summary>
 		/// The message that will be given to users who give this command without permission to use it.
 		/// Defaults to "You don't have access to this command."
 		/// </summary>
-		public string NoPermissionsMessage { get; set; }
+		public string? NoPermissionsMessage { get; set; }
 		/// <summary>The scopes in which this procedure can be triggered.</summary>
 		public CommandScope Scope { get; set; } = CommandScope.Channel | CommandScope.PM;
 		/// <summary>If true, the procedure will only trigger if the message starts with the bot's nickname.</summary>

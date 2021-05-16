@@ -14,7 +14,7 @@ namespace CBot {
 		/// <summary>The name of the IRC network.</summary>
 		public string Name { get; set; }
 
-		private bool _ReconnectEnabled;
+		private bool _ReconnectEnabled = true;
 		/// <summary>Returns or sets a value specifying whether CBot will automatically reconnect to this network.</summary>
 		[JsonIgnore]
 		public bool ReconnectEnabled {
@@ -29,23 +29,23 @@ namespace CBot {
 		[JsonIgnore]
 		public double ReconnectDelay { get => this.ReconnectTimer.Interval; set => this.ReconnectTimer.Interval = value; }
 		[JsonIgnore]
-		private readonly Timer ReconnectTimer;
+		private readonly Timer ReconnectTimer = new(30000) { AutoReset = false };
 		/// <summary>Returns the <see cref="IrcClient"/> object for this connection.</summary>
 		[JsonIgnore]
 		public IrcClient Client { get; internal set; }
 
-		public string[] Nicknames { get; set; }
-		public string Ident { get; set; }
-		public string FullName { get; set; }
+		public string[]? Nicknames { get; set; }
+		public string? Ident { get; set; }
+		public string? FullName { get; set; }
 
 		public string Address { get; set; }
 		public int Port { get; set; } = 6667;
 		public bool TLS { get; set; }
 		public bool AcceptInvalidTlsCertificate { get; set; }
-		public string Password { get; set; }
+		public string? Password { get; set; }
 
-		public string SaslUsername { get; set; }
-		public string SaslPassword { get; set; }
+		public string? SaslUsername { get; set; }
+		public string? SaslPassword { get; set; }
 
 		/// <summary>Indicates whether this network is defined in CBot's config file.</summary>
 		[JsonIgnore]
@@ -54,21 +54,21 @@ namespace CBot {
 		/// <summary>The list of channels to automatically join upon connecting.</summary>
 		public List<AutoJoinChannel> AutoJoin = new();
 		/// <summary>Contains the data used to deal with nickname services.</summary>
-		public NickServSettings NickServ;
+		public NickServSettings? NickServ;
 
 		// Diagnostic information.
 		[JsonIgnore]
-		public Plugin CurrentPlugin { get; internal set; }
+		public Plugin? CurrentPlugin { get; internal set; }
 		[JsonIgnore]
-		public MethodInfo CurrentProcedure { get; internal set; }
+		public MethodInfo? CurrentProcedure { get; internal set; }
 
-		internal event ElapsedEventHandler ReconnectTimerElapsed;
+		internal event ElapsedEventHandler? ReconnectTimerElapsed;
 
 		[JsonConstructor]
-		public ClientEntry(string name) {
-			this.Name = name;
-			if (name.Contains(".")) this.Address = name;
-			this.ReconnectTimer = new Timer(30000) { AutoReset = false };
+		public ClientEntry(string name, string address, int port) {
+			this.Name = name ?? throw new ArgumentNullException(nameof(name));
+			this.Address = address ?? throw new ArgumentNullException(nameof(address));
+			this.Port = port;
 			this.ReconnectTimer.Elapsed += this.ReconnectTimer_Elapsed;
 		}
 
@@ -78,13 +78,11 @@ namespace CBot {
 		/// <param name="name">The name of the IRC network.</param>
 		/// <param name="client">The IRCClient object for this connection.</param>
 		/// <param name="reconnectDelay">Returns or sets the delay, in milliseconds, with which CBot should automatically reconnect.</param>
-		public ClientEntry(string name, string address, int port, IrcClient client, int reconnectDelay = 30000) {
-			this.Name = name;
+		public ClientEntry(string name, string address, int port, IrcClient client) {
+			this.Name = name ?? throw new ArgumentNullException(nameof(name));
 			this.Address = address ?? throw new ArgumentNullException(nameof(address));
 			this.Port = port;
-			this.Client = client;
-			this.ReconnectEnabled = true;
-			this.ReconnectTimer = new Timer(reconnectDelay) { AutoReset = false };
+			this.Client = client ?? throw new ArgumentNullException(nameof(client));
 			this.ReconnectTimer.Elapsed += this.ReconnectTimer_Elapsed;
 		}
 

@@ -18,7 +18,7 @@ namespace CBot {
 		/// <summary>The IRCClient object on which the command was heard.</summary>
 		public IrcClient Client { get; }
 		/// <summary>The channel in which the command was used, or null if it was not on a channel.</summary>
-		public IrcChannel Channel => this.Target as IrcChannel;
+		public IrcChannel? Channel => this.Target as IrcChannel;
 		/// <summary>The target of the event.</summary>
 		public IrcMessageTarget Target { get; }
 		/// <summary>The user invoking the command.</summary>
@@ -55,7 +55,7 @@ namespace CBot {
 		/// <summary>The <see cref="IrcClient"/> on which the trigger occurred.</summary>
 		public IrcClient Client { get; }
 		/// <summary>The channel in which the trigger occurred, or null if it was not on a channel.</summary>
-		public IrcChannel Channel => this.Target as IrcChannel;
+		public IrcChannel? Channel => this.Target as IrcChannel;
 		/// <summary>The target of the event.</summary>
 		public IrcMessageTarget Target { get; }
 		/// <summary>The user triggering the procedure.</summary>

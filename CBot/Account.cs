@@ -12,12 +12,22 @@ namespace CBot {
 	public class Account {
 		/// <summary>The user's password, or a hashed representation of it.</summary>
 		[JsonProperty(NullValueHandling = NullValueHandling.Ignore)]
-		public string Password;
+		public string? Password;
 		/// <summary>A HashType value specifying how the password is hashed.</summary>
 		[JsonProperty(DefaultValueHandling = DefaultValueHandling.IgnoreAndPopulate)] [DefaultValue(HashType.None)] [JsonConverter(typeof(Newtonsoft.Json.Converters.StringEnumConverter))]
 		public HashType HashType;
 		/// <summary>A list of permissions that the user is to be granted.</summary>
 		public string[] Permissions;
+
+		public Account(string[] permissions)
+			=> this.Permissions = permissions ?? throw new ArgumentNullException(nameof(permissions));
+
+		[JsonConstructor]
+		public Account(HashType hashType, string? password, string[] permissions) {
+			this.HashType = hashType;
+			this.Password = password;
+			this.Permissions = permissions ?? throw new ArgumentNullException(nameof(permissions));
+		}
 
 		public void SetPassword(string password) {
 			if (this.HashType == HashType.None) this.HashType = HashType.SHA256Salted;
