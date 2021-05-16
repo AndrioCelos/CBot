@@ -1596,34 +1596,34 @@ namespace CBot {
 			}
 		}
 
-		private void OnCTCPMessage(IrcClient Connection, string Sender, string Message) {
-			string[] fields = Message.Split(' ');
+		private void OnCTCPMessage(IrcClient client, string sender, bool isChannelMessage, string message) {
+			string[] fields = message.Split(' ');
 
 			switch (fields[0].ToUpper()) {
 				case "PING":
 					if (fields.Length > 1)
-						Connection.Send("NOTICE {0} :\u0001PING {1}\u0001", Sender, string.Join(" ", fields.Skip(1)));
+						client.Send("NOTICE {0} :\u0001PING {1}\u0001", sender, string.Join(" ", fields.Skip(1)));
 					else
-						Connection.Send("NOTICE {0} :\u0001PING\u0001", Sender);
+						client.Send("NOTICE {0} :\u0001PING\u0001", sender);
 					break;
 				case "ERRMSG":
 					if (fields.Length > 1)
-						Connection.Send("NOTICE {0} :\u0001ERRMSG No error: {1}\u0001", Sender, string.Join(" ", fields.Skip(1)));
+						client.Send("NOTICE {0} :\u0001ERRMSG No error: {1}\u0001", sender, string.Join(" ", fields.Skip(1)));
 					else
-						Connection.Send("NOTICE {0} :\u0001ERRMSG No error\u0001", Sender);
+						client.Send("NOTICE {0} :\u0001ERRMSG No error\u0001", sender);
 					break;
 				case "VERSION":
-					Connection.Send("NOTICE {0} :\u0001VERSION {1}\u0001", Sender, ClientVersion);
+					client.Send("NOTICE {0} :\u0001VERSION {1}\u0001", sender, ClientVersion);
 					break;
 				case "SOURCE":
-					Connection.Send("NOTICE {0} :\u0001SOURCE {1}\u0001", Sender, "CBot: https://github.com/AndrioCelos/CBot");
+					client.Send("NOTICE {0} :\u0001SOURCE {1}\u0001", sender, "CBot: https://github.com/AndrioCelos/CBot");
 					break;
 				case "TIME":
-					Connection.Send("NOTICE {0} :\u0001TIME {1:dddd d MMMM yyyy HH:mm:ss zzz}\u0001", Sender, DateTime.Now);
+					client.Send("NOTICE {0} :\u0001TIME {1:dddd d MMMM yyyy HH:mm:ss zzz}\u0001", sender, DateTime.Now);
 					break;
 				case "FINGER":
 					var readableIdleTime = new StringBuilder(); TimeSpan idleTime;
-					idleTime = DateTime.Now - Connection.LastSpoke;
+					idleTime = DateTime.Now - client.LastSpoke;
 					if (idleTime.Days > 0) {
 						if (readableIdleTime.Length > 0) readableIdleTime.Append(", ");
 						readableIdleTime.Append(idleTime.Days);
@@ -1657,16 +1657,15 @@ namespace CBot {
 							readableIdleTime.Append("seconds");
 					}
 
-					Connection.Send("NOTICE {0} :\u0001FINGER {1}: {3}; idle for {2}.\u0001", Sender, this.DefaultNicknames[0], readableIdleTime.ToString(), this.DefaultUserInfo);
+					client.Send("NOTICE {0} :\u0001FINGER {1}: {3}; idle for {2}.\u0001", sender, this.DefaultNicknames[0], readableIdleTime.ToString(), this.DefaultUserInfo);
 					break;
 				case "USERINFO":
-					Connection.Send("NOTICE {0} :\u0001USERINFO {1}\u0001", Sender, this.DefaultUserInfo);
+					client.Send("NOTICE {0} :\u0001USERINFO {1}\u0001", sender, this.DefaultUserInfo);
 					break;
 				case "AVATAR":
-					Connection.Send("NOTICE {0} :\u0001AVATAR {1}\u0001", Sender, this.DefaultAvatar);
+					client.Send("NOTICE {0} :\u0001AVATAR {1}\u0001", sender, this.DefaultAvatar);
 					break;
 				case "CLIENTINFO":
-					string message;
 					message = fields.Length == 1
 						? "CBot: https://github.com/AndrioCelos/CBot – I recognise the following CTCP queries: CLENTINFO, FINGER, PING, TIME, USERINFO, VERSION, AVATAR"
 						: fields[1].ToUpper() switch {
@@ -1681,10 +1680,10 @@ namespace CBot {
 							"AVATAR"     => "AVATAR: Returns a URL to my avatar, if one is set.",
 							_ => string.Format("I don't recognise {0} as a CTCP query.", fields[1]),
 						};
-					Connection.Send("NOTICE {0} :\u0001CLIENTINFO {1}\u0001", Sender, message);
+					client.Send("NOTICE {0} :\u0001CLIENTINFO {1}\u0001", sender, message);
 					break;
 				default:
-					Connection.Send("NOTICE {0} :\u0001ERRMSG I don't recognise {1} as a CTCP query.\u0001", Sender, fields[0]);
+					if (!isChannelMessage) client.Send("NOTICE {0} :\u0001ERRMSG I don't recognise {1} as a CTCP query.\u0001", sender, fields[0]);
 					break;
 			}
 		}
@@ -2113,7 +2112,7 @@ namespace CBot {
 		private void OnChannelBanRemoved(object? sender, ChannelListChangedEventArgs e)          { foreach (var entry in this.Plugins) if (entry.Obj.OnChannelBanRemoved(sender, e)) return; }
 		private void OnChannelCTCP(object? sender, ChannelMessageEventArgs e) {
 			foreach (var entry in this.Plugins) if (entry.Obj.OnChannelCTCP(sender, e)) return;
-			this.OnCTCPMessage((IrcClient) sender!, e.Sender.Nickname, e.Message);
+			this.OnCTCPMessage((IrcClient) sender!, e.Sender.Nickname, true, e.Message);
 		}
 		private void OnChannelDeAdmin(object? sender, ChannelStatusChangedEventArgs e)           { foreach (var entry in this.Plugins) if (entry.Obj.OnChannelDeAdmin(sender, e)) return; }
 		private void OnChannelDeHalfOp(object? sender, ChannelStatusChangedEventArgs e)          { foreach (var entry in this.Plugins) if (entry.Obj.OnChannelDeHalfOp(sender, e)) return; }
@@ -2264,7 +2263,7 @@ namespace CBot {
 		}
 		private void OnPrivateCTCP(object? sender, PrivateMessageEventArgs e) {
 			foreach (var entry in this.Plugins) if (entry.Obj.OnPrivateCTCP(sender, e)) return;
-			this.OnCTCPMessage((IrcClient) sender!, e.Sender.Nickname, e.Message);
+			this.OnCTCPMessage((IrcClient) sender!, e.Sender.Nickname, false, e.Message);
 		}
 		private async void OnPrivateMessage(object? sender, PrivateMessageEventArgs e) {
 			foreach (var entry in this.Plugins) {
