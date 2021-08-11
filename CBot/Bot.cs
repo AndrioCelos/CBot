@@ -115,6 +115,7 @@ namespace CBot {
 			var newClient = new IrcClient(new IrcLocalUser((network.Nicknames ?? this.DefaultNicknames)[0], network.Ident ?? this.DefaultIdent, network.FullName ?? this.DefaultFullName), network.Name);
 			this.SetUpClientEvents(newClient);
 			network.Client = newClient;
+			network.ReconnectTimerElapsed += this.IrcNetwork_ReconnectTimerElapsed;
 		}
 
 		public void RemoveNetwork(ClientEntry network) {
@@ -1264,7 +1265,7 @@ namespace CBot {
 			}
 		}
 
-		internal void Connect(ClientEntry network) {
+		public void Connect(ClientEntry network) {
 			this.UpdateNetworkSettings(network);
 			network.StopReconnect();
 			network.Client.Connect(network.Address, network.Port);
@@ -1745,7 +1746,10 @@ namespace CBot {
 		public async Task<bool> CheckPermissionAsync(IrcUser user, string permission) {
 			if (this.CheckPermission(user, permission)) return true;
 			if (user.Account == null && this.commandCallbackNeeded) {
-				await user.GetAccountAsync();
+				try {
+					await user.GetAccountAsync();
+				} catch (TimeoutException) { }  // On timeout, continue as if they had no account.
+				// TODO: this should probably be improved.
 				return this.CheckPermission(user, permission);
 			}
 			return false;

@@ -112,7 +112,7 @@ namespace CBot {
 
 			const BindingFlags bindingFlags = BindingFlags.InvokeMethod | BindingFlags.Public | BindingFlags.Instance;
 			var method = this.plugin.GetType().GetMethod(this.priorityHandlerName, bindingFlags, null, new[] { typeof(CommandEventArgs) }, null);
-			if (method is null) throw new MissingMethodException($"Priority handler {priorityHandlerName} was not found");
+			if (method is null) throw new MissingMethodException($"Priority handler {this.priorityHandlerName} was not found");
 			this.PriorityHandler = (PluginCommandPriorityHandler) method.CreateDelegate(typeof(PluginCommandPriorityHandler), this.plugin);
 		}
 	}
