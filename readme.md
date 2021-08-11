@@ -24,19 +24,22 @@ Confguration files
 
 There are three:
 
-* `/CBotConfig.ini` for IRC server data
-* `/CBotUsers.ini` for user accounts
-* `/CBotPlugins.ini` for plugins
+* `/config.json` for IRC server data
+* `/users.json` for user accounts
+* `/plugins.json` for plugins
 
 Plus those used by the plugins themselves, of course.
-**To load a plugin**, add the following to **/CBotPlugins.ini**:
+**To load a plugin** after the setup procedure, add the following to the dictionary in **plugins.json**:
 
-	[Key]
-	Filename=Plugins/plugin.dll
-	Channels=irc.example.net/#lobby,#bots
+```JSON
+	"Key": {
+		"Filename": "Plugins/plugin.dll",
+		"Channels": [ "irc.example.net/#lobby", "#bots" ]
+	}
+```
 
-The `[Key]` (without brackets) is what you type in commands to refer to the plugin instance. Note that you can have multiple instances of the same plugin.
-The channels are a list of channels for which this plugin receives events, and is also the list of channels that SayToAllChannels() methods use (excluding wildcards). It can include wildcards like */#bots, *, irc.home.net/*
+The `Key` is what you type in commands to refer to the plugin instance. Note that you can have multiple instances of the same plugin.
+The channels are a list of channels for which this plugin receives events, and is also the list of channels that SayToAllChannels() methods use (excluding wildcards). It can include wildcards like `*/#bots`, `*`, `irc.home.net/*`
 The network can be an address (which must match that in the main configuration file), a network name, or omitted to refer to the named channel on any network.
 
 Note that, with Plugin Manager loaded, you can run the following command to load a plugin:
@@ -50,8 +53,8 @@ Important commands from plugins
 * `!loadplugin <key> [filename]` — loads a plugin.
 * `!pluginchans <key> [major|minor] <channels>` — sets a plugin's channel list.
 
-* `!saveplugins` — saves /CBotPlugins.ini and causes all plugins to save data.
-* `!saveplugin <plugin key>` — calls OnSave() on that plugin.
+* `!saveplugins` — saves plugins.json and causes all plugins to save data.
+* `!saveplugin <plugin key>` — calls `OnSave` on that plugin.
 
 * `!raw <server address> <command>` — sends a raw IRC command.
 * `!ircjoin [server address] <channel>` — causes the bot to join a channel.
@@ -61,6 +64,6 @@ Important commands from plugins
 IRC channel
 -----------
 
-\#angelina on irc.esper.net
+\#andrio on irc.esper.net
 
-Use an IRC client (irc://irc.esper.net/#angelina) or [webchat](http://webchat.esper.net/?channels=angelina)
+Use an IRC client (ircs://irc.esper.net/#andrio) or [webchat](http://webchat.esper.net/?channels=andrio)
