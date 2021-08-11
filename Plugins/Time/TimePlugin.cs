@@ -11,7 +11,7 @@ using AnIRC;
 using static System.StringComparison;
 
 namespace Time {
-	[ApiVersion(3, 7)]
+	[ApiVersion(4, 0)]
 	public class TimePlugin : Plugin {
 		public override string Name => "Time zone calculator";
 

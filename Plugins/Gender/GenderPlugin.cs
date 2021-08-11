@@ -9,7 +9,7 @@ using CBot;
 using AnIRC;
 
 namespace GenderManager {
-	[ApiVersion(3, 7)]
+	[ApiVersion(4, 0)]
 	public class GenderPlugin : Plugin {
 		public Dictionary<string, Gender> GenderTable { get; }
 		private int CheckingConnection;
@@ -357,7 +357,11 @@ namespace GenderManager {
 		}
 
 		public override bool OnWhoList(object sender, WhoListEventArgs e) {
-			RecheckUser(((IrcClient) sender).Users[e.Nickname]);
+			// Some servers hide users from the NAMES list, but shows them in the WHO list.
+			// Previously this would confuse the following code.
+			if (((IrcClient) sender).Users.TryGetValue(e.Nickname, out var user)) {
+				RecheckUser(user);
+			}
 			return base.OnWhoList(sender, e);
 		}
 

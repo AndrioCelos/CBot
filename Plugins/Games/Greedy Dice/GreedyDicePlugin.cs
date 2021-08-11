@@ -12,7 +12,7 @@ using CBot;
 using AnIRC;
 
 namespace GreedyDice {
-	[ApiVersion(3, 7)]
+	[ApiVersion(4, 0)]
 	public class GreedyDicePlugin : Plugin {
 		private static readonly int[] RollValues = new int[] { 0, 0, 50, 50, 100, 150 };
 		private static readonly string[] RollFaces = new string[] { "\u00031,8 X ", "\u00031,8 X ", "\u000313,6 ♥ ", "\u00039,3 * ", "\u00034,5* *", "\u000312,2***" };
@@ -733,7 +733,7 @@ namespace GreedyDice {
 			IrcChannel _channel; IrcChannelUser user;
 			if (client.Channels.TryGetValue(channel, out _channel)) {
 				if (_channel.Users.TryGetValue(nickname, out user)) {
-					return user.User.GenderRefTheir.ToLowerInvariant();
+					return user.User.Gender switch { Gender.Male => "his", Gender.Female => "her", _ => "their" };
 				}
 			}
 			return "their";

@@ -1,12 +1,13 @@
-﻿using System.Collections.Generic;
+﻿using System;
+using System.Collections.Generic;
 
 namespace BattleBot {
 	public class Character {
-		public string Name;
+		public string? Name;
 		public string ShortName;
 		public Category Category;
 		public Gender Gender;
-		public string Description;
+		public string? Description;
 
 		public int RedOrbs;
 		public int BlackOrbs;
@@ -24,18 +25,18 @@ namespace BattleBot {
 		public int IgnitionGauge;
 		public int RoyalGuardCharge;
 
-		public string EquippedWeapon;
-		public string EquippedWeapon2;
-		public string EquippedAccessory;
+		public string? EquippedWeapon;
+		public string? EquippedWeapon2;
+		public string? EquippedAccessory;
 
-		public List<string> ElementalResistances;
-		public List<string> ElementalWeaknesses;
-		public List<string> WeaponResistances;
-		public List<string> WeaponWeaknesses;
-		public List<string> ElementalAbsorbs;
-		public List<string> ElementalImmunities;
-		public List<string> StatusImmunities;
-		public List<string> RegularlyEffective;
+		public List<string>? ElementalResistances;
+		public List<string>? ElementalWeaknesses;
+		public List<string>? WeaponResistances;
+		public List<string>? WeaponWeaknesses;
+		public List<string>? ElementalAbsorbs;
+		public List<string>? ElementalImmunities;
+		public List<string>? StatusImmunities;
+		public List<string>? RegularlyEffective;
 		public int EffectivenessKnown;
 
 		public bool IsUndead;
@@ -51,15 +52,15 @@ namespace BattleBot {
 		public int Rating;
 		public int NPCBattles;
 
-		public Dictionary<string, int> Weapons;
-		public Dictionary<string, int> Techniques;
-		public Dictionary<string, int> Skills;
-		public Dictionary<string, int> Items;
-		public Dictionary<string, int> Styles;
-		public Dictionary<string, int> StyleExperience;
-		public List<string> Ignitions;
+		public Dictionary<string, int>? Weapons;
+		public Dictionary<string, int>? Techniques;
+		public Dictionary<string, int>? Skills;
+		public Dictionary<string, int>? Items;
+		public Dictionary<string, int>? Styles;
+		public Dictionary<string, int>? StyleExperience;
+		public List<string>? Ignitions;
 
-		public string CurrentStyle;
+		public string? CurrentStyle;
 
 		public bool IsUnderRoyalGuard;
 		public bool IsUnderManaWall;
@@ -67,71 +68,68 @@ namespace BattleBot {
 		public bool IsUnderMightyStrike;
 		public bool IsUnderElementalSeal;
 		public bool IsUnderThirdEye;
-		public string ShadowCopyName;
+		public string? ShadowCopyName;
 
 		public bool HurtByTaunt;
 
-		public List<string> EquippedTechniques;
+		public List<string>? EquippedTechniques;
 
 		public bool IsWellKnown;
 		public bool IsReadyToControl;
 
-		public float Level {
-			get {
-				return (this.BaseSTR + this.BaseDEF + this.BaseINT + this.BaseSPD * 0.6F) / 18.0F;
-			}
-		}
+		public float Level => (this.BaseSTR + this.BaseDEF + this.BaseINT + this.BaseSPD * 0.6F) / 18.0F;
 
 		public string GenderRefThey {
 			get {
-				switch (this.Gender) {
-					case Gender.Male: return "He";
-					case Gender.Female: return "She";
-					case Gender.None: return "It";
-					default: return "They";
-				}
+				return this.Gender switch {
+					Gender.Male => "He",
+					Gender.Female => "She",
+					Gender.None => "It",
+					_ => "They",
+				};
 			}
 		}
 		public string GenderRefThem {
 			get {
-				switch (this.Gender) {
-					case Gender.Male: return "Him";
-					case Gender.Female: return "Her";
-					case Gender.None: return "It";
-					default: return "Them";
-				}
+				return this.Gender switch {
+					Gender.Male => "Him",
+					Gender.Female => "Her",
+					Gender.None => "It",
+					_ => "Them",
+				};
 			}
 		}
 		public string GenderRefTheir {
 			get {
-				switch (this.Gender) {
-					case Gender.Male: return "His";
-					case Gender.Female: return "Her";
-					case Gender.None: return "Its";
-					default: return "Their";
-				}
+				return this.Gender switch {
+					Gender.Male => "His",
+					Gender.Female => "Her",
+					Gender.None => "Its",
+					_ => "Their",
+				};
 			}
 		}
 		public string GenderRefTheyHave {
 			get {
-				switch (this.Gender) {
-					case Gender.Male: return "He has";
-					case Gender.Female: return "She has";
-					case Gender.None: return "It has";
-					default: return "They have";
-				}
+				return this.Gender switch {
+					Gender.Male => "He has",
+					Gender.Female => "She has",
+					Gender.None => "It has",
+					_ => "They have",
+				};
 			}
 		}
 		public string GenderRefTheyAre {
 			get {
-				switch (this.Gender) {
-					case Gender.Male: return "He is";
-					case Gender.Female: return "She is";
-					case Gender.None: return "It is";
-					default: return "They are";
-				}
+				return this.Gender switch {
+					Gender.Male => "He is",
+					Gender.Female => "She is",
+					Gender.None => "It is",
+					_ => "They are",
+				};
 			}
 		}
 
+		public Character(string shortName) => this.ShortName = shortName ?? throw new ArgumentNullException(nameof(shortName));
 	}
 }

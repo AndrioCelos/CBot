@@ -1,4 +1,6 @@
-﻿using System;
+﻿#nullable enable
+
+using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
@@ -9,20 +11,20 @@ using System.Threading;
 using System.Threading.Tasks;
 using System.Timers;
 
-using Octokit;
+using LibGit2Sharp;
 
 using CBot;
 using AnIRC;
 
+using Git = LibGit2Sharp.Commands;
 using FileMode = System.IO.FileMode;
 using Timer = System.Timers.Timer;
 using System.Globalization;
+using System.Linq;
 
 namespace BattleArenaManager {
-	[ApiVersion(3, 7)]
+	[ApiVersion(4, 0)]
 	public class BattleArenaManagerPlugin : Plugin {
-		private GitHubClient client;
-
 		public IrcClient ArenaConnection;
 		public string ArenaChannel;
 		public string ArenaNickname;
@@ -32,24 +34,28 @@ namespace BattleArenaManager {
 		public bool ReviveBot = false;
 		public bool ListenForErrors = false;
 
-		public string RepositoryOwner = "Iyouboushi";
-		public string RepositoryName = "mIRC-BattleArena";
-		public string APIKey;
+		public string RepositoryUrl = "https://github.com/Iyouboushi/mIRC-BattleArena.git";
+		public string RepositoryBranch = "master";
 		public string BackupExecutable;
 		public string BackupPath = "backups/{0:yyyy-MM-dd}{1}.zip";
 
 		public string ArenaLogPath = "logs/EsperNet/status.{0:yyyyMMdd}.log";
 		public string[] ErrorNotificationTargets;
 
-		private Thread logListenThread;
+		private Thread? logListenThread;
 
 		public DateTime LastCommitTime = DateTime.Now;
-		private Timer checkTimer;
-		private IReadOnlyList<GitHubCommit> commits;
+		private DateTime LastFetchTime;
+		private Timer? checkTimer;
+
+		private TaskCompletionSource<int>? ApplyUpdateTaskSource;
+
 		public bool UpdateNextBattle { get; private set; }
 
 		public DateTime LastBattle { get; private set; }
 		public bool BattleOff { get; private set; }
+
+		public Repository? Repository { get; private set; }
 
 		public override string Name => "Battle Arena Manager";
 
@@ -89,10 +95,6 @@ namespace BattleArenaManager {
 			this.LoadConfig();
 			this.LoadData();
 
-			this.client = new GitHubClient(new ProductHeaderValue("BattleArena-Manager"));
-			if (this.APIKey != null)
-				this.client.Credentials = new Credentials(this.APIKey);
-
 			this.defaultLanguage.Add("UpToDate", "We're up to date.");
 			this.defaultLanguage.Add("NewCommit", "I found {0} new commit: '{1}'");
 			this.defaultLanguage.Add("NewCommits", "I found {0} new commits, including '{1}'");
@@ -109,6 +111,8 @@ namespace BattleArenaManager {
 			this.defaultLanguage.Add("ArenaScriptError", "\u00034Battle Arena has encountered a problem: {0}");
 
 			if (this.CheckForUpdates) {
+				if (this.Repository == null) throw new InvalidOperationException("The Arena working directory must be set in order to check for updates.");
+
 				this.checkTimer = new Timer(3600e3);  // 1 hour
 				this.checkTimer.Elapsed += checkTimer_Elapsed;
 				this.checkTimer.Start();
@@ -198,14 +202,11 @@ namespace BattleArenaManager {
 									this.CheckForUpdates = value3;
 								} else ConsoleUtils.WriteLine("[{0}] Problem loading the configuration (line {1}): the value is not recognised as a valid Boolean value.", this.Key, lineNumber);
 								break;
-							case "REPOSITORYOWNER":
-								this.RepositoryOwner = value;
+							case "REPOSITORYURL":
+								this.RepositoryUrl = value;
 								break;
-							case "REPOSITORYNAME":
-								this.RepositoryName = value;
-								break;
-							case "APIKEY":
-								this.APIKey = value;
+							case "REPOSITORYBRANCH":
+								this.RepositoryBranch = value;
 								break;
 							case "BACKUPEXECUTABLE":
 								this.BackupExecutable = value;
@@ -238,6 +239,9 @@ namespace BattleArenaManager {
 				}
 				reader.Close();
 			}
+
+			// ArenaDirectory needs to point to the Arena bot working directory. This is a subdirectory of the Git repository.
+			this.Repository = this.ArenaDirectory != null ? new Repository(Path.GetDirectoryName(this.ArenaDirectory)) : null;
 		}
 
 		public void LoadData() {
@@ -254,10 +258,8 @@ namespace BattleArenaManager {
 				writer.WriteLine("ArenaNickname={0}", this.ArenaNickname);
 				writer.WriteLine("ArenaDirectory={0}", this.ArenaDirectory);
 				writer.WriteLine("CheckForUpdates={0}", this.CheckForUpdates ? "Yes" : "No");
-				writer.WriteLine("RepositoryOwner={0}", this.RepositoryOwner);
-				writer.WriteLine("RepositoryName={0}", this.RepositoryName);
-				if (this.APIKey != null)
-					writer.WriteLine("APIKey={0}", this.APIKey);
+				writer.WriteLine("RepositoryUrl={0}", this.RepositoryUrl);
+				writer.WriteLine("RepositoryBranch={0}", this.RepositoryBranch);
 				writer.WriteLine("ListenForErrors={0}", this.ListenForErrors ? "Yes" : "No");
 				writer.WriteLine("LogPath={0}", this.ArenaLogPath);
 				if (this.ErrorNotificationTargets != null)
@@ -277,6 +279,14 @@ namespace BattleArenaManager {
 																  ((IrcClient) sender).CaseMappingComparer.Equals(e.Sender.Nickname, this.ArenaNickname)))
 				this.RunArenaRegex((IrcClient) sender, e.Channel, e.Sender, e.Message);
 			return base.OnChannelMessage(sender, e);
+		}
+
+		public override bool OnPrivateNotice(object sender, PrivateMessageEventArgs e) {
+			if (this.ApplyUpdateTaskSource != null && e.Sender.Nickname == this.ArenaNickname && e.Sender.Client == this.ArenaConnection && e.Message == "OK") {
+				this.ApplyUpdateTaskSource.SetResult(0);
+				this.ApplyUpdateTaskSource = null;
+			}
+			return base.OnPrivateNotice(sender, e);
 		}
 
 		public bool RunArenaRegex(IrcClient client, IrcMessageTarget channel, IrcUser sender, string message) {
@@ -319,8 +329,8 @@ namespace BattleArenaManager {
 			return base.OnUserQuit(sender, e);
 		}
 
-		[ArenaRegex(new string[] { @"^\x034The Battle is Over!",
-			@"^\x034There were no players to meet the monsters on the battlefield! \x02The battle is over\x02."})]
+		[ArenaRegex(new string[] { @"^\x030?4The Battle is Over!",
+			@"^\x030?4There were no players to meet the monsters on the battlefield! \x02The battle is over\x02."})]
 		internal async void OnBattleEnd(object sender, TriggerEventArgs e) {
 			BattleOff = true;
 			ConsoleUtils.WriteLine("[" + this.Key + "] A battle has ended.");
@@ -329,9 +339,11 @@ namespace BattleArenaManager {
 				this.UpdateNextBattle = false;
 
 				try {
-					await this.ApplyUpdate();
+					await this.ApplyUpdate(false, e.Channel);
+					e.Reply("Update complete.");
 				} catch (Exception ex) {
 					this.LogError("ApplyUpdate", ex);
+					e.Reply("There was a problem installing the update: " + ex.Message);
 				}
 
 				this.checkTimer.Start();
@@ -339,189 +351,152 @@ namespace BattleArenaManager {
 		}
 
 		[Command("check", 0, 0, "!check", "Checks for a Battle Arena update.", Permission = ".check")]
-		public void CommandCheck(object sender, CommandEventArgs e) {
-			Task task = new Task(new Action(async () => await CheckUpdate(true)));
-			task.Start();
+		public async void CommandCheck(object sender, CommandEventArgs e) {
+			e.Whisper("Checking for an update...");
+
+			try {
+				var result = await CheckUpdate(e.Channel, true);
+			} catch (Exception ex) {
+				this.LogError("CheckUpdate", ex);
+				e.Reply("There was a problem checking for updates: " + ex.Message);
+			}
 		}
 
 		[Command("update", 0, 0, "!update", "Updates the Battle Arena bot.", Permission = ".update")]
 		public async void CommandUpdate(object sender, CommandEventArgs e) {
+			e.Whisper("Installing the latest version...");
 			try {
-				await this.ApplyUpdate();
+				var result = await this.ApplyUpdate(true, e.Channel);
+				if (result == 0) {
+					e.Reply("Already up to date.");
+				} else {
+					e.Reply("Update complete.");
+				}
 			} catch (Exception ex) {
+				e.Reply("There was a problem installing the update: " + ex.Message);
 				this.LogError("ApplyUpdate", ex);
 			}
 		}
 
 		private async void checkTimer_Elapsed(object sender, ElapsedEventArgs e) {
 			try {
-				await this.CheckUpdate();
+				await this.CheckUpdate(null);
 			} catch (Exception ex) {
 				this.LogError("CheckUpdate", ex);
 			}
 		}
 
-		public async Task CheckUpdate(bool forceAnnounce = false) {
-			var request = new CommitRequest();
-			if (this.LastCommitTime != DateTime.MinValue) request.Since = this.LastCommitTime.AddSeconds(1);
+		public async Task<int> CheckUpdate(IrcChannel? channel, bool forceAnnounce = false) {
+			if (this.Repository == null) throw new InvalidOperationException("Repository is not loaded.");
+			Console.WriteLine($"[{this.Key}] git fetch");
+			Git.Fetch(this.Repository, "origin", this.Repository.Network.Remotes["origin"].FetchRefSpecs.Select(s => s.Specification), null, null);
+			this.LastFetchTime = DateTime.UtcNow;
 
-			var commits = await this.client.Repository.Commit.GetAll(this.RepositoryOwner, this.RepositoryName, request);
-			if (commits.Count == 0) {
-				if (forceAnnounce) Bot.Say(this.ArenaConnection, this.ArenaChannel, this.GetMessage("UpToDate", null, this.ArenaChannel, commits.Count, null));
-				return;
+			var localCommitHash = this.Repository.Head.Tip.Sha;
+			var trackingDetails = this.Repository.Head.TrackingDetails;
+			Console.WriteLine($"[{this.Key}] {trackingDetails.AheadBy} commit(s) ahead; {trackingDetails.BehindBy} commit(s) behind");
+			Debug.Assert(trackingDetails.BehindBy.HasValue);
+			if (trackingDetails.BehindBy == null) {
+				throw new InvalidOperationException("Invalid or missing upstream branch configuration");
+			}
+			if (trackingDetails.BehindBy == 0) {
+				if (forceAnnounce)
+					Bot.Say(channel?.Client ?? this.ArenaConnection, channel?.Target ?? this.ArenaChannel, "We're up to date.");
+				return 0;
 			}
 
-			string commitMessage = null;
-			foreach (var commit in commits) {
-				string message; int x = commit.Commit.Message.IndexOf('\n');
-				if (x == -1) message = commit.Commit.Message;
-				else message = commit.Commit.Message.Substring(0, x).TrimEnd('\r');
-
-				if (commitMessage == null || message.Length > commitMessage.Length)
-					commitMessage = message;
+			// Get the longest commit message to show to the user.
+			string commitMessage = "";
+			foreach (var commit in this.Repository.Head.TrackedBranch.Commits.Take(20)) {  // Limiting it just in case.
+				if (commit.Sha == localCommitHash) break;
+				if (commit.MessageShort.Length > commitMessage.Length)
+					commitMessage = commit.MessageShort;
 			}
-
-			if (commits.Count == 1) {
-				Bot.Say(this.ArenaConnection, this.ArenaChannel, this.GetMessage("NewCommit", null, this.ArenaChannel, commits.Count, commitMessage));
-			} else if (commits.Count > 1) {
-				Bot.Say(this.ArenaConnection, this.ArenaChannel, this.GetMessage("NewCommits", null, this.ArenaChannel, commits.Count, commitMessage));
-			}
-
-			this.commits = commits;
+			Bot.Say(channel?.Client ?? this.ArenaConnection, channel?.Target ?? this.ArenaChannel,
+				$"I found {trackingDetails.BehindBy} new {(trackingDetails.BehindBy == 1 ? "commit" : "commits")}, including '{commitMessage}'.");
 
 			// Should we update now?
 			if (BattleOff) {
 				if ((DateTime.Now - this.LastBattle).TotalMinutes >= 15) {
 					// The automated battle system is probably off; update immediately.
-					await this.ApplyUpdate();
+					await this.ApplyUpdate(false, channel);
 				} else {
-					Bot.Say(this.ArenaConnection, this.ArenaChannel, this.GetMessage("ApplyAfterNextBattle", null, this.ArenaChannel, commits.Count, commitMessage));
+					Bot.Say(this.ArenaConnection, this.ArenaChannel, this.GetMessage("ApplyAfterNextBattle", null, this.ArenaChannel, trackingDetails.BehindBy.Value, commitMessage));
 					this.UpdateNextBattle = true;
-					this.checkTimer.Stop();
+					this.checkTimer?.Stop();
 				}
 			} else {
-				Bot.Say(this.ArenaConnection, this.ArenaChannel, this.GetMessage("ApplyAfterBattle", null, this.ArenaChannel, commits.Count, commitMessage));
+				Bot.Say(this.ArenaConnection, this.ArenaChannel, this.GetMessage("ApplyAfterBattle", null, this.ArenaChannel, trackingDetails.BehindBy.Value, commitMessage));
 				this.UpdateNextBattle = true;
-				this.checkTimer.Stop();
+				this.checkTimer?.Stop();
 			}
+
+			return trackingDetails.BehindBy.Value;
 		}
 
-		public async Task ApplyUpdate() {
-			// Get the last commit timestamp.
-			IReadOnlyList<GitHubCommit> commits;
-			if (this.commits != null) {
-				commits = this.commits;
-				this.commits = null;
-			} else {
-				// If the command was called without already getting a list of commits, the Arena will be updated to eh latest commit,
-				// whatever that is.
-				commits = await this.client.Repository.Commit.GetAll(this.RepositoryOwner, this.RepositoryName);
-			}
+		public Task<int> ApplyUpdate(bool fetch, IrcChannel? channel) {
+			return Task.Run(() => {
+				if (this.Repository == null) throw new InvalidOperationException("Repository is not loaded.");
 
-			if (commits.Count > 0)
-				this.LastCommitTime = commits[0].Commit.Committer.Date.UtcDateTime;
-			else
-				this.LastCommitTime = default(DateTime);
-			this.SaveData();
+				if (fetch) {
+					Console.WriteLine($"[{this.Key}] git fetch");
+					Git.Fetch(this.Repository, "origin", this.Repository.Network.Remotes["origin"].FetchRefSpecs.Select(s => s.Specification), null, null);
+					this.LastFetchTime = DateTime.UtcNow;
+				}
 
-			Process process; string file;
+				var trackingDetails = this.Repository.Head.TrackingDetails;
+				if (trackingDetails.BehindBy == null) {
+					throw new InvalidOperationException("Invalid or missing upstream branch configuration");
+				}
+				var newCommits = trackingDetails.BehindBy.Value;
+				if (trackingDetails.BehindBy == 0) {
+					Console.WriteLine($"[{this.Key}] Repository is not behind the remote repository.");
+					return 0;
+				}
+				if (trackingDetails.AheadBy > 0) {
+					throw new InvalidOperationException("Cannot update the repository because it is ahead of the remote repository.");
+				}
 
-			try {
 				if (this.BackupExecutable != null) {
 					// Backup existing data.
 					ConsoleUtils.WriteLine("Creating backup...");
-					process = new Process() { StartInfo = new ProcessStartInfo(this.BackupExecutable, this.BackupPath) { UseShellExecute = false, RedirectStandardOutput = true, WorkingDirectory = this.ArenaDirectory } };
+					using var process = new Process() { StartInfo = new ProcessStartInfo(this.BackupExecutable, this.BackupPath) { UseShellExecute = false, RedirectStandardOutput = true, WorkingDirectory = this.ArenaDirectory } };
 					process.Start();
 					process.StandardOutput.ReadToEnd();
 					process.WaitForExit();
 					if (process.ExitCode != 0) {
 						ConsoleUtils.WriteLine("Backup failed (the process exited with code " + process.ExitCode + "). Aborting.");
 						Bot.Say(this.ArenaConnection, this.ArenaChannel, this.GetMessage("BackupFailure", null, this.ArenaChannel, process.ExitCode));
-						return;
+						return 0;
 					}
 				}
 
-				// Download the file.
-				ConsoleUtils.WriteLine("Downloading data...");
-				try {
-					byte[] archive = await this.client.Repository.Content.GetArchive(this.RepositoryOwner, this.RepositoryName, ArchiveFormat.Zipball);
-					file = Path.Combine(Path.GetTempPath(), "BattleArena.zip");
-					File.WriteAllBytes(file, archive);
-					ConsoleUtils.WriteLine("Saved to " + file);
-				} catch (WebException ex) {
-					ConsoleUtils.WriteLine("Download failed: " + ex.ToString());
-					Bot.Say(this.ArenaConnection, this.ArenaChannel, this.GetMessage("DownloadFailure", null, this.ArenaChannel, ex.Message));
-					return;
-				}
-
-				// Extract the content.
-				ConsoleUtils.WriteLine("Extracting data...");
-				string baseFolderName = null;
-
-				using (var zipball = ZipFile.OpenRead(file)) {
-					foreach (var entry in zipball.Entries) {
-						if (entry.FullName.IndexOf('/') == entry.FullName.Length - 1) {
-							baseFolderName = entry.FullName.TrimEnd('/');
-							break;
-						}
-					}
-				}
-
-				if (baseFolderName == null) {
-					ConsoleUtils.WriteLine("Failed (the archive has an unexpected structure).");
-					Bot.Say(this.ArenaConnection, this.ArenaChannel, this.GetMessage("BadArchiveStructure", null, this.ArenaChannel));
-					return;
-				}
-
-				var path = Path.GetTempPath();
-				ZipFile.ExtractToDirectory(file, path);
-				ConsoleUtils.WriteLine("Extracted to " + Path.Combine(Path.GetTempPath(), baseFolderName));
+				var signature = new Signature("Battle Arena Manager", "bots@questers-rest.andriocelos.net", DateTimeOffset.Now);  // Should only be temporary.
+				Console.WriteLine($"[{this.Key}] git stash add");
+				var stash = this.Repository.Stashes.Add(signature);
 
 				try {
-					List<string> filesToReload = new List<string>();
-					// Copy scripts.
-					ConsoleUtils.WriteLine("Updating scripts...");
-					string[] files = Directory.GetFiles(Path.Combine(Path.GetTempPath(), baseFolderName, "battlearena"));
-					foreach (string file2 in files) {
-						if (file2.EndsWith(".mrc", StringComparison.OrdinalIgnoreCase) || file2.EndsWith(".als", StringComparison.OrdinalIgnoreCase)) {
-							File.Copy(file2, Path.Combine(this.ArenaDirectory, Path.GetFileName(file2)), true);
-							filesToReload.Add(Path.GetFileName(file2));
-						} else if (file2.EndsWith("version.ver", StringComparison.OrdinalIgnoreCase) || file2.EndsWith("translation.dat", StringComparison.OrdinalIgnoreCase) || file2.EndsWith("system.dat.default", StringComparison.OrdinalIgnoreCase)) {
-							File.Copy(file2, Path.Combine(this.ArenaDirectory, Path.GetFileName(file2)), true);
-						}
-					}
-
-					// Copy data files.
-					ConsoleUtils.WriteLine("Updating data files...");
-					foreach (string directory in new string[] { "bosses", "monsters", "npcs", "summons", "dbs", "lsts", "txts", "dungeons", "help-files" }) {
-						Directory.CreateDirectory(Path.Combine(this.ArenaDirectory, directory));
-						files = Directory.GetFiles(Path.Combine(Path.GetTempPath(), baseFolderName, "battlearena", directory));
-						foreach (string file2 in files) {
-							File.Copy(file2, Path.Combine(this.ArenaDirectory, directory, Path.GetFileName(file2)), true);
-						}
-					}
-					File.Copy(Path.Combine(Path.GetTempPath(), baseFolderName, "battlearena", "characters", "new_chr.char"), Path.Combine(this.ArenaDirectory, "characters", "new_chr.char"), true);
-
-					// Load scripts.
-					// This will require the following script to be loaded by the Arena bot: https://gist.github.com/AndrioCelos/c040c03119f3029f535f
-					Bot.Say(this.ArenaConnection, this.ArenaNickname, "!!reload " + string.Join(" ", filesToReload), SayOptions.NoticeNever);
-
-					ConsoleUtils.WriteLine("Complete.");
-					Bot.Say(this.ArenaConnection, this.ArenaChannel, this.GetMessage("UpdateComplete", null, this.ArenaChannel));
-				} catch (Exception ex) {
-					ConsoleUtils.WriteLine("An exception occurred: " + ex.ToString());
-					Bot.Say(this.ArenaConnection, this.ArenaChannel, this.GetMessage("UpdateFailure", null, this.ArenaChannel, ex.Message));
-					return;
+					Console.WriteLine($"[{this.Key}] git pull");
+					Git.Pull(this.Repository, signature, new PullOptions() { MergeOptions = new MergeOptions() { FastForwardStrategy = FastForwardStrategy.FastForwardOnly } });
 				} finally {
-					// Clean up.
-					ConsoleUtils.WriteLine("Cleaning up...");
-					File.Delete(file);
-					Directory.Delete(Path.Combine(Path.GetTempPath(), baseFolderName), true);
+					// Roll back the stash even if the pull fails.
+					Console.WriteLine($"[{this.Key}] git stash pop");
+					this.Repository.Stashes.Pop(0);
 				}
-			} catch (Exception ex) {
-				ConsoleUtils.WriteLine("An exception occurred: " + ex.ToString());
-				Bot.Say(this.ArenaConnection, this.ArenaChannel, this.GetMessage("UpdateFailure", null, this.ArenaChannel, ex.Message));
-			}
+
+				// Load scripts.
+				// This will require the following script to be loaded by the Arena bot: https://gist.github.com/AndrioCelos/c040c03119f3029f535f
+				var filesToReload = from f in Directory.GetFiles(this.ArenaDirectory) where f.EndsWith(".mrc", StringComparison.InvariantCultureIgnoreCase) || f.EndsWith(".als", StringComparison.InvariantCultureIgnoreCase)
+									select Path.GetFileName(f);
+				Bot.Say(this.ArenaConnection, this.ArenaNickname, "!!reload " + string.Join(" ", filesToReload), SayOptions.NoticeNever);
+				this.ApplyUpdateTaskSource = new TaskCompletionSource<int>();
+				
+				var result = this.ApplyUpdateTaskSource.Task.Wait(TimeSpan.FromSeconds(30));
+				if (!result) throw new TimeoutException("The Arena bot is not responding.");
+
+				Console.WriteLine($"[{this.Key}] Done.");
+				return newCommits;
+			});
 		}
 
 		public void ReviveArenaBot() {

@@ -64,8 +64,6 @@ namespace BattleBot {
 		CurseNight = 1,
 		BloodMoon = 2,
 		NoTechniques = 4,
-		[System.ComponentModel.EditorBrowsable(System.ComponentModel.EditorBrowsableState.Never)]
-		MeleeLock = 4,
 		ItemLock = 8,
 		WeatherLock = 16,
 		NoFleeing = 32,
@@ -118,44 +116,59 @@ namespace BattleBot {
 	public class UnmatchedName {
 		public string Name;
 		public Category Category;
-		public string Description;
+		public string? Description;
+
+		public UnmatchedName(string name, Category category) {
+			this.Name = name ?? throw new ArgumentNullException(nameof(name));
+			this.Category = category;
+		}
+		public UnmatchedName(string name, Category category, string? description) {
+			this.Name = name ?? throw new ArgumentNullException(nameof(name));
+			this.Category = category;
+			this.Description = description;
+		}
 	}
 
 	public class OwnCharacter {
 		public string FullName;
 		public string Password;
+
+		public OwnCharacter(string fullName, string password) {
+			this.FullName = fullName ?? throw new ArgumentNullException(nameof(fullName));
+			this.Password = password ?? throw new ArgumentNullException(nameof(password));
+		}
 	}
 
 	[AttributeUsage(AttributeTargets.Method)]
-	public class ArenaRegexAttribute : Attribute {
+	public class ArenaTriggerAttributeAttribute : Attribute {
 		public Regex[] Patterns { get; set; }
 		public bool StripFormats { get; set; }
 
-		public ArenaRegexAttribute(string pattern)
+		public ArenaTriggerAttributeAttribute(string pattern)
 			: this(pattern, RegexOptions.IgnoreCase | RegexOptions.Compiled) { }
-		public ArenaRegexAttribute(string pattern, RegexOptions options)
+		public ArenaTriggerAttributeAttribute(string pattern, RegexOptions options)
 			: this(new[] { new Regex(pattern, options) }) { }
-		public ArenaRegexAttribute(string pattern, bool stripFormats)
+		public ArenaTriggerAttributeAttribute(string pattern, bool stripFormats)
 			: this(new[] { new Regex(pattern, RegexOptions.IgnoreCase | RegexOptions.Compiled) }, stripFormats) { }
-		public ArenaRegexAttribute(string pattern, RegexOptions options, bool stripFormats)
+		public ArenaTriggerAttributeAttribute(string pattern, RegexOptions options, bool stripFormats)
 			: this(new[] { new Regex(pattern, options) }, stripFormats) { }
-		public ArenaRegexAttribute(string[] pattern)
+		public ArenaTriggerAttributeAttribute(string[] pattern)
 			: this(pattern.Select(p => new Regex(p, RegexOptions.IgnoreCase | RegexOptions.Compiled)).ToArray()) { }
-		public ArenaRegexAttribute(string[] pattern, bool stripFormats)
+		public ArenaTriggerAttributeAttribute(string[] pattern, bool stripFormats)
 			: this(pattern.Select(p => new Regex(p, RegexOptions.IgnoreCase | RegexOptions.Compiled)).ToArray(), stripFormats) { }
-		public ArenaRegexAttribute(Regex[] patterns)
+		public ArenaTriggerAttributeAttribute(Regex[] patterns)
 			: this(patterns, false) { }
-		public ArenaRegexAttribute(Regex[] patterns, bool stripFormats) {
+		public ArenaTriggerAttributeAttribute(Regex[] patterns, bool stripFormats) {
 			this.Patterns = patterns;
 			this.StripFormats = stripFormats;
 		}
 	}
 
 	public class ArenaTrigger {
-		public ArenaRegexAttribute Attribute { get; }
+		public ArenaTriggerAttributeAttribute Attribute { get; }
 		public PluginTriggerHandler Handler { get; }
 
-		public ArenaTrigger(ArenaRegexAttribute attribute, PluginTriggerHandler handler) {
+		public ArenaTrigger(ArenaTriggerAttributeAttribute attribute, PluginTriggerHandler handler) {
 			this.Attribute = attribute;
 			this.Handler = handler;
 		}

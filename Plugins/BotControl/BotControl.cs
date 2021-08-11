@@ -4,7 +4,7 @@ using CBot;
 using AnIRC;
 
 namespace BotControl {
-	[ApiVersion(3, 7)]
+	[ApiVersion(4, 0)]
 	public class BotControlPlugin : Plugin {
 		public override string Name => "Bot Control";
 
@@ -13,7 +13,7 @@ namespace BotControl {
 		public void CommandConnect(object sender, CommandEventArgs e) {
 			if (e.Parameters.Length == 0) {
 				e.Reply("I'm connected to the following servers:");
-				foreach (ClientEntry clientEntry in Bot.Clients) {
+				foreach (ClientEntry clientEntry in this.Bot.Clients) {
 					IrcClient client = clientEntry.Client;
 					switch (client.State) {
 						case IrcClientState.Disconnected:
@@ -45,7 +45,7 @@ namespace BotControl {
 					}
 				}
 			} else {
-				foreach (ClientEntry clientEntry in Bot.Clients) {
+				foreach (ClientEntry clientEntry in this.Bot.Clients) {
 					IrcClient client = clientEntry.Client;
 					if (client.Address.Equals(e.Parameters[0], StringComparison.OrdinalIgnoreCase) || (client.Extensions.NetworkName != null && client.Extensions.NetworkName.Equals(e.Parameters[0], StringComparison.OrdinalIgnoreCase))) {
 						if (client.State != IrcClientState.Disconnected)
@@ -60,15 +60,13 @@ namespace BotControl {
 
 				e.Reply(string.Format("Connecting to \u0002{0}\u000F.", e.Parameters[0]));
 
-				var network = new ClientEntry(e.Parameters[0]) {
-					Address   = e.Parameters[0],
-					Port      = 6667,
+				var network = new ClientEntry(e.Parameters[0], e.Parameters[0], 6667) {
 					Nicknames = new[] { e.Client.Me.Nickname },
 					Ident     = e.Client.Me.Ident,
 					FullName  = e.Client.Me.FullName
 				};
-				Bot.AddNetwork(network);
-				network.Connect();
+				this.Bot.AddNetwork(network);
+				this.Bot.Connect(network);
 			}
 		}
 
@@ -79,7 +77,7 @@ namespace BotControl {
 
 			if (e.Parameters.Length == 2) {
 				targetConnection = null;
-				foreach (ClientEntry clientEntry in Bot.Clients) {
+				foreach (ClientEntry clientEntry in this.Bot.Clients) {
 					IrcClient client = clientEntry.Client;
 					if (client.Address.Equals(e.Parameters[0], StringComparison.OrdinalIgnoreCase) || (client.Extensions.NetworkName ?? "").Equals(e.Parameters[0], StringComparison.OrdinalIgnoreCase)) {
 						targetConnection = client;
@@ -142,7 +140,7 @@ namespace BotControl {
 				targetConnection = e.Client;
 			else {
 				targetConnection = null;
-				foreach (ClientEntry clientEntry in Bot.Clients) {
+				foreach (ClientEntry clientEntry in this.Bot.Clients) {
 					IrcClient client = clientEntry.Client;
 					if (client.Address.Equals(e.Parameters[0], StringComparison.OrdinalIgnoreCase) || (client.Extensions.NetworkName ?? "").Equals(e.Parameters[0], StringComparison.OrdinalIgnoreCase)) {
 						targetConnection = client;
@@ -194,7 +192,7 @@ namespace BotControl {
 				targetConnection = e.Client;
 			else {
 				targetConnection = null;
-				foreach (ClientEntry clientEntry in Bot.Clients) {
+				foreach (ClientEntry clientEntry in this.Bot.Clients) {
 					IrcClient client = clientEntry.Client;
 					if (client.Address.Equals(e.Parameters[0], StringComparison.OrdinalIgnoreCase) || (client.Extensions.NetworkName ?? "").Equals(e.Parameters[0], StringComparison.OrdinalIgnoreCase)) {
 						targetConnection = client;
@@ -242,7 +240,7 @@ namespace BotControl {
 				targetConnection = e.Client;
 			else {
 				targetConnection = null;
-				foreach (ClientEntry clientEntry in Bot.Clients) {
+				foreach (ClientEntry clientEntry in this.Bot.Clients) {
 					IrcClient client = clientEntry.Client;
 					if (client.Address.Equals(e.Parameters[0], StringComparison.OrdinalIgnoreCase) || (client.Extensions.NetworkName ?? "").Equals(e.Parameters[0], StringComparison.OrdinalIgnoreCase)) {
 						targetConnection = client;
@@ -286,7 +284,7 @@ namespace BotControl {
 				targetConnection = e.Client;
 			else {
 				targetConnection = null;
-				foreach (ClientEntry clientEntry in Bot.Clients) {
+				foreach (ClientEntry clientEntry in this.Bot.Clients) {
 					IrcClient client = clientEntry.Client;
 					if (client.Address.Equals(e.Parameters[0], StringComparison.OrdinalIgnoreCase) || (client.Extensions.NetworkName ?? "").Equals(e.Parameters[0], StringComparison.OrdinalIgnoreCase)) {
 						targetConnection = client;
@@ -319,7 +317,7 @@ namespace BotControl {
 				message = "Shutting down";
 			}
 			e.Whisper("Goodbye, {0}.", e.Sender.Nickname);
-			foreach (ClientEntry clientEntry in Bot.Clients) {
+			foreach (ClientEntry clientEntry in this.Bot.Clients) {
 				IrcClient client = clientEntry.Client;
 				if (client.State >= IrcClientState.Registering)
 					client.Send("QUIT :{0}", message);
@@ -333,13 +331,13 @@ namespace BotControl {
 		public void CommandReload(object sender, CommandEventArgs e) {
 			if (e.Parameters.Length == 0 || e.Parameters[0].Equals("config", StringComparison.InvariantCultureIgnoreCase)) {
 				e.Reply("Reloading configuration.");
-				Bot.LoadConfig();
+				this.Bot.LoadConfig();
 			} else if (e.Parameters[0].Equals("plugins", StringComparison.InvariantCultureIgnoreCase)) {
 				e.Reply("Reloading plugins.");
-				Bot.LoadPluginConfig();
+				this.Bot.LoadPluginConfig();
 			} else if (e.Parameters[0].Equals("users", StringComparison.InvariantCultureIgnoreCase)) {
 				e.Reply("Reloading users.");
-				Bot.LoadUsers();
+				this.Bot.LoadUsers();
 			} else {
 				e.Reply($"I don't recognise '{e.Parameters[0]}'. Say 'config', 'plugins' or 'users'.");
 			}
@@ -361,7 +359,7 @@ namespace BotControl {
 
 			if (e.Parameters.Length == 2) {
 				targetClient = null;
-				foreach (ClientEntry clientEntry in Bot.Clients) {
+				foreach (ClientEntry clientEntry in this.Bot.Clients) {
 					IrcClient client = clientEntry.Client;
 					if (client.Address.Equals(e.Parameters[0], StringComparison.OrdinalIgnoreCase) || (client.Extensions.NetworkName ?? "").Equals(e.Parameters[0], StringComparison.OrdinalIgnoreCase)) {
 						targetClient = client;
@@ -387,7 +385,7 @@ namespace BotControl {
 
 			if (e.Parameters.Length == 2) {
 				targetClient = null;
-				foreach (ClientEntry clientEntry in Bot.Clients) {
+				foreach (ClientEntry clientEntry in this.Bot.Clients) {
 					IrcClient client = clientEntry.Client;
 					if (client.Address.Equals(e.Parameters[0], StringComparison.OrdinalIgnoreCase) || (client.Extensions.NetworkName ?? "").Equals(e.Parameters[0], StringComparison.OrdinalIgnoreCase)) {
 						targetClient = client;
@@ -413,7 +411,7 @@ namespace BotControl {
 
 			if (e.Parameters.Length == 2) {
 				targetClient = null;
-				foreach (ClientEntry clientEntry in Bot.Clients) {
+				foreach (ClientEntry clientEntry in this.Bot.Clients) {
 					IrcClient client = clientEntry.Client;
 					if (client.Address.Equals(e.Parameters[0], StringComparison.OrdinalIgnoreCase) || (client.Extensions.NetworkName ?? "").Equals(e.Parameters[0], StringComparison.OrdinalIgnoreCase)) {
 						targetClient = client;

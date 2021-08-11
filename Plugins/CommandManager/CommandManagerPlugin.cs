@@ -7,18 +7,41 @@ using System.Text.RegularExpressions;
 
 using CBot;
 using AnIRC;
+using System.Threading.Tasks;
 
 namespace CommandManager {
-	[ApiVersion(3, 7)]
+	public struct CommandSuppression {
+		internal Command FakeCommand;
+	}
+
+	[ApiVersion(4, 0)]
 	public class CommandManagerPlugin : Plugin {
 		private Dictionary<string, Tuple<string, DateTime>> commandListCache = new Dictionary<string, Tuple<string, DateTime>>();
 
+		private Dictionary<string, CommandSuppression> commandSuppressions = new Dictionary<string, CommandSuppression>(StringComparer.InvariantCultureIgnoreCase);
+
 		public override string Name => "Command Manager";
+
+		public override void Initialize() {
+			commandSuppressions.Add("IRCHighway,#game,start", new CommandSuppression() { FakeCommand = GetEmptyCommand(Bot.Plugins.First(p => p.Key == "UNO").Obj.Commands["start"]) });
+		}
+
+		public static Command GetEmptyCommand(Command command) {
+			return new Command(new CommandAttribute(command.Attribute.Names.ToArray(), 0, 0, "N/A", "This command has been suppressed.") { PriorityHandler = (e => command.Attribute.PriorityHandler.Invoke(e) + 1) }, (v1, v2) => { });
+		}
+
+		public override async Task<IEnumerable<Command>> CheckCommands(IrcUser sender, IrcMessageTarget target, string label, string parameters, bool isGlobalCommand) {
+			var key = $"{target.Client.NetworkName},{target.Target},{label}";
+			if (commandSuppressions.TryGetValue(key, out var suppression)) {
+				return new[] { suppression.FakeCommand };
+			}
+			return await base.CheckCommands(sender, target, label, parameters, isGlobalCommand);
+		}
 
 		[Command("addalias", 2, 2, "addalias <alias> <command>", "Adds an alias to a command.", Permission = ".addalias")]
 		public async void CommandAddAlias(object sender, CommandEventArgs e) {
 			string alias = e.Parameters[1];
-			Command command;
+			Command command = (await Bot.GetCommand(e.Sender, e.Target, null, alias, null)).Value.command;
 			foreach (var pluginEntry in Bot.Plugins) {
 				if (!pluginEntry.Obj.Commands.TryGetValue(alias, out command)) continue;
 

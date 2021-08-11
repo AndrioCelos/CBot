@@ -9,7 +9,7 @@ using System.Threading;
 using System.Threading.Tasks;
 
 namespace HelpCommand {
-	[ApiVersion(3, 7)]
+	[ApiVersion(4, 0)]
 	public class HelpCommandPlugin : Plugin {
 		public override string Name => "HelpCommand";
 
@@ -29,11 +29,23 @@ namespace HelpCommand {
 			=> await this.ShowHelp(e.Target, e.Sender, null);
 
 		private async Task ShowHelp(IrcMessageTarget target, IrcUser user, string topic) {
+			IrcMessageTarget target2 = null;
 			bool anyText = false;
 
+			// If the topic is a channel name, look for information on that channel.
+			if (target.Client.IsChannel(topic)) {
+				if (target.Client.Channels.TryGetValue(topic, out var c)) {
+					target2 = c;
+				} else {
+					Bot.Say(user.Client, user.Nickname, "I'm not on that channel.");
+					return;
+				}
+			} else
+				target2 = target;
+
 			foreach (var plugin in Bot.Plugins) {
-				if (plugin.Obj.IsActiveTarget(target)) {
-					var text = plugin.Obj.Help(topic, target);
+				if (plugin.Obj.IsActiveTarget(target2)) {
+					var text = plugin.Obj.Help(null, target);
 					if (text != null) {
 						anyText = true;
 						foreach (var line in text.Split(new[] { "\r\n", "\n", "\r" }, StringSplitOptions.None)) {

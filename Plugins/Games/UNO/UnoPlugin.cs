@@ -11,12 +11,12 @@ using System.Timers;
 using CBot;
 using AnIRC;
 
-using Demot.RandomOrgJsonRPC;
+using Anemonis.RandomOrg;
 
 using Timer = System.Timers.Timer;
 
 namespace UNO {
-	[ApiVersion(3, 7)]
+	[ApiVersion(4, 0)]
 	public class UnoPlugin : Plugin {
 		public static readonly string[] Hints = new string[] {
 			/*  0 */ "It's your turn. Enter \u0002!play \u001Fcard\u000F to play a card from your hand with a matching colour, number or symbol. Here, you can play a {0} card, a {1} or a Wild card. If you have none, enter \u0002!draw\u0002.",
@@ -48,7 +48,7 @@ namespace UNO {
 		public LeaderboardMode JSONLeaderboard;
 
 		public int GameCount { get; set; }
-		internal RandomJsonRPCClient randomClient;
+		internal RandomOrgClient randomClient;
 
 		// Game rules
 		public bool AIEnabled;
@@ -191,9 +191,7 @@ namespace UNO {
 			this.LoadStats();
 
 			if (this.RandomOrgAPIKey != null) {
-				this.randomClient = new RandomJsonRPCClient(this.RandomOrgAPIKey, this.UserAgent) {
-					MaxBlockingTime = 10000
-				};
+				this.randomClient = new(this.RandomOrgAPIKey);
 			}
 
 			if (version < 4) {
@@ -3664,7 +3662,7 @@ namespace UNO {
 				IrcChannel channel; IrcChannelUser user; string gender = "their";
 				if (game.Connection.Channels.TryGetValue(game.Channel, out channel)) {
 					if (channel.Users.TryGetValue(player.Name, out user)) {
-						gender = user.User.GenderRefTheir.ToLowerInvariant();
+						gender = user.User.Gender switch { Gender.Male => "his", Gender.Female => "her", _ => "their" };
 					}
 				}
 				if (stats.CurrentStreak <= -2)

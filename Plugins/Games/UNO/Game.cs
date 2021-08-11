@@ -118,11 +118,11 @@ namespace UNO {
 				} else {
 					try {
 						// Send the request to random.org.
-						var response = Plugin.randomClient.GenerateIntegers(this.Discards.Count, 0, this.Discards.Count - 1, true, false);
-						deal = new GameRecord.Shuffle() { cards = cards, random = response.RPCObject, signature = response.Signature };
+						var response = Plugin.randomClient.GenerateSignedIntegersAsync(this.Discards.Count, 0, this.Discards.Count - 1, false).Result;
+						deal = new GameRecord.Shuffle() { cards = cards, random = response.Random, signature = Convert.ToBase64String(response.GetSignature()) };
 
 						this.Deck.Clear();
-						foreach (var i in response.Integers) {
+						foreach (var i in response.Random.Data) {
 							this.Deck.Add(this.Discards[i]);
 						}
 

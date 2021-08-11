@@ -8,7 +8,7 @@ using CBot;
 using AnIRC;
 
 namespace ChannelNotifier {
-	[ApiVersion(3, 7)]
+	[ApiVersion(4, 0)]
 	public class ChannelNotifierPlugin : Plugin {
 		public List<string> Targets;
 

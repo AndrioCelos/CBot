@@ -4,10 +4,10 @@ using System.Collections.ObjectModel;
 namespace BattleBot {
 	public class ActivityReport {
 		private int[] data;
-		private int[] lastData;
+		private int[]? lastData;
 
 		public ReadOnlyCollection<int> Data { get; private set; }
-		public ReadOnlyCollection<int> LastData { get; private set; }
+		public ReadOnlyCollection<int>? LastData { get; private set; }
 
 		internal DateTime LastCheck;
 
@@ -16,7 +16,7 @@ namespace BattleBot {
 			this.Data = new ReadOnlyCollection<int>(this.data);
 			this.LastCheck = DateTime.UtcNow;
 		}
-		public ActivityReport(int[] data, int[] lastData, DateTime lastCheck) {
+		public ActivityReport(int[] data, int[]? lastData, DateTime lastCheck) {
 			this.data = new int[168];
 			Array.Copy(data, this.data, data.Length);
 			this.Data = new ReadOnlyCollection<int>(this.data);
@@ -28,9 +28,7 @@ namespace BattleBot {
 			this.LastCheck = lastCheck;
 		}
 
-		internal void AddSeconds(int index, int minutes) {
-			this.data[index] += minutes;
-		}
+		internal void AddSeconds(int index, int minutes) => this.data[index] += minutes;
 
 		internal void RollOver() {
 			this.lastData = this.data;

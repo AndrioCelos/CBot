@@ -12,15 +12,16 @@ using AnIRC;
 namespace BattleBot {
 	internal class DccClient : IrcClient {
 		protected BattleBotPlugin plugin;
-		protected internal IrcUser Target;
+		protected internal readonly IrcUser Target;
 
-		private TcpClient client;
-		private StreamWriter writer;
-		private byte[] buffer;
-		private StringBuilder messageBuilder;
+		private TcpClient? client;
+		private StreamWriter? writer;
+		private byte[]? buffer;
+		private readonly StringBuilder messageBuilder = new();
 
-		internal DccClient(BattleBotPlugin plugin) : base(plugin.ArenaConnection.Me) {
+		internal DccClient(BattleBotPlugin plugin, IrcUser target) : base((plugin.ArenaConnection ?? throw new ArgumentException($"{nameof(plugin)}.{nameof(plugin.ArenaConnection)} may not be null")).Me) {
 			this.plugin = plugin;
+			this.Target = target;
 			this.Address = "!" + plugin.Key + ".DCC";
 		}
 
@@ -28,22 +29,20 @@ namespace BattleBot {
 			// Connect to the DCC session.
 			this.client = new TcpClient();
 			this.client.Connect(host, port);
-			this.writer = new StreamWriter(client.GetStream());
+			this.writer = new StreamWriter(this.client.GetStream());
 			this.buffer = new byte[512];
-			this.messageBuilder = new StringBuilder();
+			this.messageBuilder.Clear();
 
 			this.buffer = new byte[512];
 
-			Thread readThread = new Thread(this.Read);
+			var readThread = new Thread(this.Read);
 			readThread.Start();
 
 			this.LastSpoke = DateTime.Now;
 			this.State = IrcClientState.Online;
 		}
 
-		public override void Disconnect() {
-			client.Close();
-		}
+		public override void Disconnect() => this.client?.Close();
 
 		public override void Send(string t) {
 			if (this.State != IrcClientState.Online) return;
@@ -61,16 +60,18 @@ namespace BattleBot {
 		}
 
 		public void SendSub(string t) {
-			writer.Write(t);
-			writer.Write("\r\n");
-			writer.Flush();
+			if (this.writer == null) throw new InvalidOperationException("The client is not connected.");
+			this.writer.Write(t);
+			this.writer.Write("\r\n");
+			this.writer.Flush();
 		}
 
 		private void Read() {
+			if (this.client == null || this.buffer == null) throw new InvalidOperationException("The client is not connected.");
 			int n;
 			while (true) {
 				try {
-					n = client.GetStream().Read(buffer, 0, 512);
+					n = this.client.GetStream().Read(this.buffer, 0, 512);
 				} catch (IOException ex) {
 					this.OnDisconnect(ex.Message);
 					return;
@@ -80,7 +81,7 @@ namespace BattleBot {
 					return;
 				}
 				for (int i = 0; i < n; ++i) {
-					if (buffer[i] == 13 || buffer[i] == 10) {
+					if (this.buffer[i] is (byte) '\r' or (byte) '\n') {
 						if (this.messageBuilder.Length > 0) {
 							try {
 								this.DCCReceivedLine(this.messageBuilder.ToString());
@@ -90,7 +91,7 @@ namespace BattleBot {
 							this.messageBuilder.Clear();
 						}
 					} else {
-						messageBuilder.Append((char) buffer[i]);
+						this.messageBuilder.Append((char) this.buffer[i]);
 					}
 				}
 			}
@@ -108,7 +109,7 @@ namespace BattleBot {
 					// A chat action
 					this.ReceivedLine(":" + match.Groups[2].Value + "!*@* PRIVMSG #" + match.Groups[1].Value + " :\u0001ACTION " + match.Groups[3].Value + "\u0001");
 				} else {
-					this.ReceivedLine(":" + this.Target.ToString() + " PRIVMSG " + Me.Nickname + " :" + message);
+					this.ReceivedLine(":" + this.Target.ToString() + " PRIVMSG " + this.Me.Nickname + " :" + message);
 				}
 			}
 		}
@@ -116,11 +117,11 @@ namespace BattleBot {
 		private void OnDisconnect(string reason) {
 			this.plugin.LoggedIn = null;
 			this.client = null;
-			this.messageBuilder = null;
+			this.messageBuilder.Clear();
 			this.plugin.WriteLine(1, 4, "DCC connection closed: {0}", reason);
-			for (int i = 1; i < Bot.Clients.Count; ++i) {
-				if (Bot.Clients[i].Client == this) {
-					Bot.Clients.RemoveAt(i);
+			for (int i = 1; i < this.plugin.Bot.Clients.Count; ++i) {
+				if (this.plugin.Bot.Clients[i].Client == this) {
+					this.plugin.Bot.Clients.RemoveAt(i);
 					break;
 				}
 			}

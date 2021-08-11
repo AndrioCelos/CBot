@@ -8,7 +8,7 @@ using CBot;
 using AnIRC;
 
 namespace PluginManager {
-	[ApiVersion(3, 7)]
+	[ApiVersion(4, 0)]
 	public class PluginManagerPlugin : Plugin {
 		public override string Name => "Plugin Manager";
 

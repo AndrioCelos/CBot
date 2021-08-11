@@ -1,49 +1,17 @@
-﻿<?xml version="1.0" encoding="utf-8"?>
-<Project DefaultTargets="Build" ToolsVersion="12.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
   <PropertyGroup>
-    <Configuration Condition=" '$(Configuration)' == '' ">Debug</Configuration>
-    <Platform Condition=" '$(Platform)' == '' ">AnyCPU</Platform>
-    <ProjectGuid>{C0E57D7C-A68F-4F92-99DF-397653CA0332}</ProjectGuid>
-    <OutputType>Library</OutputType>
-    <RootNamespace>HelpCommand</RootNamespace>
-    <AssemblyName>HelpCommand</AssemblyName>
-    <TargetFrameworkVersion>v4.5.2</TargetFrameworkVersion>
-    <TargetFrameworkProfile />
+    <TargetFramework>net5.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <Version>2.0.0</Version>
+    <Copyright>© 2017-2021 Andrea Giannone</Copyright>
+    <Product>Help Command</Product>
+    <Authors>Andrio Celos</Authors>
   </PropertyGroup>
-  <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Debug|AnyCPU' ">
-    <DebugSymbols>true</DebugSymbols>
-    <DebugType>full</DebugType>
-    <Optimize>false</Optimize>
-    <OutputPath>bin\Debug</OutputPath>
-    <DefineConstants>DEBUG;</DefineConstants>
-    <ErrorReport>prompt</ErrorReport>
-    <WarningLevel>4</WarningLevel>
-    <ConsolePause>false</ConsolePause>
-  </PropertyGroup>
-  <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Release|AnyCPU' ">
-    <Optimize>true</Optimize>
-    <OutputPath>bin\Release</OutputPath>
-    <ErrorReport>prompt</ErrorReport>
-    <WarningLevel>4</WarningLevel>
-    <ConsolePause>false</ConsolePause>
-  </PropertyGroup>
+
   <ItemGroup>
-    <Reference Include="System" />
-    <Reference Include="System.ValueTuple, Version=4.0.3.0, Culture=neutral, PublicKeyToken=cc7b13ffcd2ddd51" />
+    <ProjectReference Include="..\..\AnIRC\AnIRC\AnIRC.csproj" />
+    <ProjectReference Include="..\..\CBot\CBot.csproj" />
   </ItemGroup>
-  <ItemGroup>
-    <Compile Include="HelpCommandPlugin.cs" />
-    <Compile Include="Properties\AssemblyInfo.cs" />
-  </ItemGroup>
-  <ItemGroup>
-    <ProjectReference Include="..\..\AnIRC\AnIRC\AnIRC.csproj">
-      <Project>{0F38DD6F-9BC0-480B-8695-6F50ACB8A8C7}</Project>
-      <Name>AnIRC</Name>
-    </ProjectReference>
-    <ProjectReference Include="..\..\CBot\CBot.csproj">
-      <Project>{443cf20b-2ec3-4e17-aced-0b741df4b8f6}</Project>
-      <Name>CBot</Name>
-    </ProjectReference>
-  </ItemGroup>
-  <Import Project="$(MSBuildBinPath)\Microsoft.CSharp.targets" />
+
 </Project>
