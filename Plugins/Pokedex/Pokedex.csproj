@@ -1,0 +1,21 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net5.0</TargetFramework>
+    <Version>2.0.0</Version>
+    <Authors>Andrio Celos</Authors>
+    <Product>Pokédex</Product>
+    <Copyright>© 2021 Andrea Giannone</Copyright>
+	<Nullable>enable</Nullable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="System.Data.SQLite.Core" Version="1.0.113.7" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\AnIRC\AnIRC\AnIRC.csproj" />
+    <ProjectReference Include="..\..\CBot\CBot.csproj" />
+  </ItemGroup>
+
+</Project>
