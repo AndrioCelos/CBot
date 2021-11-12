@@ -249,9 +249,6 @@ namespace CBot {
 		///   2 if the program terminates because of an error during loading.
 		/// </returns>
 		public int Main() {
-			if (Environment.OSVersion.Platform >= PlatformID.Unix)
-				Console.TreatControlCAsInput = true;  // There is a bug in Windows that occurs when this is set.
-
 			var assembly = Assembly.GetExecutingAssembly();
 			var version = assembly.GetName().Version;
 
@@ -280,6 +277,8 @@ namespace CBot {
 			} else {
 				ConsoleUtils.WriteLine(" %cBLUEconfig.json is missing.%r");
 			}
+
+			File.WriteAllText("CBot.pid", Environment.ProcessId.ToString());
 
 			Console.Write("Loading user configuration file...");
 			if (File.Exists("users.json") || File.Exists("CBotUsers.ini")) {
@@ -317,6 +316,8 @@ namespace CBot {
 			this.consoleClient.Me.Nickname = this.DefaultNicknames[0];
 			this.consoleClient.Me.Ident = this.DefaultIdent;
 			this.consoleClient.Me.FullName = this.DefaultFullName;
+
+			Console.CancelKeyPress += this.Console_CancelKeyPress;
 
 			foreach (var client in this.Clients) {
 				try {
@@ -473,6 +474,21 @@ namespace CBot {
 					ConsoleUtils.WriteLine("%cDKRED" + ex.StackTrace + "%r");
 				}
 			}
+		}
+
+		private void Console_CancelKeyPress(object? sender, ConsoleCancelEventArgs e) {
+			if (e.SpecialKey == ConsoleSpecialKey.ControlBreak) return;
+			// Also handles SIGINT on UNIX.
+			Console.WriteLine("Received interrupt. Saving plugins...");
+			foreach (var plugin in this.Plugins)
+				plugin.Obj.OnSave();
+			Console.WriteLine("Disconnecting...");
+			foreach (var client in this.Clients)
+				if (client.Client.State > IrcClientState.Disconnected) {
+					client.Client.Send("QUIT :Shutting down.");
+					client.Client.Disconnect();
+				}
+			File.Delete("CBot.pid");
 		}
 
 		#region First-run config

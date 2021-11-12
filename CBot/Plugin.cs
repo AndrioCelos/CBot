@@ -51,6 +51,10 @@ namespace CBot {
 		public Dictionary<string, Command> Commands { get; } = new Dictionary<string, Command>(StringComparer.CurrentCultureIgnoreCase);
 		public List<Trigger> Triggers { get; } = new List<Trigger>();
 
+		/// <summary>Indicates whether this plugin would suffer disruption if the bot were to shut down now.</summary>
+		/// <remarks>May cause a process to wait before shutting down the bot, but does not guarantee this.</remarks>
+		public bool ShouldInhibitShutdown { get; protected set; }
+
 		/// <summary>
 		/// Contains the message formats currently in use by this plugin.
 		/// </summary>
