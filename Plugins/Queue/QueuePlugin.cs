@@ -18,7 +18,7 @@ namespace Queue {
 			return false;
 		}
 
-		[Command(new[] { "q" }, 0, 2, "q <command>", "Alternate form for all queue commands.")]
+		[Command(new[] { "q", "queue" }, 0, 2, "q <command>", "Alternate form for all queue commands.")]
 		public void CommandQ(object? sender, CommandEventArgs e) {
 			if (e.Parameters.Length == 0) {
 				this.CommandHelp(sender, new(e.Client, e.Target, e.Sender, Array.Empty<string>()));
