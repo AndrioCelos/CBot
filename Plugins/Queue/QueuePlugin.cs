@@ -55,17 +55,17 @@ namespace Queue {
 			var queue = this.GetQueue(e.Target);
 			int i;
 			for (i = queue.Count - 1; i >= 0; --i) {
-				if (e.Client.CaseMappingComparer.Equals(queue[i], GetDisplayName(e.Client.CurrentLine.Tags, e.Sender))) break;
+				if (e.Client.CaseMappingComparer.Equals(queue[i], GetDisplayName(e.Client.CurrentLine?.Tags, e.Sender))) break;
 			}
 			if (i < 0) {
 				if (queue.IsClosed && !UserIsModerator(e))
 					e.Reply("The queue is currently closed.");
 				else {
-					queue.Add(GetDisplayName(e.Client.CurrentLine.Tags, e.Sender));
-					e.Reply($"@{GetDisplayName(e.Client.CurrentLine.Tags, e.Sender)}, you've joined the queue at position {queue.Count}.");
+					queue.Add(GetDisplayName(e.Client.CurrentLine?.Tags, e.Sender));
+					e.Reply($"@{GetDisplayName(e.Client.CurrentLine?.Tags, e.Sender)}, you've joined the queue at position {queue.Count}.");
 				}
 			} else
-				e.Reply($"@{GetDisplayName(e.Client.CurrentLine.Tags, e.Sender)}, you're already in the queue at position {i + 1}.");
+				e.Reply($"@{GetDisplayName(e.Client.CurrentLine?.Tags, e.Sender)}, you're already in the queue at position {i + 1}.");
 		}
 
 		[Command(new[] { "qleave" }, 0, 0, "qleave", "Removes you from the queue.")]
@@ -73,13 +73,13 @@ namespace Queue {
 			var queue = this.GetQueue(e.Target);
 			int i;
 			for (i = queue.Count - 1; i >= 0; --i) {
-				if (e.Client.CaseMappingComparer.Equals(queue[i], GetDisplayName(e.Client.CurrentLine.Tags, e.Sender))) {
+				if (e.Client.CaseMappingComparer.Equals(queue[i], GetDisplayName(e.Client.CurrentLine?.Tags, e.Sender))) {
 					queue.RemoveAt(i);
-					e.Reply($"@{GetDisplayName(e.Client.CurrentLine.Tags, e.Sender)}, you've left the queue.");
+					e.Reply($"@{GetDisplayName(e.Client.CurrentLine?.Tags, e.Sender)}, you've left the queue.");
 					return;
 				}
 			}
-			e.Reply($"@{GetDisplayName(e.Client.CurrentLine.Tags, e.Sender)}, you were not in the queue.");
+			e.Reply($"@{GetDisplayName(e.Client.CurrentLine?.Tags, e.Sender)}, you were not in the queue.");
 		}
 
 		[Command(new[] { "qposition" }, 0, 1, "qposition [user]", "Shows your position in the queue.")]
@@ -87,18 +87,18 @@ namespace Queue {
 			var queue = this.GetQueue(e.Target);
 			int i;
 			for (i = queue.Count - 1; i >= 0; --i) {
-				if (e.Client.CaseMappingComparer.Equals(queue[i], GetDisplayName(e.Client.CurrentLine.Tags, e.Sender))) break;
+				if (e.Client.CaseMappingComparer.Equals(queue[i], GetDisplayName(e.Client.CurrentLine?.Tags, e.Sender))) break;
 			}
 			if (i < 0) {
-				e.Reply($"@{GetDisplayName(e.Client.CurrentLine.Tags, e.Sender)}, you're not in the queue."
+				e.Reply($"@{GetDisplayName(e.Client.CurrentLine?.Tags, e.Sender)}, you're not in the queue."
 					+ (queue.IsClosed ? "" : " Use `!q join` to join the queue."));
 			} else
-				e.Reply($"@{GetDisplayName(e.Client.CurrentLine.Tags, e.Sender)}, your position in the queue is {i + 1}.");
+				e.Reply($"@{GetDisplayName(e.Client.CurrentLine?.Tags, e.Sender)}, your position in the queue is {i + 1}.");
 		}
 
 		[Command(new[] { "qremove" }, 1, short.MaxValue, "qremove [user ...]", "Removes one or more specified users from the queue.")]
 		public void CommandRemove(object? sender, CommandEventArgs e) {
-			if (!CheckPermission(e.Target is IrcChannel channel && channel.Users.TryGetValue(e.Sender.Nickname, out var user) ? user : null, e.Client.CurrentLine.Tags)) {
+			if (!CheckPermission(e.Target is IrcChannel channel && channel.Users.TryGetValue(e.Sender.Nickname, out var user) ? user : null, e.Client.CurrentLine?.Tags)) {
 				e.Fail("Only moderators can do that.");
 				return;
 			}
@@ -122,7 +122,7 @@ namespace Queue {
 
 		[Command(new[] { "qnext" }, 0, 1, "qnext [n]", "Removes and mentions the next n nicknames in the queue.")]
 		public void CommandNext(object? sender, CommandEventArgs e) {
-			if (!CheckPermission(e.Target is IrcChannel channel && channel.Users.TryGetValue(e.Sender.Nickname, out var user) ? user : null, e.Client.CurrentLine.Tags)) {
+			if (!CheckPermission(e.Target is IrcChannel channel && channel.Users.TryGetValue(e.Sender.Nickname, out var user) ? user : null, e.Client.CurrentLine?.Tags)) {
 				e.Fail("Only moderators can do that.");
 				return;
 			}
@@ -186,7 +186,7 @@ namespace Queue {
 
 		[Command(new[] { "qclear" }, 0, 0, "qclear", "Clears the queue.")]
 		public void CommandClear(object? sender, CommandEventArgs e) {
-			if (!CheckPermission(e.Target is IrcChannel channel && channel.Users.TryGetValue(e.Sender.Nickname, out var user) ? user : null, e.Client.CurrentLine.Tags)) {
+			if (!CheckPermission(e.Target is IrcChannel channel && channel.Users.TryGetValue(e.Sender.Nickname, out var user) ? user : null, e.Client.CurrentLine?.Tags)) {
 				e.Fail("Only moderators can do that.");
 				return;
 			}
@@ -217,7 +217,7 @@ namespace Queue {
 
 		[Command(new[] { "qopen", "qunlock" }, 0, 0, "qopen", "Opens the queue, allowing new users to join.")]
 		public void CommandOpen(object? sender, CommandEventArgs e) {
-			if (!CheckPermission(e.Target is IrcChannel channel && channel.Users.TryGetValue(e.Sender.Nickname, out var user) ? user : null, e.Client.CurrentLine.Tags)) {
+			if (!CheckPermission(e.Target is IrcChannel channel && channel.Users.TryGetValue(e.Sender.Nickname, out var user) ? user : null, e.Client.CurrentLine?.Tags)) {
 				e.Fail("Only moderators can do that.");
 				return;
 			}
@@ -230,15 +230,15 @@ namespace Queue {
 			}
 		}
 
-		private static bool UserIsModerator(CommandEventArgs e) => CheckPermission(e.Target is IrcChannel channel && channel.Users.TryGetValue(e.Sender.Nickname, out var user) ? user : null, e.Client.CurrentLine.Tags);
+		private static bool UserIsModerator(CommandEventArgs e) => CheckPermission(e.Target is IrcChannel channel && channel.Users.TryGetValue(e.Sender.Nickname, out var user) ? user : null, e.Client.CurrentLine?.Tags);
 
-		private static bool CheckPermission(IrcChannelUser user, IReadOnlyDictionary<string, string> tags) {
+		private static bool CheckPermission(IrcChannelUser? user, IReadOnlyDictionary<string, string>? tags) {
 			if (user != null && user.Status >= ChannelStatus.Halfop) return true;
 			if (tags == null || !tags.TryGetValue("badges", out var badges)) return false;
 			return badges.Split(',').Any(s => s.Split('/')[0] is "moderator" or "broadcaster");
 		}
 
-		private static string GetDisplayName(IReadOnlyDictionary<string, string> tags, IrcUser user)
+		private static string GetDisplayName(IReadOnlyDictionary<string, string>? tags, IrcUser user)
 			=> tags != null && tags.TryGetValue("display-name", out var displayName) && displayName != ""
 				? displayName
 				: user.Nickname;

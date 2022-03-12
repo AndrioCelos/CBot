@@ -6,6 +6,7 @@
     <PackageProjectUrl>https://github.com/AndrioCelos/CBot</PackageProjectUrl>
     <RepositoryUrl>https://github.com/AndrioCelos/CBot</RepositoryUrl>
     <Copyright>© 2021-2022 Andrea Giannone</Copyright>
+    <Nullable>enable</Nullable>
   </PropertyGroup>
 
   <ItemGroup>
