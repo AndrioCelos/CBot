@@ -6,6 +6,8 @@ using System.Timers;
 using AnIRC;
 using Newtonsoft.Json;
 
+using Timer = System.Timers.Timer;
+
 namespace CBot {
 	/// <summary>
 	/// Stores data about an IRC connection and handles automatic reconnection.
@@ -38,9 +40,10 @@ namespace CBot {
 		public string? Ident { get; set; }
 		public string? FullName { get; set; }
 
+		public string ModuleKey { get; set; }
 		public string Address { get; set; }
 		public int Port { get; set; } = 6667;
-		public bool TLS { get; set; }
+		public TlsMode Tls { get; set; }
 		public bool AcceptInvalidTlsCertificate { get; set; }
 		public string? Password { get; set; }
 
@@ -55,6 +58,8 @@ namespace CBot {
 		public List<AutoJoinChannel> AutoJoin = new();
 		/// <summary>Contains the data used to deal with nickname services.</summary>
 		public NickServSettings? NickServ;
+
+		public DateTime ConnectTime { get; internal set; }
 
 		// Diagnostic information.
 		[JsonIgnore]
@@ -86,7 +91,7 @@ namespace CBot {
 			this.ReconnectTimer.Elapsed += this.ReconnectTimer_Elapsed;
 		}
 
-		internal void ReconnectTimer_Elapsed(object sender, ElapsedEventArgs e) => this.ReconnectTimerElapsed?.Invoke(this, e);
+		internal void ReconnectTimer_Elapsed(object? sender, ElapsedEventArgs e) => this.ReconnectTimerElapsed?.Invoke(this, e);
 
 		internal void StartReconnect() {
 			if (this.ReconnectEnabled && !this.ReconnectTimer.Enabled)

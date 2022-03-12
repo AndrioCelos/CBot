@@ -18,10 +18,10 @@ namespace SplatNet {
 		public override string Name => "SplatNet 2";
 
 		[Command(new[] { "stages", "maps", "currentstages", "currentmaps" }, 0, 1, "stages [mode]", "Returns the current rotation for the specified mode.")]
-		public void CommandStages(object sender, CommandEventArgs e)
+		public void CommandStages(object? sender, CommandEventArgs e)
 			=> HandleBattleRotationsCommand(e, (list, now) => list.First(r => now >= r.StartTime.ToUniversalTime() && now < r.EndTime.ToUniversalTime()), (d, r) => r.EndTime < d ? r.EndTime : d, "{0} ({1} remain)");
 		[Command(new[] { "nextstages", "nextmaps" }, 0, 1, "nextstages [mode]", "Returns the next rotation for the specified mode.")]
-		public void CommandNextStages(object sender, CommandEventArgs e)
+		public void CommandNextStages(object? sender, CommandEventArgs e)
 			=> HandleBattleRotationsCommand(e, (list, now) => {
 				BattleRotation? rotation = null;
 				foreach (var rotation2 in list.Where(r => now < r.StartTime.ToUniversalTime())) {
@@ -76,10 +76,10 @@ namespace SplatNet {
 		}
 
 		[Command(new[] { "sr", "currentsr" }, 0, 0, "sr", "Returns the current Salmon Run rotation.")]
-		public void CommandSalmonRunStages(object sender, CommandEventArgs e)
+		public void CommandSalmonRunStages(object? sender, CommandEventArgs e)
 			=> HandleSalmonRunRotationsCommand(e, (list, now) => list.FirstOrDefault(r => now >= r.StartTime.ToUniversalTime() && now < r.EndTime.ToUniversalTime()), r => r.EndTime, "{0} ({1} remain)");
 		[Command(new[] { "nextsr" }, 0, 0, "nextsr", "Returns the next Salmon Run rotation.")]
-		public void CommandNextSalmonRunStages(object sender, CommandEventArgs e)
+		public void CommandNextSalmonRunStages(object? sender, CommandEventArgs e)
 			=> HandleSalmonRunRotationsCommand(e, (list, now) => {
 				SalmonRunRotation? rotation = null;
 				foreach (var rotation2 in list.Where(r => now < r.StartTime.ToUniversalTime())) {

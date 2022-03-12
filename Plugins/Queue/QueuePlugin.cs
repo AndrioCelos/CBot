@@ -13,13 +13,13 @@ namespace Queue {
 
 		private readonly Dictionary<string, Queue> queues = new(StringComparer.InvariantCultureIgnoreCase);
 
-		public override bool OnCapabilitiesAdded(object sender, CapabilitiesAddedEventArgs e) {
+		public override bool OnCapabilitiesAdded(object? sender, CapabilitiesAddedEventArgs e) {
 			e.EnableIfSupported("twitch.tv/tags");
 			return false;
 		}
 
 		[Command(new[] { "q" }, 0, 2, "q <command>", "Alternate form for all queue commands.")]
-		public void CommandQ(object sender, CommandEventArgs e) {
+		public void CommandQ(object? sender, CommandEventArgs e) {
 			if (e.Parameters.Length == 0) {
 				this.CommandHelp(sender, new(e.Client, e.Target, e.Sender, Array.Empty<string>()));
 				return;
@@ -42,7 +42,7 @@ namespace Queue {
 		}
 
 		[Command(new[] { "qhelp" }, 0, 0, "qhelp", "Asks for help on queue commands.")]
-		public void CommandHelp(object sender, CommandEventArgs e) {
+		public void CommandHelp(object? sender, CommandEventArgs e) {
 			var queue = this.GetQueue(e.Target);
 			if (queue.IsClosed)
 				e.Reply("The queue is currently closed.");
@@ -51,7 +51,7 @@ namespace Queue {
 		}
 
 		[Command(new[] { "qjoin" }, 0, 0, "qjoin", "Adds you to the queue.")]
-		public void CommandJoin(object sender, CommandEventArgs e) {
+		public void CommandJoin(object? sender, CommandEventArgs e) {
 			var queue = this.GetQueue(e.Target);
 			int i;
 			for (i = queue.Count - 1; i >= 0; --i) {
@@ -69,7 +69,7 @@ namespace Queue {
 		}
 
 		[Command(new[] { "qleave" }, 0, 0, "qleave", "Removes you from the queue.")]
-		public void CommandLeave(object sender, CommandEventArgs e) {
+		public void CommandLeave(object? sender, CommandEventArgs e) {
 			var queue = this.GetQueue(e.Target);
 			int i;
 			for (i = queue.Count - 1; i >= 0; --i) {
@@ -83,7 +83,7 @@ namespace Queue {
 		}
 
 		[Command(new[] { "qposition" }, 0, 1, "qposition [user]", "Shows your position in the queue.")]
-		public void CommandPosition(object sender, CommandEventArgs e) {
+		public void CommandPosition(object? sender, CommandEventArgs e) {
 			var queue = this.GetQueue(e.Target);
 			int i;
 			for (i = queue.Count - 1; i >= 0; --i) {
@@ -97,7 +97,7 @@ namespace Queue {
 		}
 
 		[Command(new[] { "qremove" }, 1, short.MaxValue, "qremove [user ...]", "Removes one or more specified users from the queue.")]
-		public void CommandRemove(object sender, CommandEventArgs e) {
+		public void CommandRemove(object? sender, CommandEventArgs e) {
 			if (!CheckPermission(e.Target is IrcChannel channel && channel.Users.TryGetValue(e.Sender.Nickname, out var user) ? user : null, e.Client.CurrentLine.Tags)) {
 				e.Fail("Only moderators can do that.");
 				return;
@@ -121,7 +121,7 @@ namespace Queue {
 		}
 
 		[Command(new[] { "qnext" }, 0, 1, "qnext [n]", "Removes and mentions the next n nicknames in the queue.")]
-		public void CommandNext(object sender, CommandEventArgs e) {
+		public void CommandNext(object? sender, CommandEventArgs e) {
 			if (!CheckPermission(e.Target is IrcChannel channel && channel.Users.TryGetValue(e.Sender.Nickname, out var user) ? user : null, e.Client.CurrentLine.Tags)) {
 				e.Fail("Only moderators can do that.");
 				return;
@@ -157,7 +157,7 @@ namespace Queue {
 		}
 
 		[Command(new[] { "qpeek" }, 0, 1, "qpeek [n]", "Mentions the next n nicknames in the queue without changing it.")]
-		public void CommandPeek(object sender, CommandEventArgs e) {
+		public void CommandPeek(object? sender, CommandEventArgs e) {
 			var queue = this.GetQueue(e.Target);
 			if (queue.Count == 0) {
 				e.Reply("The queue is currently empty.");
@@ -185,7 +185,7 @@ namespace Queue {
 		}
 
 		[Command(new[] { "qclear" }, 0, 0, "qclear", "Clears the queue.")]
-		public void CommandClear(object sender, CommandEventArgs e) {
+		public void CommandClear(object? sender, CommandEventArgs e) {
 			if (!CheckPermission(e.Target is IrcChannel channel && channel.Users.TryGetValue(e.Sender.Nickname, out var user) ? user : null, e.Client.CurrentLine.Tags)) {
 				e.Fail("Only moderators can do that.");
 				return;
@@ -201,7 +201,7 @@ namespace Queue {
 		}
 
 		[Command(new[] { "qclose", "qlock" }, 0, 0, "qclose", "Closes the queue, preventing new users from joining.")]
-		public void CommandClose(object sender, CommandEventArgs e) {
+		public void CommandClose(object? sender, CommandEventArgs e) {
 			if (!UserIsModerator(e)) {
 				e.Fail("Only moderators can do that.");
 				return;
@@ -216,7 +216,7 @@ namespace Queue {
 		}
 
 		[Command(new[] { "qopen", "qunlock" }, 0, 0, "qopen", "Opens the queue, allowing new users to join.")]
-		public void CommandOpen(object sender, CommandEventArgs e) {
+		public void CommandOpen(object? sender, CommandEventArgs e) {
 			if (!CheckPermission(e.Target is IrcChannel channel && channel.Users.TryGetValue(e.Sender.Nickname, out var user) ? user : null, e.Client.CurrentLine.Tags)) {
 				e.Fail("Only moderators can do that.");
 				return;
@@ -232,13 +232,13 @@ namespace Queue {
 
 		private static bool UserIsModerator(CommandEventArgs e) => CheckPermission(e.Target is IrcChannel channel && channel.Users.TryGetValue(e.Sender.Nickname, out var user) ? user : null, e.Client.CurrentLine.Tags);
 
-		private static bool CheckPermission(IrcChannelUser user, IDictionary<string, string> tags) {
+		private static bool CheckPermission(IrcChannelUser user, IReadOnlyDictionary<string, string> tags) {
 			if (user != null && user.Status >= ChannelStatus.Halfop) return true;
 			if (tags == null || !tags.TryGetValue("badges", out var badges)) return false;
 			return badges.Split(',').Any(s => s.Split('/')[0] is "moderator" or "broadcaster");
 		}
 
-		private static string GetDisplayName(IDictionary<string, string> tags, IrcUser user)
+		private static string GetDisplayName(IReadOnlyDictionary<string, string> tags, IrcUser user)
 			=> tags != null && tags.TryGetValue("display-name", out var displayName) && displayName != ""
 				? displayName
 				: user.Nickname;

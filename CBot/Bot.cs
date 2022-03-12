@@ -112,10 +112,14 @@ namespace CBot {
 
 		/// <summary>Sets up an IRC network configuration, including adding CBot's event handlers.</summary>
 		public void SetUpNetwork(ClientEntry network) {
-			var newClient = new IrcClient(new IrcLocalUser((network.Nicknames ?? this.DefaultNicknames)[0], network.Ident ?? this.DefaultIdent, network.FullName ?? this.DefaultFullName), network.Name);
-			this.SetUpClientEvents(newClient);
-			network.Client = newClient;
+			this.SetUpClientEvents(network.Client);
 			network.ReconnectTimerElapsed += this.IrcNetwork_ReconnectTimerElapsed;
+		}
+
+		private void CreateClient(ClientEntry network, ProtocolIntegrationPlugin? integrationPlugin) {
+			var localUser = new IrcLocalUser((network.Nicknames ?? this.DefaultNicknames)[0], network.Ident ?? this.DefaultIdent, network.FullName ?? this.DefaultFullName);
+			network.Client = integrationPlugin?.GetIrcClient(localUser, network.Name, network)
+				?? new IrcClient(localUser, network.Name);
 		}
 
 		public void RemoveNetwork(ClientEntry network) {
@@ -130,40 +134,34 @@ namespace CBot {
 		/// <param name="newClient">The IRCClient object to add event handlers to.</param>
 		public void SetUpClientEvents(IrcClient newClient) {
 			newClient.RawLineReceived += delegate(object? sender, IrcLineEventArgs e) {
-				ConsoleUtils.WriteLine("%cDKGRAY{0} %cDKGREEN>>%cDKGRAY {1}%r", ((IrcClient) sender!).NetworkName, e.Data);
+				ConsoleUtils.WriteLine("%cDKGRAY{0} %cDKGREEN>>%cDKGRAY {1}%r", ((IrcClient) sender!).NetworkName, e.Line.ToString());
 			};
 			newClient.RawLineSent += delegate(object? sender, RawLineEventArgs e) {
 				Match m;
-				m = this.commandMaskRegex.Match(e.Data);
-				if (!m.Success) m = this.commandMaskRegex2.Match(e.Data);
+				m = this.commandMaskRegex.Match(e.Line.ToString());
+				if (!m.Success) m = this.commandMaskRegex2.Match(e.Line.ToString());
 				if (m.Success)
 					ConsoleUtils.WriteLine("%cDKGRAY{0} %cDKRED<<%cDKGRAY {1}***%r", ((IrcClient) sender!).NetworkName, m.Groups[1]);
 				else
-					ConsoleUtils.WriteLine("%cDKGRAY{0} %cDKRED<<%cDKGRAY {1}%r", ((IrcClient) sender!).NetworkName, e.Data);
+					ConsoleUtils.WriteLine("%cDKGRAY{0} %cDKRED<<%cDKGRAY {1}%r", ((IrcClient) sender!).NetworkName, e.Line.ToString());
 			};
 
 			newClient.AwayCancelled += this.OnAwayCancelled;
 			newClient.AwayMessage += this.OnAwayMessage;
 			newClient.AwaySet += this.OnAwaySet;
+			newClient.BroadcastMessage += this.OnBroadcastMessage;
+			newClient.BroadcastNotice += this.OnBroadcastNotice;
+			newClient.BroadcastTagMessage += this.OnBroadcastTagMessage;
 			newClient.CapabilitiesAdded += this.OnCapabilitiesAdded;
 			newClient.CapabilitiesDeleted += this.OnCapabilitiesDeleted;
 			newClient.ChannelAction += this.OnChannelAction;
-			newClient.ChannelAdmin += this.OnChannelAdmin;
 			newClient.ChannelBan += this.OnChannelBan;
 			newClient.ChannelBanList += this.OnChannelBanList;
 			newClient.ChannelBanListEnd += this.OnChannelBanListEnd;
 			newClient.ChannelBanRemoved += this.OnChannelBanRemoved;
 			newClient.ChannelCTCP += this.OnChannelCTCP;
-			newClient.ChannelDeAdmin += this.OnChannelDeAdmin;
-			newClient.ChannelDeHalfOp += this.OnChannelDeHalfOp;
-			newClient.ChannelDeHalfVoice += this.OnChannelDeHalfVoice;
-			newClient.ChannelDeOp += this.OnChannelDeOp;
-			newClient.ChannelDeOwner += this.OnChannelDeOwner;
-			newClient.ChannelDeVoice += this.OnChannelDeVoice;
 			newClient.ChannelExempt += this.OnChannelExempt;
 			newClient.ChannelExemptRemoved += this.OnChannelExemptRemoved;
-			newClient.ChannelHalfOp += this.OnChannelHalfOp;
-			newClient.ChannelHalfVoice += this.OnChannelHalfVoice;
 			newClient.ChannelInviteExempt += this.OnChannelInviteExempt;
 			newClient.ChannelInviteExemptList += this.OnChannelInviteExemptList;
 			newClient.ChannelInviteExemptListEnd += this.OnChannelInviteExemptListEnd;
@@ -181,21 +179,18 @@ namespace CBot {
 			newClient.ChannelListEnd += this.OnChannelListEnd;
 			newClient.ChannelMessage += this.OnChannelMessage;
 			newClient.ChannelMessageDenied += this.OnChannelMessageDenied;
-			newClient.ChannelModeChanged += this.OnChannelModeChanged;
 			newClient.ChannelModesGet += this.OnChannelModesGet;
 			newClient.ChannelModesSet += this.OnChannelModesSet;
 			newClient.ChannelNotice += this.OnChannelNotice;
-			newClient.ChannelOp += this.OnChannelOp;
-			newClient.ChannelOwner += this.OnChannelOwner;
 			newClient.ChannelPart += this.OnChannelPart;
 			newClient.ChannelQuiet += this.OnChannelQuiet;
 			newClient.ChannelQuietRemoved += this.OnChannelQuietRemoved;
 			newClient.ChannelStatusChanged += this.OnChannelStatusChanged;
+			newClient.ChannelTagMessage += this.OnChannelTagMessage;
 			newClient.ChannelTimestamp += this.OnChannelTimestamp;
 			newClient.ChannelTopicChanged += this.OnChannelTopicChanged;
 			newClient.ChannelTopicReceived += this.OnChannelTopicReceived;
 			newClient.ChannelTopicStamp += this.OnChannelTopicStamp;
-			newClient.ChannelVoice += this.OnChannelVoice;
 			newClient.Disconnected += this.OnDisconnected;
 			newClient.Exception += this.OnException;
 			newClient.ExemptList += this.OnExemptList;
@@ -203,6 +198,8 @@ namespace CBot {
 			newClient.Invite += this.OnInvite;
 			newClient.InviteSent += this.OnInviteSent;
 			newClient.Killed += this.OnKilled;
+			newClient.MonitorOffline += this.OnMonitorOffline;
+			newClient.MonitorOnline += this.OnMonitorOnline;
 			newClient.MOTD += this.OnMOTD;
 			newClient.Names += this.OnNames;
 			newClient.NamesEnd += this.OnNamesEnd;
@@ -210,19 +207,23 @@ namespace CBot {
 			newClient.NicknameChangeFailed += this.OnNicknameChangeFailed;
 			newClient.NicknameInvalid += this.OnNicknameInvalid;
 			newClient.NicknameTaken += this.OnNicknameTaken;
-			newClient.Pong += this.OnPingReply;
-			newClient.PingReceived += this.OnPingRequest;
+			newClient.Pong += this.OnPong;
+			newClient.PingReceived += this.OnPingReceived;
 			newClient.PrivateAction += this.OnPrivateAction;
 			newClient.PrivateCTCP += this.OnPrivateCTCP;
 			newClient.PrivateMessage += this.OnPrivateMessage;
 			newClient.PrivateNotice += this.OnPrivateNotice;
+			newClient.PrivateTagMessage += this.OnPrivateTagMessage;
 			newClient.RawLineReceived += this.OnRawLineReceived;
 			newClient.RawLineSent += this.OnRawLineSent;
 			newClient.RawLineUnhandled += this.OnRawLineUnhandled;
 			newClient.Registered += this.OnRegistered;
+			newClient.SelectCertificate += this.OnSelectCertificate;
 			newClient.ServerError += this.OnServerError;
-			newClient.ServerNotice += this.OnServerNotice;
 			newClient.StateChanged += this.OnStateChanged;
+			newClient.StsPolicyChanged += this.OnStsPolicyChanged;
+			newClient.StsUpgrade += this.OnStsUpgrade;
+			newClient.UserAppeared += this.OnUserAppeared;
 			newClient.UserDisappeared += this.OnUserDisappeared;
 			newClient.UserModesGet += this.OnUserModesGet;
 			newClient.UserModesSet += this.OnUserModesSet;
@@ -241,6 +242,7 @@ namespace CBot {
 			newClient.WhoList += this.OnWhoList;
 			newClient.WhoWasEnd += this.OnWhoWasEnd;
 			newClient.WhoWasNameLine += this.OnWhoWasNameLine;
+			newClient.WhoxList += this.OnWhoxList;
 		}
 
 		/// <summary>The program's entry point.</summary>
@@ -261,11 +263,6 @@ namespace CBot {
 					// Add the console client. (Default identity settings must be loaded before doing this.)
 					this.Clients.Add(new ClientEntry("!Console", "!Console", 0, this.consoleClient) { SaveToConfig = false });
 					this.SetUpClientEvents(this.consoleClient);
-
-					foreach (var network in this.Config.Networks) {
-						network.SaveToConfig = true;
-						this.AddNetwork(network);
-					}
 
 					Console.WriteLine(" OK");
 				} catch (Exception ex) {
@@ -319,6 +316,7 @@ namespace CBot {
 
 			Console.CancelKeyPress += this.Console_CancelKeyPress;
 
+			this.UpdateNetworks(false);
 			foreach (var client in this.Clients) {
 				try {
 					if (client.Name != "!Console")
@@ -369,7 +367,7 @@ namespace CBot {
 								Nicknames = tokens.Length > 3 ? new[] { tokens[3] } : this.DefaultNicknames,
 								Ident     = tokens.Length > 4 ? tokens[4] : this.DefaultIdent,
 								FullName  = tokens.Length > 5 ? string.Join(" ", tokens.Skip(5)) : this.DefaultFullName,
-								TLS       = tokens.Length > 2 && tokens[2].StartsWith("+")
+								Tls       = tokens.Length > 2 && tokens[2].StartsWith("+") ? TlsMode.Tls : TlsMode.StartTlsOptional
 							};
 							this.AddNetwork(network);
 							try {
@@ -385,7 +383,7 @@ namespace CBot {
 					} else if (tokens[0].Equals("die", StringComparison.CurrentCultureIgnoreCase)) {
 						foreach (var _client in this.Clients) {
 							if (_client.Client.State >= IrcClientState.Registering)
-								_client.Client.Send("QUIT :{0}", tokens.Length >= 2 ? string.Join(" ", tokens.Skip(1)) : "Shutting down.");
+								_client.Client.Send("QUIT", tokens.Length >= 2 ? string.Join(" ", tokens.Skip(1)) : "Shutting down.");
 						}
 						Thread.Sleep(2000);
 						foreach (var _client in this.Clients) {
@@ -664,12 +662,13 @@ namespace CBot {
 
 				var network = new ClientEntry(networkName, address, port) {
 					Password = password,
-					TLS = tls,
+					Tls = tls ? TlsMode.Tls : TlsMode.StartTlsOptional,
 					AcceptInvalidTlsCertificate = acceptInvalidCertificate,
 					NickServ = nickServ,
 					SaveToConfig = true
 				};
 				network.AutoJoin.AddRange(autoJoinChannels);
+				this.CreateClient(network, null);
 				this.AddNetwork(network);
 			}
 
@@ -747,35 +746,30 @@ namespace CBot {
 			switch (method) {
 				case 0:
 					// Prompt for a password.
-					var RNG = new RNGCryptoServiceProvider();
-					var SHA256M = new SHA256Managed();
 					while (true) {
 						var builder = new StringBuilder();
 
 						Console.Write("Please enter a password. ");
 						input = PasswordPrompt();
 						if (input == "") continue;
-						if (input.Contains(" ")) {
+						if (input.Contains(' ')) {
 							Console.WriteLine("It can't contain spaces.");
 							continue;
 						}
 
 						// Hash the password.
-						byte[] salt = new byte[32];
-						RNG.GetBytes(salt);
-						byte[] hash = SHA256M.ComputeHash(salt.Concat(Encoding.UTF8.GetBytes(input)).ToArray());
+						var hash = Account.HashPassword(input);
 
 						Console.Write("Please confirm your password. ");
 						input = PasswordPrompt();
-						byte[] confirmHash = SHA256M.ComputeHash(salt.Concat(Encoding.UTF8.GetBytes(input)).ToArray());
-						if (!hash.SequenceEqual(confirmHash)) {
+						if (!Account.VerifySha256Salted(input, hash)) {
 							Console.WriteLine("The passwords don't match.");
 							continue;
 						}
 
 						// Add the account and give all permissions.
 						this.Accounts.Add(accountName, new Account(HashType.SHA256Salted,
-							string.Join(null, salt.Select(b => b.ToString("x2"))) + string.Join(null, hash.Select(b => b.ToString("x2"))),
+							string.Join(null, hash.Select(b => b.ToString("x2"))),
 							new[] { "*" }));
 
 						ConsoleUtils.WriteLine("Thank you. To log in from IRC, enter %cWHITE/msg {0} !id <password>%r or %cWHITE/msg {0} !id {1} <password>%r, without the brackets.", this.Nickname, accountName);
@@ -853,11 +847,11 @@ namespace CBot {
 								var attribute = type.GetCustomAttribute<ApiVersionAttribute>(false);
 
 								if (attribute == null) {
-									message = "Outdated plugin – no API version is specified.";
+									message = "Outdated plugin ï¿½ no API version is specified.";
 								} else if (attribute.Version < MinPluginVersion) {
-									message = string.Format("Outdated plugin – built for version {0}.{1}.", attribute.Version.Major, attribute.Version.Minor);
+									message = string.Format("Outdated plugin ï¿½ built for version {0}.{1}.", attribute.Version.Major, attribute.Version.Minor);
 								} else if (attribute.Version > Assembly.GetExecutingAssembly().GetName().Version) {
-									message = string.Format("Outdated bot – the plugin is built for version {0}.{1}.", attribute.Version.Major, attribute.Version.Minor);
+									message = string.Format("Outdated bot ï¿½ the plugin is built for version {0}.{1}.", attribute.Version.Major, attribute.Version.Minor);
 								} else {
 									found = true;
 									pluginFiles.Add(Path.Combine(this.PluginsPath, Path.GetFileName(file)));
@@ -1054,7 +1048,7 @@ namespace CBot {
 					}
 				}
 				if (pluginType == null) {
-					errorMessage = "Invalid – no valid plugin class.";
+					errorMessage = "Invalid ï¿½ no valid plugin class.";
 					throw new InvalidPluginException(entry.Filename, string.Format("The file '{0}' does not contain a class that inherits from the base plugin class.", entry.Filename));
 				}
 
@@ -1065,13 +1059,13 @@ namespace CBot {
 						pluginVersion = attribute.Version;
 				}
 				if (pluginVersion == null) {
-					errorMessage = "Outdated plugin – no API version is specified.";
+					errorMessage = "Outdated plugin ï¿½ no API version is specified.";
 					throw new InvalidPluginException(entry.Filename, string.Format("The class '{0}' in '{1}' does not specify the version of CBot for which it was built.", pluginType.Name, entry.Filename));
 				} else if (pluginVersion < MinPluginVersion) {
-					errorMessage = string.Format("Outdated plugin – built for version {0}.{1}.", pluginVersion.Major, pluginVersion.Minor);
+					errorMessage = string.Format("Outdated plugin ï¿½ built for version {0}.{1}.", pluginVersion.Major, pluginVersion.Minor);
 					throw new InvalidPluginException(entry.Filename, string.Format("The class '{0}' in '{1}' was built for older version {2}.{3}.", pluginType.Name, entry.Filename, pluginVersion.Major, pluginVersion.Minor));
 				} else if (pluginVersion > Assembly.GetExecutingAssembly().GetName().Version) {
-					errorMessage = string.Format("Outdated bot – the plugin is built for version {0}.{1}.", pluginVersion.Major, pluginVersion.Minor);
+					errorMessage = string.Format("Outdated bot ï¿½ the plugin is built for version {0}.{1}.", pluginVersion.Major, pluginVersion.Minor);
 					throw new InvalidPluginException(entry.Filename, string.Format("The class '{0}' in '{1}' was built for newer version {2}.{3}.", pluginType.Name, entry.Filename, pluginVersion.Major, pluginVersion.Minor));
 				}
 
@@ -1097,7 +1091,7 @@ namespace CBot {
 				else if (constructorType == 2)
 					plugin = (Plugin) Activator.CreateInstance(pluginType, new object[] { entry.Key, entry.Channels })!;
 				else {
-					errorMessage = "Invalid – no valid constructor on the plugin class.";
+					errorMessage = "Invalid ï¿½ no valid constructor on the plugin class.";
 					throw new InvalidPluginException(entry.Filename, string.Format("The class '{0}' in '{1}' does not contain a supported constructor.\n" +
 																				   "It should be defined as 'public SamplePlugin()'", pluginType.Name, entry.Filename));
 				}
@@ -1223,10 +1217,10 @@ namespace CBot {
 				IniConfig.LoadConfig(this, this.Config);
 			}
 
-			if (update) this.UpdateNetworks();
+			if (update) this.UpdateNetworks(true);
 		}
 		/// <summary>Compares and applies changes in IRC network configuration.</summary>
-		public void UpdateNetworks() {
+		public void UpdateNetworks(bool reconnect) {
 			if (this.Config.Networks == null) return;  // Nothing to do.
 
 			var oldNetworks = new Dictionary<string, int>(StringComparer.InvariantCultureIgnoreCase);
@@ -1235,29 +1229,58 @@ namespace CBot {
 			for (int i = 0; i < this.Clients.Count; ++i)
 				oldNetworks[this.Clients[i].Name] = i;
 
-			foreach (var network in this.Config.Networks) {
-				ClientEntry oldNetwork; 
-				if (oldNetworks.TryGetValue(network.Name, out int index)) {
-					oldNetwork = this.Clients[index];
-					oldNetworks.Remove(network.Name);
+			foreach (var stub in this.Config.Networks) {
+				var name = stub.Value<string>(nameof(ClientEntry.Name)) ?? throw new InvalidOperationException("Network name may not be null");
+				var moduleKey = stub.Value<string>(nameof(ClientEntry.ModuleKey));
+				ClientEntry network, oldNetwork;
+				ProtocolIntegrationPlugin? integrationModule = null;
 
-					network.Client = oldNetwork.Client;
+				if (moduleKey == null)
+					network = stub.ToObject<ClientEntry>()!;
+				else {
+					if (!this.Plugins.TryGetValue(moduleKey, out var module)) throw new FormatException($"No module with key {moduleKey} is loaded.");
+					if (module.Obj is not ProtocolIntegrationPlugin integrationModule2) throw new FormatException($"Module {moduleKey} is not an integration module.");
+					integrationModule = integrationModule2;
+					var networkType = integrationModule.ClientEntryType;
+					network = networkType == typeof(ClientEntry) ? stub.ToObject<ClientEntry>()!
+						: networkType.IsAssignableTo(typeof(ClientEntry)) ? (ClientEntry) stub.ToObject(networkType)!
+						: throw new InvalidOperationException($"Module {moduleKey} specifies an invalid {nameof(ProtocolIntegrationPlugin.ClientEntryType)}.");
+				}
+
+				if (oldNetworks.TryGetValue(name, out int index)) {
+					oldNetwork = this.Clients[index];
+					oldNetworks.Remove(name);
+
 					this.Clients[index] = network;
 
-					// Reconnect if the address was changed.
-					if (network.Address != oldNetwork.Address ||
-						network.Port != oldNetwork.Port ||
-						network.TLS != oldNetwork.TLS) {
-						ConsoleUtils.WriteLine("Address of {0} has changed.", network.Name);
-						if (network.Client.State != IrcClientState.Disconnected) {
-							oldNetwork.Client.Send("QUIT :Changing server.");
-							oldNetwork.Client.Disconnect();
-						}
+					if (moduleKey != oldNetwork.ModuleKey) {
+						// Must recreate the IrcClient if the module was changed.
+						if (oldNetwork.Client.State >= IrcClientState.Registering)
+							oldNetwork.Client.Send("QUIT :Network dropped from configuration.");
+						oldNetwork.Client.Disconnect();
+						this.CreateClient(network, integrationModule);
+						IrcClientRemoved?.Invoke(null, new IrcClientEventArgs(network));
+						this.SetUpNetwork(network);
+						IrcClientAdded?.Invoke(null, new IrcClientEventArgs(network));
 						reconnectNeeded.Add(network);
-					}
+					} else {
+						network.Client = oldNetwork.Client;
 
+						// Reconnect if the address was changed.
+						if (network.Address != oldNetwork.Address ||
+							network.Port != oldNetwork.Port ||
+							network.Tls != oldNetwork.Tls) {
+							ConsoleUtils.WriteLine("Address of {0} has changed.", network.Name);
+							if (network.Client.State != IrcClientState.Disconnected) {
+								oldNetwork.Client.Send("QUIT :Changing server.");
+								oldNetwork.Client.Disconnect();
+							}
+							reconnectNeeded.Add(network);
+						}
+					}
 				} else {
 					network.SaveToConfig = true;
+					this.CreateClient(network, integrationModule);
 					this.AddNetwork(network);
 					reconnectNeeded.Add(network);
 				}
@@ -1274,10 +1297,12 @@ namespace CBot {
 				}
 			}
 
-			// Reconnect to networks.
-			foreach (var network in reconnectNeeded) {
-				ConsoleUtils.WriteLine("Connecting to {0} on port {1}.", network.Address, network.Port);
-				this.Connect(network);
+			if (reconnect) {
+				// Reconnect to networks.
+				foreach (var network in reconnectNeeded) {
+					ConsoleUtils.WriteLine("Connecting to {0} on port {1}.", network.Address, network.Port);
+					this.Connect(network);
+				}
 			}
 		}
 
@@ -1290,7 +1315,7 @@ namespace CBot {
 		internal void UpdateNetworkSettings(ClientEntry network) {
 			network.Client.Address = network.Address;
 			network.Client.Password = network.Password;
-			network.Client.SSL = network.TLS;
+			network.Client.Tls = network.Tls;
 			network.Client.AllowInvalidCertificate = network.AcceptInvalidTlsCertificate;
 			network.Client.SaslUsername = network.SaslUsername;
 			network.Client.SaslPassword = network.SaslPassword;
@@ -1398,7 +1423,7 @@ namespace CBot {
 			this.Config.Nicknames = this.DefaultNicknames;
 
 			this.Config.Networks.Clear();
-			this.Config.Networks.AddRange(this.Clients.Where(n => n.SaveToConfig));
+			this.Config.Networks.AddRange(this.Clients.Where(n => n.SaveToConfig).Select(Newtonsoft.Json.Linq.JObject.FromObject));
 
 			this.Config.CommandPrefixes = this.DefaultCommandPrefixes;
 			this.Config.ChannelCommandPrefixes = this.ChannelCommandPrefixes;
@@ -1619,72 +1644,38 @@ namespace CBot {
 			switch (fields[0].ToUpper()) {
 				case "PING":
 					if (fields.Length > 1)
-						client.Send("NOTICE {0} :\u0001PING {1}\u0001", sender, string.Join(" ", fields.Skip(1)));
+						client.Send($"NOTICE {sender} :\u0001PING {string.Join(" ", fields.Skip(1))}\u0001");
 					else
-						client.Send("NOTICE {0} :\u0001PING\u0001", sender);
+						client.Send($"NOTICE {sender} :\u0001PING\u0001");
 					break;
 				case "ERRMSG":
 					if (fields.Length > 1)
-						client.Send("NOTICE {0} :\u0001ERRMSG No error: {1}\u0001", sender, string.Join(" ", fields.Skip(1)));
+						client.Send($"NOTICE {sender} :\u0001ERRMSG No error: {string.Join(" ", fields.Skip(1))}\u0001");
 					else
-						client.Send("NOTICE {0} :\u0001ERRMSG No error\u0001", sender);
+						client.Send($"NOTICE {sender} :\u0001ERRMSG No error\u0001");
 					break;
 				case "VERSION":
-					client.Send("NOTICE {0} :\u0001VERSION {1}\u0001", sender, ClientVersion);
+					client.Send($"NOTICE {sender} :\u0001VERSION {ClientVersion}\u0001");
 					break;
 				case "SOURCE":
-					client.Send("NOTICE {0} :\u0001SOURCE {1}\u0001", sender, "CBot: https://github.com/AndrioCelos/CBot");
+					client.Send($"NOTICE {sender} :\u0001SOURCE CBot: https://github.com/AndrioCelos/CBot\u0001");
 					break;
 				case "TIME":
-					client.Send("NOTICE {0} :\u0001TIME {1:dddd d MMMM yyyy HH:mm:ss zzz}\u0001", sender, DateTime.Now);
+					client.Send($"NOTICE {sender} :\u0001TIME {DateTime.Now:dddd d MMMM yyyy HH:mm:ss zzz}\u0001");
 					break;
 				case "FINGER":
-					var readableIdleTime = new StringBuilder(); TimeSpan idleTime;
-					idleTime = DateTime.Now - client.LastSpoke;
-					if (idleTime.Days > 0) {
-						if (readableIdleTime.Length > 0) readableIdleTime.Append(", ");
-						readableIdleTime.Append(idleTime.Days);
-						if (idleTime.Days == 1)
-							readableIdleTime.Append("day");
-						else
-							readableIdleTime.Append("days");
-					}
-					if (idleTime.Hours > 0) {
-						if (readableIdleTime.Length > 0) readableIdleTime.Append(", ");
-						readableIdleTime.Append(idleTime.Hours);
-						if (idleTime.Days == 1)
-							readableIdleTime.Append("hour");
-						else
-							readableIdleTime.Append("hours");
-					}
-					if (idleTime.Minutes > 0) {
-						if (readableIdleTime.Length > 0) readableIdleTime.Append(", ");
-						readableIdleTime.Append(idleTime.Minutes);
-						if (idleTime.Days == 1)
-							readableIdleTime.Append("minute");
-						else
-							readableIdleTime.Append("minutes");
-					}
-					if (readableIdleTime.Length == 0 || idleTime.Seconds > 0) {
-						if (readableIdleTime.Length > 0) readableIdleTime.Append(", ");
-						readableIdleTime.Append(idleTime.Seconds);
-						if (idleTime.Days == 1)
-							readableIdleTime.Append("second");
-						else
-							readableIdleTime.Append("seconds");
-					}
-
-					client.Send("NOTICE {0} :\u0001FINGER {1}: {3}; idle for {2}.\u0001", sender, this.DefaultNicknames[0], readableIdleTime.ToString(), this.DefaultUserInfo);
+					var idleTime = DateTime.UtcNow - (client.LastSpoke ?? this.GetClientEntry(client).ConnectTime);
+					client.Send($"NOTICE {sender} :\u0001FINGER {this.DefaultNicknames[0]}: {this.DefaultUserInfo}; idle for {GetReadableIdleTime(idleTime)}.\u0001");
 					break;
 				case "USERINFO":
-					client.Send("NOTICE {0} :\u0001USERINFO {1}\u0001", sender, this.DefaultUserInfo);
+					client.Send($"NOTICE {sender} :\u0001USERINFO {this.DefaultUserInfo}\u0001");
 					break;
 				case "AVATAR":
-					client.Send("NOTICE {0} :\u0001AVATAR {1}\u0001", sender, this.DefaultAvatar);
+					client.Send($"NOTICE {sender} :\u0001AVATAR {this.DefaultAvatar}\u0001");
 					break;
 				case "CLIENTINFO":
 					message = fields.Length == 1
-						? "CBot: https://github.com/AndrioCelos/CBot – I recognise the following CTCP queries: CLENTINFO, FINGER, PING, TIME, USERINFO, VERSION, AVATAR"
+						? "CBot: https://github.com/AndrioCelos/CBot â€” I recognise the following CTCP queries: CLENTINFO, FINGER, PING, TIME, USERINFO, VERSION, AVATAR"
 						: fields[1].ToUpper() switch {
 							"PING"       => "PING <token>: Echoes the token back to verify that I am receiving your message. This is often used with a timestamp to establish the connection latency.",
 							"ERRMSG"     => "ERRMSG <message>: This is the general response to an unknown query. A query of ERRMSG will return the same message back.",
@@ -1695,14 +1686,51 @@ namespace CBot {
 							"USERINFO"   => "USERINFO: Returns information about me.",
 							"CLIENTINFO" => "CLIENTINFO [query]: Returns information about my client, and CTCP queries I recognise.",
 							"AVATAR"     => "AVATAR: Returns a URL to my avatar, if one is set.",
-							_ => string.Format("I don't recognise {0} as a CTCP query.", fields[1]),
+							_ => $"I don't recognise {fields[1]} as a CTCP query.",
 						};
-					client.Send("NOTICE {0} :\u0001CLIENTINFO {1}\u0001", sender, message);
+					client.Send($"NOTICE {sender} :\u0001CLIENTINFO {message}\u0001");
 					break;
 				default:
-					if (!isChannelMessage) client.Send("NOTICE {0} :\u0001ERRMSG I don't recognise {1} as a CTCP query.\u0001", sender, fields[0]);
+					if (!isChannelMessage) client.Send($"NOTICE {sender} :\u0001ERRMSG I don't recognise {fields[0]} as a CTCP query.\u0001");
 					break;
 			}
+		}
+
+		public static string GetReadableIdleTime(TimeSpan timeSpan) {
+			var readableIdleTime = new StringBuilder();
+			if (timeSpan.Days > 0) {
+				if (readableIdleTime.Length > 0) readableIdleTime.Append(", ");
+				readableIdleTime.Append(timeSpan.Days);
+				if (timeSpan.Days == 1)
+					readableIdleTime.Append("day");
+				else
+					readableIdleTime.Append("days");
+			}
+			if (timeSpan.Hours > 0) {
+				if (readableIdleTime.Length > 0) readableIdleTime.Append(", ");
+				readableIdleTime.Append(timeSpan.Hours);
+				if (timeSpan.Days == 1)
+					readableIdleTime.Append("hour");
+				else
+					readableIdleTime.Append("hours");
+			}
+			if (timeSpan.Minutes > 0) {
+				if (readableIdleTime.Length > 0) readableIdleTime.Append(", ");
+				readableIdleTime.Append(timeSpan.Minutes);
+				if (timeSpan.Days == 1)
+					readableIdleTime.Append("minute");
+				else
+					readableIdleTime.Append("minutes");
+			}
+			if (readableIdleTime.Length == 0 || timeSpan.Seconds > 0) {
+				if (readableIdleTime.Length > 0) readableIdleTime.Append(", ");
+				readableIdleTime.Append(timeSpan.Seconds);
+				if (timeSpan.Days == 1)
+					readableIdleTime.Append("second");
+				else
+					readableIdleTime.Append("seconds");
+			}
+			return readableIdleTime.ToString();
 		}
 
 		/// <summary>Returns the bot's default nickname, even if none is specified in configuration.</summary>
@@ -1791,7 +1819,6 @@ namespace CBot {
 						case "$o": status = ChannelStatus.Op; break;
 						case "$h": status = ChannelStatus.Halfop; break;
 						case "$v": status = ChannelStatus.Voice; break;
-						case "$V": status = ChannelStatus.HalfVoice; break;
 						case "$a":
 							// NickServ account match
 							fields = fields[1].Split(new char[] { '/', ':' }, 2);
@@ -1958,21 +1985,6 @@ namespace CBot {
 			ErrorLogWriter.Close();
 		}
 
-		/// <summary>Returns a hash and salt for a password.</summary>
-		public static byte[] HashPassword(string password) {
-			byte[] salt = new byte[32], hash;
-
-			// Generate random salt using a cryptographically-secure psuedo-random number generator.
-			new RNGCryptoServiceProvider().GetBytes(salt);
-
-			// Use SHA-256 to generate the hash.
-			hash = new SHA256Managed().ComputeHash(salt.Concat(Encoding.UTF8.GetBytes(password)).ToArray());
-
-			byte[] result = new byte[64];
-			salt.CopyTo(result,  0);
-			hash.CopyTo(result, 32);
-			return result;
-		}
 
 		/// <summary>Attempts to log in a user with a given password.</summary>
 		/// <param name="target">The name and location of the user, in the form NetworkName/Nickname.</param>
@@ -2004,7 +2016,7 @@ namespace CBot {
 					success = false;
 				} else {
 					if (account.VerifyPassword(password)) {
-						identification = new Identification(target.Client, target.Nickname, accountName, target.Monitoring, new(target.Channels.Select(c => c.Name)));
+						identification = new Identification(target.Client, target.Nickname, accountName, target.IsMonitored, new(target.Channels.Select(c => c.Name)));
 						this.Identifications.Add(target.Client.NetworkName + "/" + target.Nickname, identification);
 						message = string.Format("You have identified successfully as \u000309{0}\u000F.", accountName);
 						success = true;
@@ -2116,16 +2128,18 @@ namespace CBot {
 		}
 
 #region Event handlers
-		private void OnAwayCancelled(object? sender, AwayEventArgs e)                            { foreach (var entry in this.Plugins) if (entry.Obj.OnAwayCancelled(sender, e)) return; }
+		private void OnAwayCancelled(object? sender, EventArgs e)                                { foreach (var entry in this.Plugins) if (entry.Obj.OnAwayCancelled(sender, e)) return; }
 		private void OnAwayMessage(object? sender, AwayMessageEventArgs e)                       { foreach (var entry in this.Plugins) if (entry.Obj.OnAwayMessage(sender, e)) return; }
-		private void OnAwaySet(object? sender, AwayEventArgs e)                                  { foreach (var entry in this.Plugins) if (entry.Obj.OnAwaySet(sender, e)) return; }
+		private void OnAwaySet(object? sender, EventArgs e)                                      { foreach (var entry in this.Plugins) if (entry.Obj.OnAwaySet(sender, e)) return; }
+		private void OnBroadcastMessage(object? sender, PrivateMessageEventArgs e) { foreach (var entry in this.Plugins) if (entry.Obj.OnBroadcastMessage(sender, e)) return; }
+		private void OnBroadcastNotice(object? sender, PrivateMessageEventArgs e) { foreach (var entry in this.Plugins) if (entry.Obj.OnBroadcastNotice(sender, e)) return; }
+		private void OnBroadcastTagMessage(object? sender, PrivateTagMessageEventArgs e) { foreach (var entry in this.Plugins) if (entry.Obj.OnBroadcastTagMessage(sender, e)) return; }
 		private void OnCapabilitiesAdded(object? sender, CapabilitiesAddedEventArgs e)           { foreach (var entry in this.Plugins) if (entry.Obj.OnCapabilitiesAdded(sender, e)) return; }
 		private void OnCapabilitiesDeleted(object? sender, CapabilitiesEventArgs e)              { foreach (var entry in this.Plugins) if (entry.Obj.OnCapabilitiesDeleted(sender, e)) return; }
 		private async void OnChannelAction(object? sender, ChannelMessageEventArgs e) {
 			foreach (var entry in this.Plugins) if (entry.Obj.OnChannelAction(sender, e)) return;
 			if (await this.CheckTriggers(e.Sender, e.Channel, "ACTION " + e.Message)) return;
 		}
-		private void OnChannelAdmin(object? sender, ChannelStatusChangedEventArgs e)             { foreach (var entry in this.Plugins) if (entry.Obj.OnChannelAdmin(sender, e)) return; }
 		private void OnChannelBan(object? sender, ChannelListChangedEventArgs e)                 { foreach (var entry in this.Plugins) if (entry.Obj.OnChannelBan(sender, e)) return; }
 		private void OnChannelBanList(object? sender, ChannelModeListEventArgs e)                { foreach (var entry in this.Plugins) if (entry.Obj.OnChannelBanList(sender, e)) return; }
 		private void OnChannelBanListEnd(object? sender, ChannelModeListEndEventArgs e)          { foreach (var entry in this.Plugins) if (entry.Obj.OnChannelBanListEnd(sender, e)) return; }
@@ -2134,16 +2148,8 @@ namespace CBot {
 			foreach (var entry in this.Plugins) if (entry.Obj.OnChannelCTCP(sender, e)) return;
 			this.OnCTCPMessage((IrcClient) sender!, e.Sender.Nickname, true, e.Message);
 		}
-		private void OnChannelDeAdmin(object? sender, ChannelStatusChangedEventArgs e)           { foreach (var entry in this.Plugins) if (entry.Obj.OnChannelDeAdmin(sender, e)) return; }
-		private void OnChannelDeHalfOp(object? sender, ChannelStatusChangedEventArgs e)          { foreach (var entry in this.Plugins) if (entry.Obj.OnChannelDeHalfOp(sender, e)) return; }
-		private void OnChannelDeHalfVoice(object? sender, ChannelStatusChangedEventArgs e)       { foreach (var entry in this.Plugins) if (entry.Obj.OnChannelDeHalfVoice(sender, e)) return; }
-		private void OnChannelDeOp(object? sender, ChannelStatusChangedEventArgs e)              { foreach (var entry in this.Plugins) if (entry.Obj.OnChannelDeOp(sender, e)) return; }
-		private void OnChannelDeOwner(object? sender, ChannelStatusChangedEventArgs e)           { foreach (var entry in this.Plugins) if (entry.Obj.OnChannelDeOwner(sender, e)) return; }
-		private void OnChannelDeVoice(object? sender, ChannelStatusChangedEventArgs e)           { foreach (var entry in this.Plugins) if (entry.Obj.OnChannelDeVoice(sender, e)) return; }
 		private void OnChannelExempt(object? sender, ChannelListChangedEventArgs e)              { foreach (var entry in this.Plugins) if (entry.Obj.OnChannelExempt(sender, e)) return; }
 		private void OnChannelExemptRemoved(object? sender, ChannelListChangedEventArgs e)       { foreach (var entry in this.Plugins) if (entry.Obj.OnChannelExemptRemoved(sender, e)) return; }
-		private void OnChannelHalfOp(object? sender, ChannelStatusChangedEventArgs e)            { foreach (var entry in this.Plugins) if (entry.Obj.OnChannelHalfOp(sender, e)) return; }
-		private void OnChannelHalfVoice(object? sender, ChannelStatusChangedEventArgs e)         { foreach (var entry in this.Plugins) if (entry.Obj.OnChannelHalfVoice(sender, e)) return; }
 		private void OnChannelInviteExempt(object? sender, ChannelListChangedEventArgs e)        { foreach (var entry in this.Plugins) if (entry.Obj.OnChannelInviteExempt(sender, e)) return; }
 		private void OnChannelInviteExemptList(object? sender, ChannelModeListEventArgs e)       { foreach (var entry in this.Plugins) if (entry.Obj.OnChannelInviteExemptList(sender, e)) return; }
 		private void OnChannelInviteExemptListEnd(object? sender, ChannelModeListEndEventArgs e) { foreach (var entry in this.Plugins) if (entry.Obj.OnChannelInviteExemptListEnd(sender, e)) return; }
@@ -2159,24 +2165,22 @@ namespace CBot {
 			if (e.Sender == client.Me) {
 				// Send a WHOX request to get account names.
 				if (client.Extensions.ContainsKey("WHOX"))
-					client.Send("WHO {0} %tna,1", e.Channel);
+					client.Send($"WHO {e.Channel.Name} %tna,1");
 			} else {
-				if (this.CheckPermission(e.Sender, "irc.autohalfvoice." + client.NetworkName.Replace('.', '-') + "." + e.Channel.Name.Replace('.', '-')))
-					client.Send("MODE {0} +V {1}", e.Channel, e.Sender.Nickname);
 				if (this.CheckPermission(e.Sender, "irc.autovoice." + client.NetworkName.Replace('.', '-') + "." + e.Channel.Name.Replace('.', '-')))
-					client.Send("MODE {0} +v {1}", e.Channel, e.Sender.Nickname);
+					client.Send($"MODE {e.Channel.Name} +v {e.Sender.Nickname}");
 				if (this.CheckPermission(e.Sender, "irc.autohalfop." + client.NetworkName.Replace('.', '-') + "." + e.Channel.Name.Replace('.', '-')))
-					client.Send("MODE {0} +h {1}", e.Channel, e.Sender.Nickname);
+					client.Send($"MODE {e.Channel.Name} +h {e.Sender.Nickname}");
 				if (this.CheckPermission(e.Sender, "irc.autoop." + client.NetworkName.Replace('.', '-') + "." + e.Channel.Name.Replace('.', '-')))
-					client.Send("MODE {0} +o {1}", e.Channel, e.Sender.Nickname);
+					client.Send($"MODE {e.Channel.Name} +o {e.Sender.Nickname}");
 				if (this.CheckPermission(e.Sender, "irc.autoadmin." + client.NetworkName.Replace('.', '-') + "." + e.Channel.Name.Replace('.', '-')))
-					client.Send("MODE {0} +ao {1} {1}", e.Channel, e.Sender.Nickname);
+					client.Send($"MODE {e.Channel.Name} +ao {e.Sender.Nickname} {e.Sender.Nickname}");
 
 				if (this.CheckPermission(e.Sender, "irc.autoquiet." + client.NetworkName.Replace('.', '-') + "." + e.Channel.Name.Replace('.', '-')))
-					client.Send("MODE {0} +q *!*{1}", e.Channel, e.Sender.UserAndHost);
+					client.Send($"MODE {e.Channel.Name} +q *!*{e.Sender.UserAndHost}");
 				if (this.CheckPermission(e.Sender, "irc.autoban." + client.NetworkName.Replace('.', '-') + "." + e.Channel.Name.Replace('.', '-'))) {
-					client.Send("MODE {0} +b *!*{1}", e.Channel, e.Sender.UserAndHost);
-					client.Send("KICK {0} {1} :You are banned from this channel.", e.Channel, e.Sender.Nickname);
+					client.Send($"MODE {e.Channel.Name} +b *!*{e.Sender.UserAndHost}");
+					client.Send($"KICK {e.Channel.Name} {e.Sender.Nickname} :You are banned from this channel.");
 				}
 			}
 		}
@@ -2207,21 +2211,18 @@ namespace CBot {
 			if (await this.CheckTriggers(e.Sender, e.Channel, e.Message)) return;
 		}
 		private void OnChannelMessageDenied(object? sender, ChannelJoinDeniedEventArgs e)        { foreach (var entry in this.Plugins) if (entry.Obj.OnChannelMessageDenied(sender, e)) return; }
-		private void OnChannelModeChanged(object? sender, ChannelModeChangedEventArgs e)         { foreach (var entry in this.Plugins) if (entry.Obj.OnChannelModeChanged(sender, e)) return; }
 		private void OnChannelModesGet(object? sender, ChannelModesSetEventArgs e)               { foreach (var entry in this.Plugins) if (entry.Obj.OnChannelModesGet(sender, e)) return; }
 		private void OnChannelModesSet(object? sender, ChannelModesSetEventArgs e)               { foreach (var entry in this.Plugins) if (entry.Obj.OnChannelModesSet(sender, e)) return; }
 		private void OnChannelNotice(object? sender, ChannelMessageEventArgs e)                  { foreach (var entry in this.Plugins) if (entry.Obj.OnChannelNotice(sender, e)) return; }
-		private void OnChannelOp(object? sender, ChannelStatusChangedEventArgs e)                { foreach (var entry in this.Plugins) if (entry.Obj.OnChannelOp(sender, e)) return; }
-		private void OnChannelOwner(object? sender, ChannelStatusChangedEventArgs e)             { foreach (var entry in this.Plugins) if (entry.Obj.OnChannelOwner(sender, e)) return; }
 		private void OnChannelPart(object? sender, ChannelPartEventArgs e)                       { foreach (var entry in this.Plugins) if (entry.Obj.OnChannelPart(sender, e)) return; }
 		private void OnChannelQuiet(object? sender, ChannelListChangedEventArgs e)               { foreach (var entry in this.Plugins) if (entry.Obj.OnChannelQuiet(sender, e)) return; }
 		private void OnChannelQuietRemoved(object? sender, ChannelListChangedEventArgs e)        { foreach (var entry in this.Plugins) if (entry.Obj.OnChannelQuietRemoved(sender, e)) return; }
 		private void OnChannelStatusChanged(object? sender, ChannelStatusChangedEventArgs e)     { foreach (var entry in this.Plugins) if (entry.Obj.OnChannelStatusChanged(sender, e)) return; }
+		private void OnChannelTagMessage(object? sender, ChannelTagMessageEventArgs e) { foreach (var entry in this.Plugins) if (entry.Obj.OnChannelTagMessage(sender, e)) return; }
 		private void OnChannelTimestamp(object? sender, ChannelTimestampEventArgs e)             { foreach (var entry in this.Plugins) if (entry.Obj.OnChannelTimestamp(sender, e)) return; }
 		private void OnChannelTopicChanged(object? sender, ChannelTopicChangeEventArgs e)        { foreach (var entry in this.Plugins) if (entry.Obj.OnChannelTopicChanged(sender, e)) return; }
 		private void OnChannelTopicReceived(object? sender, ChannelTopicEventArgs e)             { foreach (var entry in this.Plugins) if (entry.Obj.OnChannelTopicReceived(sender, e)) return; }
 		private void OnChannelTopicStamp(object? sender, ChannelTopicStampEventArgs e)           { foreach (var entry in this.Plugins) if (entry.Obj.OnChannelTopicStamp(sender, e)) return; }
-		private void OnChannelVoice(object? sender, ChannelStatusChangedEventArgs e)             { foreach (var entry in this.Plugins) if (entry.Obj.OnChannelVoice(sender, e)) return; }
 		private void OnDisconnected(object? sender, DisconnectEventArgs e) {
 			foreach (var entry in this.Plugins) if (entry.Obj.OnDisconnected(sender, e)) return;
 
@@ -2247,6 +2248,8 @@ namespace CBot {
 		private void OnInvite(object? sender, InviteEventArgs e)                                 { foreach (var entry in this.Plugins) if (entry.Obj.OnInvite(sender, e)) return; }
 		private void OnInviteSent(object? sender, InviteSentEventArgs e)                         { foreach (var entry in this.Plugins) if (entry.Obj.OnInviteSent(sender, e)) return; }
 		private void OnKilled(object? sender, PrivateMessageEventArgs e)                         { foreach (var entry in this.Plugins) if (entry.Obj.OnKilled(sender, e)) return; }
+		private void OnMonitorOffline(object? sender, IrcUserLineEventArgs e) { foreach (var entry in this.Plugins) if (entry.Obj.OnMonitorOffline(sender, e)) return; }
+		private void OnMonitorOnline(object? sender, IrcUserLineEventArgs e) { foreach (var entry in this.Plugins) if (entry.Obj.OnMonitorOnline(sender, e)) return; }
 		private void OnMOTD(object? sender, MotdEventArgs e)                                     { foreach (var entry in this.Plugins) if (entry.Obj.OnMOTD(sender, e)) return; }
 		private void OnNames(object? sender, ChannelNamesEventArgs e)                            { foreach (var entry in this.Plugins) if (entry.Obj.OnNames(sender, e)) return; }
 		private void OnNamesEnd(object? sender, ChannelModeListEndEventArgs e)                   { foreach (var entry in this.Plugins) if (entry.Obj.OnNamesEnd(sender, e)) return; }
@@ -2275,8 +2278,8 @@ namespace CBot {
 				}
 			}
 		}
-		private void OnPingReply(object? sender, PingEventArgs e)                                { foreach (var entry in this.Plugins) if (entry.Obj.OnPingReply(sender, e)) return; }
-		private void OnPingRequest(object? sender, PingEventArgs e)                              { foreach (var entry in this.Plugins) if (entry.Obj.OnPingRequest(sender, e)) return; }
+		private void OnPingReceived(object? sender, PingEventArgs e) { foreach (var entry in this.Plugins) if (entry.Obj.OnPingReceived(sender, e)) return; }
+		private void OnPong(object? sender, PingEventArgs e) { foreach (var entry in this.Plugins) if (entry.Obj.OnPong(sender, e)) return; }
 		private async void OnPrivateAction(object? sender, PrivateMessageEventArgs e) {
 			foreach (var entry in this.Plugins) if (entry.Obj.OnPrivateAction(sender, e)) return;
 			if (await this.CheckTriggers(e.Sender, e.Sender, "ACTION " + e.Message)) return;
@@ -2297,6 +2300,7 @@ namespace CBot {
 			foreach (var entry in this.Plugins) if (entry.Obj.OnPrivateNotice(sender, e)) return;
 			this.NickServCheck((IrcClient) sender!, e.Sender, e.Message);
 		}
+		private void OnPrivateTagMessage(object? sender, PrivateTagMessageEventArgs e) { foreach (var entry in this.Plugins) if (entry.Obj.OnPrivateTagMessage(sender, e)) return; }
 		private void OnRawLineReceived(object? sender, IrcLineEventArgs e) {
 			foreach (var entry in this.Plugins) if (entry.Obj.OnRawLineReceived(sender, e)) return;
 
@@ -2304,7 +2308,7 @@ namespace CBot {
 
 			switch (e.Line.Message) {
 				case Replies.RPL_WHOSPCRPL:
-					if (e.Line.Parameters.Length == 4 && e.Line.Parameters[1] == "1") {  // This identifies our WHOX request.
+					if (e.Line.Parameters.Count == 4 && e.Line.Parameters[1] == "1") {  // This identifies our WHOX request.
 						if (client.Users.TryGetValue(e.Line.Parameters[2], out var user)) {
 							if (e.Line.Parameters[3] == "0")
 								client.ReceivedLine(":" + user.ToString() + " ACCOUNT *");
@@ -2334,8 +2338,8 @@ namespace CBot {
 		private void OnRawLineSent(object? sender, RawLineEventArgs e)                           { foreach (var entry in this.Plugins) if (entry.Obj.OnRawLineSent(sender, e)) return; }
 		private void OnRawLineUnhandled(object? sender, IrcLineEventArgs e)                      { foreach (var entry in this.Plugins) if (entry.Obj.OnRawLineUnhandled(sender, e)) return; }
 		private void OnRegistered(object? sender, RegisteredEventArgs e)                         { foreach (var entry in this.Plugins) if (entry.Obj.OnRegistered(sender, e)) return; }
+		private void OnSelectCertificate(object? sender, SelectCertificateEventArgs e) { foreach (var entry in this.Plugins) if (entry.Obj.OnSelectCertificate(sender, e)) return; }
 		private void OnServerError(object? sender, ServerErrorEventArgs e)                       { foreach (var entry in this.Plugins) if (entry.Obj.OnServerError(sender, e)) return; }
-		private void OnServerNotice(object? sender, PrivateMessageEventArgs e)                   { foreach (var entry in this.Plugins) if (entry.Obj.OnServerNotice(sender, e)) return; }
 		private void OnStateChanged(object? sender, StateEventArgs e) {
 			foreach (var entry in this.Plugins) if (entry.Obj.OnStateChanged(sender, e)) return;
 
@@ -2344,6 +2348,7 @@ namespace CBot {
 			if (e.NewState == IrcClientState.Online) {
 				foreach (var clientEntry in this.Clients) {
 					if (clientEntry.Client == client) {
+						clientEntry.ConnectTime = DateTime.UtcNow;
 						// Identify with NickServ.
 						if (clientEntry.NickServ != null) {
 							Match? match = null;
@@ -2360,7 +2365,7 @@ namespace CBot {
 								client.Send(clientEntry.NickServ.GhostCommand.Replace("$target", match.Success ? match.Groups[1].Value : "NickServ")
 																			 .Replace("$nickname", clientEntry.NickServ.RegisteredNicknames[0])
 																			 .Replace("$password", clientEntry.NickServ.Password));
-								client.Send("NICK {0}", primaryNickname);
+								client.Send("NICK", primaryNickname);
 							}
 						}
 
@@ -2369,9 +2374,11 @@ namespace CBot {
 						break;
 					}
 				}
-
 			}
 		}
+		private void OnStsPolicyChanged(object? sender, EventArgs e) { foreach (var entry in this.Plugins) if (entry.Obj.OnStsPolicyChanged(sender, e)) return; }
+		private void OnStsUpgrade(object? sender, StsUpgradeEventArgs e) { foreach (var entry in this.Plugins) if (entry.Obj.OnStsUpgrade(sender, e)) return; }
+		private void OnUserAppeared(object? sender, IrcUserEventArgs e) { foreach (var entry in this.Plugins) if (entry.Obj.OnUserAppeared(sender, e)) return; }
 		private void OnUserDisappeared(object? sender, IrcUserEventArgs e)                       { foreach (var entry in this.Plugins) if (entry.Obj.OnUserDisappeared(sender, e)) return; }
 		private void OnUserModesGet(object? sender, UserModesEventArgs e)                        { foreach (var entry in this.Plugins) if (entry.Obj.OnUserModesGet(sender, e)) return; }
 		private void OnUserModesSet(object? sender, UserModesEventArgs e)                        { foreach (var entry in this.Plugins) if (entry.Obj.OnUserModesSet(sender, e)) return; }
@@ -2384,7 +2391,7 @@ namespace CBot {
 				if (entry.Client == sender) {
 					string primaryNickname = (entry.Nicknames ?? this.DefaultNicknames)[0];
 					if (((IrcClient) sender).CaseMappingComparer.Equals(e.Sender.Nickname, primaryNickname))
-						((IrcClient) sender).Send("NICK {0}", primaryNickname);
+						((IrcClient) sender).Send("NICK", primaryNickname);
 					break;
 				}
 			}
@@ -2403,16 +2410,17 @@ namespace CBot {
 		private void OnWhoList(object? sender, WhoListEventArgs e)                               { foreach (var entry in this.Plugins) if (entry.Obj.OnWhoList(sender, e)) return; }
 		private void OnWhoWasEnd(object? sender, WhoisEndEventArgs e)                            { foreach (var entry in this.Plugins) if (entry.Obj.OnWhoWasEnd(sender, e)) return; }
 		private void OnWhoWasNameLine(object? sender, WhoisNameEventArgs e)                      { foreach (var entry in this.Plugins) if (entry.Obj.OnWhoWasNameLine(sender, e)) return; }
-#endregion
+		private void OnWhoxList(object? sender, WhoxListEventArgs e) { foreach (var entry in this.Plugins) if (entry.Obj.OnWhoxList(sender, e)) return; }
+		#endregion
 
 		private static async Task AutoJoin(ClientEntry client) {
 			if (client.Client.Me.Account == null) await Task.Delay(3000);
 			if (client.Client.State == IrcClientState.Online) {
 				foreach (var channel in client.AutoJoin)
 					if (channel.Key == null)
-						client.Client.Send("JOIN {0}", channel.Channel);
+						client.Client.Send("JOIN", channel.Channel);
 					else
-						client.Client.Send("JOIN {0} {1}", channel.Key);
+						client.Client.Send("JOIN", channel.Channel, channel.Key);
 			}
 		}
 	}

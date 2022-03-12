@@ -863,7 +863,7 @@ namespace UNO {
 #endregion
 
 		[Command(new string[] { "set", "uset" }, 1, 2, "set <property> <value>", "Changes settings for this plugin.")]
-		public async void CommandSet(object sender, CommandEventArgs e) {
+		public async void CommandSet(object? sender, CommandEventArgs e) {
 			string property = e.Parameters[0];
 			string value = e.Parameters.Length == 1 ? null : e.Parameters[1];
 			int value2; bool value3;
@@ -1365,20 +1365,20 @@ namespace UNO {
 		}
 
 		[Command(new string[] { "uhelp" }, 0, 1, "uhelp", "Gives information about the UNO game.")]
-		public void CommandHelp(object sender, CommandEventArgs e) {
+		public void CommandHelp(object? sender, CommandEventArgs e) {
 			e.Reply("For help with this UNO game, see " + (this.GuideURL ?? "https://questers-rest.andriocelos.ml/irc/uno/guide"));
 		}
 
 #region Preparation
 		[Trigger("^jo$")]
-		public void RegexJoin(object sender, TriggerEventArgs e) {
+		public void RegexJoin(object? sender, TriggerEventArgs e) {
 			Game game;
 			if (this.Games.TryGetValue(e.Client.NetworkName + "/" + e.Target, out game))
 				this.EntryCommand(game, e.Sender.Nickname);
 		}
 		[Command(new string[] { "join", "ujoin", "uno" }, 0, 0, "ujoin", "Enters you into a game of UNO.",
 			Scope = CommandScope.Channel)]
-		public void CommandJoin(object sender, CommandEventArgs e) {
+		public void CommandJoin(object? sender, CommandEventArgs e) {
 			Game game;
 			string key = e.Client.NetworkName + "/" + e.Target;
 			if (this.Games.TryGetValue(key, out game))
@@ -1423,7 +1423,7 @@ namespace UNO {
 
 		[Command(new string[] { "aichallenge", "aisummon", "aijoin" }, 0, 0, "aichallenge", "Calls me into the game, even if there are already two or more players.",
 			Scope = CommandScope.Channel, PriorityHandlerName = nameof(GameCommandPriority))]
-		public void CommandAIJoin(object sender, CommandEventArgs e) {
+		public void CommandAIJoin(object? sender, CommandEventArgs e) {
 			Game game;
 			string key = e.Client.NetworkName + "/" + e.Target;
 			if (!this.AIEnabled)
@@ -1448,7 +1448,7 @@ namespace UNO {
 
 		[Command(new string[] { "ustart", "start" }, 0, 0, "ustart", "Starts the game immediately.",
 			Permission =".start", Scope = CommandScope.Channel, PriorityHandlerName = nameof(GameCommandPriority))]
-		public async void CommandStart(object sender, CommandEventArgs e) {
+		public async void CommandStart(object? sender, CommandEventArgs e) {
 			Game game;
 			string key = e.Client.NetworkName + "/" + e.Target;
 			if (!this.Games.TryGetValue(key, out game))
@@ -1485,7 +1485,7 @@ namespace UNO {
 
 		[Command(new string[] { "uwait", "wait" }, 0, 0, "uwait", "Extends the current time limit.",
 			Permission = ".wait", Scope = CommandScope.Channel, PriorityHandlerName = nameof(GameCommandPriority))]
-		public void CommandWait(object sender, CommandEventArgs e) {
+		public void CommandWait(object? sender, CommandEventArgs e) {
 			Game game;
 			string key = e.Client.NetworkName + "/" + e.Target;
 			if (!this.Games.TryGetValue(key, out game))
@@ -1561,7 +1561,7 @@ namespace UNO {
 
 		[Command(new string[] { "quit", "uquit", "leave", "uleave", "part", "upart" }, 0, 0, "uquit", "Removes you from the game of UNO.",
 			Scope = CommandScope.Channel, PriorityHandlerName = nameof(GameCommandPriority))]
-		public void CommandQuit(object sender, CommandEventArgs e) {
+		public void CommandQuit(object? sender, CommandEventArgs e) {
 			Game game;
 			string key = e.Client.NetworkName + "/" + e.Target;
 			if (!this.Games.TryGetValue(key, out game))
@@ -1579,7 +1579,7 @@ namespace UNO {
 			}
 		}
 
-		public override bool OnNicknameChange(object sender, NicknameChangeEventArgs e) {
+		public override bool OnNicknameChange(object? sender, NicknameChangeEventArgs e) {
 			Game game;
 			foreach (KeyValuePair<string, Game> entry in this.Games) {
 				if (entry.Key.StartsWith(((IrcClient) sender).NetworkName, StringComparison.InvariantCultureIgnoreCase)) {
@@ -1594,12 +1594,12 @@ namespace UNO {
 			return base.OnNicknameChange(sender, e);
 		}
 
-		public override bool OnChannelJoin(object sender, ChannelJoinEventArgs e) {
+		public override bool OnChannelJoin(object? sender, ChannelJoinEventArgs e) {
 			if (e.Sender.Nickname == ((IrcClient) sender).Me.Nickname) this.StartResetTimer();
 			return base.OnChannelJoin(sender, e);
 		}
 
-		public override bool OnChannelLeave(object sender, ChannelPartEventArgs e) {
+		public override bool OnChannelLeave(object? sender, ChannelPartEventArgs e) {
 			// Turn off their alerts if appropriate.
 			PlayerSettings player;
 			if (this.PlayerSettings.TryGetValue(e.Sender.Nickname, out player) &&
@@ -1746,7 +1746,7 @@ namespace UNO {
 			}
 		}
 
-		private void GameTimer_Elapsed(object sender, ElapsedEventArgs e) {
+		private void GameTimer_Elapsed(object? sender, ElapsedEventArgs e) {
 			foreach (Game game in this.Games.Values) {
 				if (game.GameTimer == sender) {
 					if (game.IsOpen) {
@@ -1870,7 +1870,7 @@ namespace UNO {
 
 		[Command("ustop", 0, 0, "ustop", "Stops the game of UNO without scoring. Use only in emergencies.",
 			Permission = ".stop", PriorityHandlerName = nameof(GameCommandPriority))]
-		public void CommandStop(object sender, CommandEventArgs e) {
+		public void CommandStop(object? sender, CommandEventArgs e) {
 			Game game;
 			string key = e.Client.NetworkName + "/" + e.Target;
 			if (!this.Games.TryGetValue(key, out game))
@@ -2036,7 +2036,7 @@ namespace UNO {
 		}
 
 		[Trigger(@"^pl\s*(.*)")]
-		public void RegexPlay(object sender, TriggerEventArgs e) {
+		public void RegexPlay(object? sender, TriggerEventArgs e) {
 			Game game; int index; Card card; Colour colour;
 			bool success = UnoPlugin.TryParseCard(e.Match.Groups[1].Value, out card, out colour);
 			if (!this.GameTurnCheck(e.Client, e.Target.Target, e.Sender.Nickname, card != Card.None, out game, out index))
@@ -2061,7 +2061,7 @@ namespace UNO {
 		}
 		[Command(new string[] { "play", "pl", "uplay" }, 1, 1, "play <card>", "Allows you to play a card on your turn.",
 			Scope = CommandScope.Channel, PriorityHandlerName = nameof(GameCommandPriority))]
-		public void CommandPlay(object sender, CommandEventArgs e) {
+		public void CommandPlay(object? sender, CommandEventArgs e) {
 			Game game; int index; Card card; Colour colour;
 			bool success = UnoPlugin.TryParseCard(e.Parameters[0], out card, out colour);
 			if (!this.GameTurnCheck(e.Client, e.Target.Target, e.Sender.Nickname, true, out game, out index))
@@ -2513,7 +2513,7 @@ namespace UNO {
 		}
 
 		[Trigger(@"^dr(?!\S)")]
-		public void RegexDraw(object sender, TriggerEventArgs e) {
+		public void RegexDraw(object? sender, TriggerEventArgs e) {
 			Game game; int index;
 			if (!this.GameTurnCheck(e.Client, e.Target.Target, e.Sender.Nickname, true, out game, out index))
 				return;
@@ -2523,7 +2523,7 @@ namespace UNO {
 		}
 		[Command("draw", 0, 0, "draw", "Allows you to draw a card from the deck",
 			Scope = CommandScope.Channel, PriorityHandlerName = nameof(GameCommandPriority))]
-		public void CommandDraw(object sender, CommandEventArgs e) {
+		public void CommandDraw(object? sender, CommandEventArgs e) {
 			Game game; int index;
 			if (!this.GameTurnCheck(e.Client, e.Target.Target, e.Sender.Nickname, true, out game, out index))
 				return;
@@ -2580,7 +2580,7 @@ namespace UNO {
 		}
 
 		[Trigger(@"^pa(?!\S)")]
-		public void RegexPass(object sender, TriggerEventArgs e) {
+		public void RegexPass(object? sender, TriggerEventArgs e) {
 			Game game; int index;
 			if (!this.GameTurnCheck(e.Client, e.Target.Target, e.Sender.Nickname, true, out game, out index))
 				return;
@@ -2590,7 +2590,7 @@ namespace UNO {
 		}
 		[Command("pass", 0, 0, "pass", "Use this command after drawing a card to end your turn.",
 			Scope = CommandScope.Channel, PriorityHandlerName = nameof(GameCommandPriority))]
-		public void CommandPass(object sender, CommandEventArgs e) {
+		public void CommandPass(object? sender, CommandEventArgs e) {
 			Game game; int index;
 			if (!this.GameTurnCheck(e.Client, e.Target.Target, e.Sender.Nickname, true, out game, out index))
 				return;
@@ -2622,7 +2622,7 @@ namespace UNO {
 		}
 
 		[Trigger(@"^co (\S+)\s*$")]
-		public void RegexColour(object sender, TriggerEventArgs e) {
+		public void RegexColour(object? sender, TriggerEventArgs e) {
 			Game game; int index; Colour colour;
 			UnoPlugin.TryParseColour(e.Match.Groups[1].Value, out colour);
 			if (!this.GameTurnCheck(e.Client, e.Target.Target, e.Sender.Nickname, colour != Colour.None, out game, out index))
@@ -2633,7 +2633,7 @@ namespace UNO {
 			}
 		}
 		[Trigger(@"^(?:(Red)|(Yellow)|(Green)|(Blue))(?:!|~|\.*)$")]
-		public void RegexColour2(object sender, TriggerEventArgs e) {
+		public void RegexColour2(object? sender, TriggerEventArgs e) {
 			Game game; int index; Colour colour;
 			if (e.Match.Groups[1].Success)
 				colour = Colour.Red;
@@ -2653,7 +2653,7 @@ namespace UNO {
 		}
 		[Command(new string[] { "colour", "color", "ucolour", "ucolor", "co" }, 1, 1, "colour <colour>", "Chooses a colour for your wild card.",
 			Scope = CommandScope.Channel, PriorityHandlerName = nameof(GameCommandPriority))]
-		public void CommandColour(object sender, CommandEventArgs e) {
+		public void CommandColour(object? sender, CommandEventArgs e) {
 			Game game; int index; Colour colour;
 			UnoPlugin.TryParseColour(e.Parameters[0], out colour);
 			if (!this.GameTurnCheck(e.Client, e.Target.Target, e.Sender.Nickname, true, out game, out index))
@@ -2709,14 +2709,14 @@ namespace UNO {
 
 		[Command(new string[] { "call" }, 0, 0, "call", "Announces that you are down to one card. Failure to do this can get you a two-card penalty.",
 			Scope = CommandScope.Channel, PriorityHandlerName = nameof(GameCommandPriority))]
-		public void CommandCall(object sender, CommandEventArgs e) {
+		public void CommandCall(object? sender, CommandEventArgs e) {
 			if (!this.GameCheck(e.Client, e.Target.Target, e.Sender.Nickname, true, out var game, out var index))
 				return;
 			this.CallUno(game, index);
 		}
 
 		[Trigger(@"^UNO\W*$", Scope = CommandScope.Channel)]
-		public void TriggerCall(object sender, TriggerEventArgs e) {
+		public void TriggerCall(object? sender, TriggerEventArgs e) {
 			if (!this.GameCheck(e.Client, e.Target.Target, e.Sender.Nickname, false, out var game, out var index))
 				return;
 			this.CallUno(game, index);
@@ -2733,7 +2733,7 @@ namespace UNO {
 
 		[Command(new string[] { "challenge", "uchallenge" }, 0, 0, "challenge", "Challenges a failure to call UNO or a Wild Draw Four.",
 			Scope = CommandScope.Channel, PriorityHandlerName = nameof(GameCommandPriority))]
-		public void CommandChallenge(object sender, CommandEventArgs e) {
+		public void CommandChallenge(object? sender, CommandEventArgs e) {
 			Game game; int index;
 			if (!this.GameCheck(e.Client, e.Target.Target, e.Sender.Nickname, true, out game, out index))
 				return;
@@ -2822,7 +2822,7 @@ namespace UNO {
 			}
 		}
 
-		private void HintTimer_Elapsed(object sender, ElapsedEventArgs e) {
+		private void HintTimer_Elapsed(object? sender, ElapsedEventArgs e) {
 			foreach (Game game in this.Games.Values) {
 				if (game.HintTimer == sender) {
 					PlayerSettings player;
@@ -3367,7 +3367,7 @@ namespace UNO {
 		}
 
 		[Command(new string[] { "ainudge", "nudge", "uainudge", "unudge" }, 0, 0, "ainudge", "Reminds me to take my turn")]
-		public void ComandAINudge(object sender, CommandEventArgs e) {
+		public void ComandAINudge(object? sender, CommandEventArgs e) {
 			Game game;
 			string key = e.Client.NetworkName + "/" + e.Target;
 			e.Cancel = false;
@@ -3385,13 +3385,13 @@ namespace UNO {
 
 #region Reminder commands
 		[Trigger(@"^tu(?!\S)")]
-		public void RegexTurn(object sender, TriggerEventArgs e) {
+		public void RegexTurn(object? sender, TriggerEventArgs e) {
 			this.CommandTurn(sender, new CommandEventArgs(e.Client, e.Target, e.Sender,
 				new string[] { e.Match.Length > 2 ? "" : null }));
 		}
 		[Command(new string[] { "turn", "uturn", "tu" }, 0, 0, "turn", "Reminds you whose turn it is.",
 			Scope = CommandScope.Channel, PriorityHandlerName = nameof(GameCommandPriority))]
-		public void CommandTurn(object sender, CommandEventArgs e) {
+		public void CommandTurn(object? sender, CommandEventArgs e) {
 			Game game; int index;
 			string key = e.Client.NetworkName + "/" + e.Target;
 			if (!this.Games.TryGetValue(key, out game)) {
@@ -3413,13 +3413,13 @@ namespace UNO {
 		}
 
 		[Trigger(@"^cd(?!\S)")]
-		public void RegexUpCard(object sender, TriggerEventArgs e) {
+		public void RegexUpCard(object? sender, TriggerEventArgs e) {
 			this.CommandUpCard(sender, new CommandEventArgs(e.Client, e.Target, e.Sender,
 				new string[] { e.Match.Length > 2 ? "" : null }));
 		}
 		[Command(new string[] { "card", "upcard", "ucard", "uupcard", "cd" }, 0, 0, "turn", "Shows you the current up-card; that is, the most recent discard.",
 			Scope = CommandScope.Channel, PriorityHandlerName = nameof(GameCommandPriority))]
-		public void CommandUpCard(object sender, CommandEventArgs e) {
+		public void CommandUpCard(object? sender, CommandEventArgs e) {
 			Game game;
 			string key = e.Client.NetworkName + "/" + e.Target;
 			if (!this.Games.TryGetValue(key, out game)) {
@@ -3457,13 +3457,13 @@ namespace UNO {
 		}
 
 		[Trigger(@"^ca(?!\S)")]
-		public void RegexHand(object sender, TriggerEventArgs e) {
+		public void RegexHand(object? sender, TriggerEventArgs e) {
 			this.CommandHand(sender, new CommandEventArgs(e.Client, e.Target, e.Sender,
 				new string[] { e.Match.Length > 2 ? "" : null }));
 		}
 		[Command(new string[] { "hand", "cards", "uhand", "ucards", "ca" }, 0, 0, "hand", "Shows you the cards in your hand",
 			Scope = CommandScope.Channel, PriorityHandlerName = nameof(GameCommandPriority))]
-		public void CommandHand(object sender, CommandEventArgs e) {
+		public void CommandHand(object? sender, CommandEventArgs e) {
 			Game game; int index;
 			string key = e.Client.NetworkName + "/" + e.Target;
 			if (!this.Games.TryGetValue(key, out game)) {
@@ -3486,13 +3486,13 @@ namespace UNO {
 		}
 
 		[Trigger(@"^ct(?!\S)")]
-		public void RegexCount(object sender, TriggerEventArgs e) {
+		public void RegexCount(object? sender, TriggerEventArgs e) {
 			this.CommandCount(sender, new CommandEventArgs(e.Client, e.Target, e.Sender,
 				new string[] { e.Match.Length > 2 ? "" : null }));
 		}
 		[Command(new string[] { "count", "ucount", "ct" }, 0, 0, "count", "Shows you the number of cards in each player's hand",
 			Scope = CommandScope.Channel, PriorityHandlerName = nameof(GameCommandPriority))]
-		public void CommandCount(object sender, CommandEventArgs e) {
+		public void CommandCount(object? sender, CommandEventArgs e) {
 			Game game;
 			string key = e.Client.NetworkName + "/" + e.Target;
 			if (!this.Games.TryGetValue(key, out game)) {
@@ -3541,13 +3541,13 @@ namespace UNO {
 		}
 
 		[Trigger(@"^ti(?!\S)")]
-		public void RegexTime(object sender, TriggerEventArgs e) {
+		public void RegexTime(object? sender, TriggerEventArgs e) {
 			this.CommandTime(sender, new CommandEventArgs(e.Client, e.Target, e.Sender,
 				new string[] { e.Match.Length > 2 ? "" : null }));
 		}
 		[Command(new string[] { "time", "utime", "ti" }, 0, 0, "time", "Tells you how long the game has lasted",
 			Scope = CommandScope.Channel, PriorityHandlerName = nameof(GameCommandPriority))]
-		public void CommandTime(object sender, CommandEventArgs e) {
+		public void CommandTime(object? sender, CommandEventArgs e) {
 			Game game;
 			string key = e.Client.NetworkName + "/" + e.Target;
 			if (!this.Games.TryGetValue(key, out game)) {
@@ -3597,7 +3597,7 @@ namespace UNO {
 #region Cheats
 #if (DEBUG)
 		[Command(new string[] { "gimme", "ugimme" }, 0, 1, "ugimme [card]", "Gives you any card. If you're not debugging, you shouldn't be seeing this...")]
-		public void CommandCheatGive(object sender, CommandEventArgs e) {
+		public void CommandCheatGive(object? sender, CommandEventArgs e) {
 			Game game; int index;
 			string key = e.Client.NetworkName + "/" + e.Target;
 			if (!this.Games.TryGetValue(key, out game)) {
@@ -3618,7 +3618,7 @@ namespace UNO {
 		}
 
 		[Command(new string[] { "clear", "uclear" }, 0, 0, "uclear", "Removes all of your cards. If you're not debugging, you shouldn't be seeing this...")]
-		public void CommandCheatClear(object sender, CommandEventArgs e) {
+		public void CommandCheatClear(object? sender, CommandEventArgs e) {
 			Game game; int index;
 			string key = e.Client.NetworkName + "/" + e.Target;
 			if (!this.Games.TryGetValue(key, out game)) {
@@ -3703,7 +3703,7 @@ namespace UNO {
 		}
 
 		[Command(new string[] { "score", "rank", "uscore", "urank" }, 0, 1, "uscore [name]", "Shows you a player's (by default, your own) total score.")]
-		public void CommandScore(object sender, CommandEventArgs e) {
+		public void CommandScore(object? sender, CommandEventArgs e) {
 			string target;
 			if (e.Parameters.Length == 0)
 				target = e.Sender.Nickname;
@@ -3733,7 +3733,7 @@ namespace UNO {
 		}
 
 		[Command(new string[] { "scorelast", "ranklast", "uscorelast", "uranklast" }, 0, 1, "uscore [name]", "Shows you a player's (by default, your own) total score last period.")]
-		public void CommandScoreLast(object sender, CommandEventArgs e) {
+		public void CommandScoreLast(object? sender, CommandEventArgs e) {
 			string target;
 
 			if (this.ScoreboardLast == null || this.ScoreboardLast.Count == 0) {
@@ -3800,7 +3800,7 @@ namespace UNO {
 		[Command(new string[] { "top", "top10", "utop", "utop10", "unotop10", "leaderboard", "uleaderboard", "scoreboard", "uscoreboard" }, 0, short.MaxValue,
 			"utop [top|nearme] [current|last|alltime] [total|challenge|wins|plays]",
 			"Shows you the leaderboard. \u0002!utop\u0002 with no parameters shows the top 10 total scores. If you specify 'nearme', you'll see entries near yourself if you haven't quite made the top 10.")]
-		public void CommandTop(object sender, CommandEventArgs e) {
+		public void CommandTop(object? sender, CommandEventArgs e) {
 			Dictionary<string, PlayerStats> list = this.ScoreboardCurrent; bool rivals = false; LeaderboardMode sortKey = LeaderboardMode.SortedByScore; string title = "Top scores"; string periodMessage = "";
 			foreach (string s in e.Parameters) {
 				if (s.Equals("top", StringComparison.InvariantCultureIgnoreCase)) {
@@ -4049,7 +4049,7 @@ namespace UNO {
 		}
 
 		[Command(new string[] { "stats", "ustats" }, 0, 3, "ustats [player] [current|last|alltime]", "Shows you a player's (by default, your own) extended statistics.")]
-		public void CommandStats(object sender, CommandEventArgs e) {
+		public void CommandStats(object? sender, CommandEventArgs e) {
 			string target = e.Sender.Nickname;
 			Dictionary<string, PlayerStats> list = this.ScoreboardCurrent;
 			string periodMessage = ""; bool escape = false;
@@ -4165,7 +4165,7 @@ namespace UNO {
 			}
 		}
 
-		internal void StatsResetTimer_Elapsed(object sender, System.Timers.ElapsedEventArgs e) {
+		internal void StatsResetTimer_Elapsed(object? sender, System.Timers.ElapsedEventArgs e) {
 			if (this.StatsPeriodEnd == default(DateTime))
 				return;
 			if (StatsPeriodEnd <= DateTime.UtcNow)

@@ -44,7 +44,7 @@ namespace CBot {
 		public void Reply(string format, params object[] args) => this.Reply(string.Format(format, args));
 		public void Whisper(string message) => Bot.Say(this.Client, this.Sender.Nickname, message);
 		public void Whisper(string format, params object[] args) => this.Whisper(string.Format(format, args));
-		public void Fail(string message) => Bot.Say(this.Client, this.Target.Client.NetworkName == "Twitch" ? this.Target.Target : this.Sender.Nickname, message);
+		public void Fail(string message) => Bot.Say(this.Client, this.Target.Client.NetworkName is "Twitch" or "YouTube" ? this.Target.Target : this.Sender.Nickname, message);
 		public void Fail(string format, params object[] args) => this.Fail(string.Format(format, args));
 	}
 

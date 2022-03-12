@@ -1,12 +1,14 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <TargetFramework>net5.0</TargetFramework>
+    <TargetFramework>net6.0</TargetFramework>
     <Nullable>enable</Nullable>
-    <Version>2.0.0</Version>
+    <Version>2.1.0</Version>
     <Authors>Andrio Celos</Authors>
     <Product>Channel Notifier</Product>
-    <Copyright>© 2013-2021 Andrea Giannone</Copyright>
+    <Copyright>© 2013-2022 Andrea Giannone</Copyright>
+    <PackageProjectUrl>https://github.com/AndrioCelos/CBot</PackageProjectUrl>
+    <RepositoryUrl>https://github.com/AndrioCelos/CBot</RepositoryUrl>
   </PropertyGroup>
 
   <ItemGroup>

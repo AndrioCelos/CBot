@@ -10,7 +10,7 @@ namespace BotControl {
 
 		[Command("connect", 0, 1, "connect [server]", "Connects to a server, or, with no parameter, lists all servers I'm on.",
 			Permission = "me.connect")]
-		public void CommandConnect(object sender, CommandEventArgs e) {
+		public void CommandConnect(object? sender, CommandEventArgs e) {
 			if (e.Parameters.Length == 0) {
 				e.Reply("I'm connected to the following servers:");
 				foreach (ClientEntry clientEntry in this.Bot.Clients) {
@@ -22,7 +22,7 @@ namespace BotControl {
 						case IrcClientState.Connecting:
 							e.Reply(string.Format("{0} - \u00038connecting\u000F.", client.NetworkName));
 							break;
-						case IrcClientState.SslHandshaking:
+						case IrcClientState.TlsHandshaking:
 							e.Reply(string.Format("{0} - \u00038establishing TLS connection\u000F.", client.NetworkName));
 							break;
 						case IrcClientState.SaslAuthenticating:
@@ -72,7 +72,7 @@ namespace BotControl {
 
 		[Command("join", 1, 2, "join [server address] <channel>", "Instructs me to join a channel on IRC.",
 			Permission = "me.ircsend")]
-		public void CommandJoin(object sender, CommandEventArgs e) {
+		public void CommandJoin(object? sender, CommandEventArgs e) {
 			IrcClient targetConnection; string targetChannel;
 
 			if (e.Parameters.Length == 2) {
@@ -107,12 +107,12 @@ namespace BotControl {
 			else
 				e.Reply(string.Format("Attempting to join \u0002{1}\u0002 on \u0002{0}\u0002.", targetConnection.Address, targetChannel));
 
-			targetConnection.Send("JOIN {0}", targetChannel);
+			targetConnection.Send("JOIN", targetChannel);
 		}
 
 		[Command("part", 1, 3, "part [server address] <channel> [message]", "Instructs me to leave a channel on IRC.",
 			Permission = "me.ircsend")]
-		public void CommandPart(object sender, CommandEventArgs e) {
+		public void CommandPart(object? sender, CommandEventArgs e) {
 			IrcClient targetConnection; string targetAddress; string targetChannel; string message;
 
 			if (e.Parameters.Length == 3) {
@@ -120,7 +120,7 @@ namespace BotControl {
 				targetChannel = e.Parameters[1];
 				message = e.Parameters[2];
 			} else if (e.Parameters.Length == 2) {
-				if (((IrcClient) sender).IsChannel(e.Parameters[0])) {
+				if (e.Client.IsChannel(e.Parameters[0])) {
 					targetAddress = null;
 					targetChannel = e.Parameters[0];
 					message = e.Parameters[1];
@@ -129,7 +129,6 @@ namespace BotControl {
 					targetChannel = e.Parameters[1];
 					message = null;
 				}
-				targetChannel = e.Parameters[1];
 			} else {
 				targetAddress = null;
 				targetChannel = e.Parameters[0];
@@ -167,14 +166,14 @@ namespace BotControl {
 				e.Reply(string.Format("Leaving \u0002{1}\u0002 on \u0002{0}\u0002.", targetConnection.Address, targetChannel));
 
 			if (message == null)
-				targetConnection.Send("PART {0}", targetChannel);
+				targetConnection.Send("PART", targetChannel);
 			else
-				targetConnection.Send("PART {0} :{1}", targetChannel, message);
+				targetConnection.Send("PART", targetChannel, message);
 		}
 
 		[Command("quit", 1, 2, "quit [server address] [message]", "Instructs me to quit an IRC server.",
 			Permission = "me.ircsend")]
-		public void CommandQuit(object sender, CommandEventArgs e) {
+		public void CommandQuit(object? sender, CommandEventArgs e) {
 			IrcClient targetConnection; string targetAddress; string message;
 
 			if (e.Parameters.Length == 2) {
@@ -216,13 +215,13 @@ namespace BotControl {
 				if (message == null)
 					targetConnection.Send("QUIT");
 				else
-					targetConnection.Send("QUIT :{0}", message);
+					targetConnection.Send("QUIT", message);
 			}
 		}
 
 		[Command("disconnect", 1, 2, "disconnect [server address] [message]", "Instructs me to drop my connection to an IRC server.",
 			Permission = "me.ircsend")]
-		public void CommandDisconnect(object sender, CommandEventArgs e) {
+		public void CommandDisconnect(object? sender, CommandEventArgs e) {
 			IrcClient targetConnection; string targetAddress; string message;
 
 			if (e.Parameters.Length == 2) {
@@ -262,14 +261,14 @@ namespace BotControl {
 				if (message == null)
 					targetConnection.Send("QUIT");
 				else
-					targetConnection.Send("QUIT :{0}", message);
+					targetConnection.Send("QUIT", message);
 			}
 			targetConnection.Disconnect();
 		}
 
 		[Command("raw", 1, 2, "raw [server] <message>", "Sends a raw command to the server.",
 			Permission = "me.ircsend")]
-		public void CommandRaw(object sender, CommandEventArgs e) {
+		public void CommandRaw(object? sender, CommandEventArgs e) {
 			IrcClient targetConnection; string targetAddress; string command;
 
 			if (e.Parameters.Length == 2) {
@@ -308,7 +307,7 @@ namespace BotControl {
 
 		[Command("die", 1, 1, "die [message]", "Shuts me down",
 			Permission = "me.die")]
-		public void CommandDie(object sender, CommandEventArgs e) {
+		public void CommandDie(object? sender, CommandEventArgs e) {
 			string message;
 
 			if (e.Parameters.Length == 1) {
@@ -320,7 +319,7 @@ namespace BotControl {
 			foreach (ClientEntry clientEntry in this.Bot.Clients) {
 				IrcClient client = clientEntry.Client;
 				if (client.State >= IrcClientState.Registering)
-					client.Send("QUIT :{0}", message);
+					client.Send("QUIT", message);
 			}
 			System.Threading.Thread.Sleep(2000);
 			Environment.Exit(0);
@@ -328,7 +327,7 @@ namespace BotControl {
 
 		[Command("reload", 0, 1, "Reloads configuration files.", "reload config|plugins|users",
 			Permission = "me.reload")]
-		public void CommandReload(object sender, CommandEventArgs e) {
+		public void CommandReload(object? sender, CommandEventArgs e) {
 			if (e.Parameters.Length == 0 || e.Parameters[0].Equals("config", StringComparison.InvariantCultureIgnoreCase)) {
 				e.Reply("Reloading configuration.");
 				this.Bot.LoadConfig();
@@ -345,7 +344,7 @@ namespace BotControl {
 
 #if (DEBUG)
 		[Command("whois", 1, 1, "whois <nickname>", "Tests asynchronous commands.", Permission = ".debug")]
-		public async void CommandWhois(object sender, CommandEventArgs e) {
+		public async void CommandWhois(object? sender, CommandEventArgs e) {
 			IrcUser user;
 			if (e.Client.Users.TryGetValue(e.Parameters[0], out user)) {
 				await user.GetAccountAsync();
@@ -354,7 +353,7 @@ namespace BotControl {
 		}
 
 		[Command("names", 1, 2, "names [server] <channel>", "Lists users on a channel.", Permission = ".debug")]
-		public void CommandNames(object sender, CommandEventArgs e) {
+		public void CommandNames(object? sender, CommandEventArgs e) {
 			IrcClient targetClient; string targetChannel;
 
 			if (e.Parameters.Length == 2) {
@@ -380,7 +379,7 @@ namespace BotControl {
 		}
 
 		[Command("who", 1, 2, "who [server] <nickname>", "Returns a user's hostmask.", Permission = ".debug")]
-		public void CommandWho(object sender, CommandEventArgs e) {
+		public void CommandWho(object? sender, CommandEventArgs e) {
 			IrcClient targetClient; string targetNickname;
 
 			if (e.Parameters.Length == 2) {
@@ -406,7 +405,7 @@ namespace BotControl {
 		}
 
 		[Command("channels", 1, 2, "channels [server] <nickname>", "Lists channels a user is on.", Permission = ".debug")]
-		public void CommandChannels(object sender, CommandEventArgs e) {
+		public void CommandChannels(object? sender, CommandEventArgs e) {
 			IrcClient targetClient; string targetNickname;
 
 			if (e.Parameters.Length == 2) {

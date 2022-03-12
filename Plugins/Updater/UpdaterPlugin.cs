@@ -20,12 +20,12 @@ namespace Updater {
 			//AppDomain.CurrentDomain.ProcessExit -= this.Interrupt;
 		}
 
-		private void Console_CancelKeyPress(object sender, ConsoleCancelEventArgs e) {
+		private void Console_CancelKeyPress(object? sender, ConsoleCancelEventArgs e) {
 			// SIGINT
 			this.Interrupt(sender, e);
 		}
 
-		private void Interrupt(object sender, EventArgs e) {
+		private void Interrupt(object? sender, EventArgs e) {
 			Console.WriteLine("Received SIGINT. Saving plugins...");
 			foreach (var plugin in this.Bot.Plugins)
 				plugin.Obj.OnSave();

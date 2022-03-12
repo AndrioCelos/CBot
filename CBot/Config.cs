@@ -1,6 +1,8 @@
 ﻿using System;
 using System.Collections.Generic;
 
+using Newtonsoft.Json.Linq;
+
 namespace CBot {
 	public sealed class Config {
 		public string[] Nicknames = new[] { "CBot" };
@@ -12,6 +14,6 @@ namespace CBot {
 		public string[] CommandPrefixes = new[] { "!" };
 		public Dictionary<string, string[]> ChannelCommandPrefixes = new(StringComparer.OrdinalIgnoreCase);
 
-		public List<ClientEntry> Networks = new();
+		public List<JObject> Networks = new();
 	}
 }

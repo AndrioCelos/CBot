@@ -1,12 +1,14 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <TargetFramework>net5.0</TargetFramework>
-    <Version>2.0.0</Version>
+    <TargetFramework>net6.0</TargetFramework>
+    <Version>2.1.0</Version>
     <Authors>Andrio Celos</Authors>
     <Product>Pokédex</Product>
-    <Copyright>© 2021 Andrea Giannone</Copyright>
+    <Copyright>© 2021-2022 Andrea Giannone</Copyright>
 	<Nullable>enable</Nullable>
+	<PackageProjectUrl>https://github.com/AndrioCelos/CBot</PackageProjectUrl>
+	<RepositoryUrl>https://github.com/AndrioCelos/CBot</RepositoryUrl>
   </PropertyGroup>
 
   <ItemGroup>

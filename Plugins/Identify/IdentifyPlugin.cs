@@ -8,7 +8,7 @@ namespace IdentifyPlugin {
 		public override string Name => "Identify";
 
 		[Command(new string[] { "id", "identify", "login" }, 1, 2, "id [username] <password>", "Identifies you to me using a password")]
-		public void CommandIdentify(object sender, CommandEventArgs e) {
+		public void CommandIdentify(object? sender, CommandEventArgs e) {
 			if (e.Target is IrcChannel) {  // A channel message. Identification should (obviously) be done privately.
 				e.Whisper(Bot.Choose(Bot.Choose("Hey ", "") + e.Sender.Nickname + ", ", "") + Bot.Choose("I think " + Bot.Choose("that ", "")) + Bot.Choose("you should probably ", "you'll want to ") + Bot.Choose("run ", "use ", "invoke ") + "that command in a PM to me, " + Bot.Choose("not in a channel.", "rather than in a channel."), SayOptions.Capitalise);
 				// TODO: Prompt the user to change their password.

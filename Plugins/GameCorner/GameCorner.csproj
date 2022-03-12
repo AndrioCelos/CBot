@@ -3,12 +3,10 @@
   <PropertyGroup>
     <TargetFramework>net6.0</TargetFramework>
     <Nullable>enable</Nullable>
-    <Version>2.1.0</Version>
-    <Copyright>© 2017-2022 Andrea Giannone</Copyright>
-    <Product>Help Command</Product>
+    <Version>0.0.0</Version>
     <Authors>Andrio Celos</Authors>
-    <PackageProjectUrl>https://github.com/AndrioCelos/CBot</PackageProjectUrl>
-    <RepositoryUrl>https://github.com/AndrioCelos/CBot</RepositoryUrl>
+    <Product>Game Corner</Product>
+    <Copyright>© 2016-2021 Andrea Giannone</Copyright>
   </PropertyGroup>
 
   <ItemGroup>

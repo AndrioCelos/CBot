@@ -158,7 +158,7 @@ namespace BattleArenaManager {
 			} catch (ThreadAbortException) { }
 		}
 
-		public override bool OnChannelJoin(object sender, ChannelJoinEventArgs e) {
+		public override bool OnChannelJoin(object? sender, ChannelJoinEventArgs e) {
 			if (e.Sender.Nickname == ((IrcClient) sender).Me.Nickname) {
 				BattleOff = false;
 				if (this.ArenaConnection == null) this.CheckChannels();
@@ -274,14 +274,14 @@ namespace BattleArenaManager {
 			File.WriteAllText(Path.Combine("data", this.Key, "LastUpdate.txt"), this.LastCommitTime.ToString("u"));
 		}
 
-		public override bool OnChannelMessage(object sender, ChannelMessageEventArgs e) {
+		public override bool OnChannelMessage(object? sender, ChannelMessageEventArgs e) {
 			if (((IrcClient) sender).Address.EndsWith(".DCC") || (sender == this.ArenaConnection && ((IrcClient) sender).CaseMappingComparer.Equals(e.Channel.Name, this.ArenaChannel) &&
 																  ((IrcClient) sender).CaseMappingComparer.Equals(e.Sender.Nickname, this.ArenaNickname)))
 				this.RunArenaRegex((IrcClient) sender, e.Channel, e.Sender, e.Message);
 			return base.OnChannelMessage(sender, e);
 		}
 
-		public override bool OnPrivateNotice(object sender, PrivateMessageEventArgs e) {
+		public override bool OnPrivateNotice(object? sender, PrivateMessageEventArgs e) {
 			if (this.ApplyUpdateTaskSource != null && e.Sender.Nickname == this.ArenaNickname && e.Sender.Client == this.ArenaConnection && e.Message == "OK") {
 				this.ApplyUpdateTaskSource.SetResult(0);
 				this.ApplyUpdateTaskSource = null;
@@ -313,13 +313,13 @@ namespace BattleArenaManager {
 		[ArenaRegex(@"^\x0314\x02The President of the Allied Forces\x02 has been \x02kidnapped by monsters\x02! Are you a bad enough dude to save the president\? \x034The rescue party will depart in(?: (\d+(?:\.\d+)?) ?min(?:ute)?\(?s?\)?)?(?: (\d+(?:\.\d+)?) ?sec(?:ond)?\(?s?\)?)?\. Type \x02!enter\x02 if you wish to join the battle!")]
 		[ArenaRegex(@"^\x034An \x02evil treasure chest Mimic\x02 is ready to fight\S? The battle will begin in(?: (\d+(?:\.\d+)?) ?min(?:ute)?\(?s?\)?)?(?: (\d+(?:\.\d+)?) ?sec(?:ond)?\(?s?\)?)?\. Type \x02!enter\x02 if you wish to join the battle!")]
 		[ArenaRegex(@"\x034A \x021 vs 1 AI Match\x02 is about to begin! The battle will begin in(?: (\d+(?:\.\d+)?) ?min(?:ute)?\(?s?\)?)?(?: (\d+(?:\.\d+)?) ?sec(?:ond)?\(?s?\)?)?\.")]
-		internal void OnBattleOpen(object sender, TriggerEventArgs e) {
+		internal void OnBattleOpen(object? sender, TriggerEventArgs e) {
 			BattleOff = false;
 			LastBattle = DateTime.Now;
 			ConsoleUtils.WriteLine("[" + this.Key + "] A battle is starting.");
 		}
 
-		public override bool OnUserQuit(object sender, QuitEventArgs e) {
+		public override bool OnUserQuit(object? sender, QuitEventArgs e) {
 			if (Environment.OSVersion.Platform == PlatformID.Unix || Environment.OSVersion.Platform == PlatformID.MacOSX) {
 				if (this.ReviveBot && sender == this.ArenaConnection && ((IrcClient) sender).CaseMappingComparer.Equals(e.Sender.Nickname, this.ArenaNickname) &&
 					e.Message.StartsWith("Ping timeout"))
@@ -331,7 +331,7 @@ namespace BattleArenaManager {
 
 		[ArenaRegex(new string[] { @"^\x030?4The Battle is Over!",
 			@"^\x030?4There were no players to meet the monsters on the battlefield! \x02The battle is over\x02."})]
-		internal async void OnBattleEnd(object sender, TriggerEventArgs e) {
+		internal async void OnBattleEnd(object? sender, TriggerEventArgs e) {
 			BattleOff = true;
 			ConsoleUtils.WriteLine("[" + this.Key + "] A battle has ended.");
 
@@ -351,7 +351,7 @@ namespace BattleArenaManager {
 		}
 
 		[Command("check", 0, 0, "!check", "Checks for a Battle Arena update.", Permission = ".check")]
-		public async void CommandCheck(object sender, CommandEventArgs e) {
+		public async void CommandCheck(object? sender, CommandEventArgs e) {
 			e.Whisper("Checking for an update...");
 
 			try {
@@ -363,7 +363,7 @@ namespace BattleArenaManager {
 		}
 
 		[Command("update", 0, 0, "!update", "Updates the Battle Arena bot.", Permission = ".update")]
-		public async void CommandUpdate(object sender, CommandEventArgs e) {
+		public async void CommandUpdate(object? sender, CommandEventArgs e) {
 			e.Whisper("Installing the latest version...");
 			try {
 				var result = await this.ApplyUpdate(true, e.Channel);
@@ -378,7 +378,7 @@ namespace BattleArenaManager {
 			}
 		}
 
-		private async void checkTimer_Elapsed(object sender, ElapsedEventArgs e) {
+		private async void checkTimer_Elapsed(object? sender, ElapsedEventArgs e) {
 			try {
 				await this.CheckUpdate(null);
 			} catch (Exception ex) {

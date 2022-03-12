@@ -129,7 +129,7 @@ namespace GreedyDice {
 		#endregion
 
 		[Command(new string[] { "set", "dset" }, 1, 2, "set <property> <value>", "Changes settings for this plugin.")]
-		public async void CommandSet(object sender, CommandEventArgs e) {
+		public async void CommandSet(object? sender, CommandEventArgs e) {
 			string property = e.Parameters[0];
 			string value = e.Parameters.Length == 1 ? null : e.Parameters[1];
 			int value2; bool value3;
@@ -233,7 +233,7 @@ namespace GreedyDice {
 
 
 		[Command(new string[] { "join", "djoin" }, 0, 0, "djoin", "Enters you into a game of Greedy Dice.", Scope = CommandScope.Channel)]
-		public void CommandJoin(object sender, CommandEventArgs e) {
+		public void CommandJoin(object? sender, CommandEventArgs e) {
 			Game game;
 			string key = e.Client.NetworkName + "/" + e.Target;
 			if (this.Games.TryGetValue(key, out game))
@@ -271,7 +271,7 @@ namespace GreedyDice {
 
 		[Command(new string[] { "quit", "dquit", "leave", "dleave", "part", "dpart" }, 0, 0, "uquit", "Removes you from the game of Greedy Dice.",
 			Scope = CommandScope.Channel)]
-		public void CommandQuit(object sender, CommandEventArgs e) {
+		public void CommandQuit(object? sender, CommandEventArgs e) {
 			Game game;
 			string key = e.Client.Extensions.NetworkName + "/" + e.Target;
 			if (!this.Games.TryGetValue(key, out game))
@@ -289,7 +289,7 @@ namespace GreedyDice {
 			}
 		}
 
-		public override bool OnNicknameChange(object sender, NicknameChangeEventArgs e) {
+		public override bool OnNicknameChange(object? sender, NicknameChangeEventArgs e) {
 			this.RenamePlayer(((IrcClient) sender).Extensions.NetworkName, e.Sender.Nickname, e.NewNickname);
 			return base.OnNicknameChange(sender, e);
 		}
@@ -322,7 +322,7 @@ namespace GreedyDice {
 			}
 		}
 
-		private void GameTimer_Elapsed(object sender, ElapsedEventArgs e) {
+		private void GameTimer_Elapsed(object? sender, ElapsedEventArgs e) {
 			foreach (Game game in this.Games.Values) {
 				if (game.GameTimer == sender) {
 					if (game.IsOpen) {
@@ -390,7 +390,7 @@ namespace GreedyDice {
 
 		[Command(new string[] { "roll", "droll" }, 0, 0, "roll", "Allows you to roll the dice for points during your turn.",
 			Scope = CommandScope.Channel)]
-		public void CommandRoll(object sender, CommandEventArgs e) {
+		public void CommandRoll(object? sender, CommandEventArgs e) {
 			Game game; int playerIndex;
 			if (!this.GameTurnCheck(e.Client, e.Target.Target, e.Sender.Nickname, true, out game, out playerIndex)) return;
 			lock (game.Lock) {
@@ -445,7 +445,7 @@ namespace GreedyDice {
 
 		[Command(new string[] { "pass", "dpass" }, 0, 0, "pass", "Ends your turn, keeping all the points you've won.",
 			Scope = CommandScope.Channel)]
-		public void CommandPass(object sender, CommandEventArgs e) {
+		public void CommandPass(object? sender, CommandEventArgs e) {
 			Game game; int playerIndex;
 			if (!this.GameTurnCheck(e.Client, e.Target.Target, e.Sender.Nickname, true, out game, out playerIndex)) return;
 			lock (game.Lock) {
@@ -622,7 +622,7 @@ namespace GreedyDice {
 				this.NextPlayer(game, false);
 		}
 
-		public override bool OnChannelLeave(object sender, ChannelPartEventArgs e) {
+		public override bool OnChannelLeave(object? sender, ChannelPartEventArgs e) {
 			Game game;
 			if (this.Games.TryGetValue(((IrcClient) sender).Extensions.NetworkName + "/" + e.Channel, out game)) {
 				lock (game.Lock) {

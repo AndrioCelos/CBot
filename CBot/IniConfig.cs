@@ -3,6 +3,10 @@ using System.Collections.Generic;
 using System.IO;
 using System.Text.RegularExpressions;
 
+using AnIRC;
+
+using Newtonsoft.Json.Linq;
+
 using static System.StringSplitOptions;
 
 namespace CBot {
@@ -54,7 +58,7 @@ namespace CBot {
 					port = section2.Value.TryGetValue("Port", out value) ? int.Parse(value)
 						: tls ? 6697 : 6667;
 
-					var network = new ClientEntry(section2.Key, address, port) { TLS = tls };
+					var network = new ClientEntry(section2.Key, address, port) { Tls = tls ? TlsMode.Tls : TlsMode.StartTlsOptional };
 
 					if (section2.Value.TryGetValue("Password", out value)) network.Password = value;
 
@@ -67,7 +71,7 @@ namespace CBot {
 						foreach (var channel in value.Split(new[] { ',', ' ' }, RemoveEmptyEntries))
 							network.AutoJoin.Add(new AutoJoinChannel(channel));
 					}
-					if (section2.Value.TryGetValue("SSL", out value)) network.TLS = Bot.ParseBoolean(value);
+					if (section2.Value.TryGetValue("SSL", out value)) network.Tls = Bot.ParseBoolean(value) ? TlsMode.Tls : TlsMode.StartTlsOptional;
 					if (section2.Value.TryGetValue("AllowInvalidCertificate", out value)) network.AcceptInvalidTlsCertificate = Bot.ParseBoolean(value);
 					if (section2.Value.TryGetValue("SASL-Username", out value)) network.SaslUsername = value;
 					if (section2.Value.TryGetValue("SASL-Password", out value)) network.SaslPassword = value;
@@ -84,7 +88,7 @@ namespace CBot {
 						network.NickServ = registration;
 					}
 
-					config.Networks.Add(network);
+					config.Networks.Add(JObject.FromObject(network));
 				}
 			}
 		}

@@ -54,7 +54,7 @@ namespace Time {
 			}
 		}
 
-		public override bool OnPrivateNotice(object sender, PrivateMessageEventArgs e) {
+		public override bool OnPrivateNotice(object? sender, PrivateMessageEventArgs e) {
 			if (e.Message.StartsWith("\u0001") && e.Message.EndsWith("\u0001")) {
 				if (e.Message.StartsWith("\u0001TIME ")) {
 					lock (requests) {
@@ -139,7 +139,7 @@ namespace Time {
 		}
 
 		[Command(new string[] { "time", "timezone" }, 1, 1, "time [\u001Fzone\u001F] \u0002or\u0002 time \u001Ftime\u001F [in \u001Fzone\u001F] [to \u001Fzone\u001F]", "Shows the time, or converts a time between zones.")]
-		public void CommandTime(object sender, CommandEventArgs e) {
+		public void CommandTime(object? sender, CommandEventArgs e) {
 			string key = e.Client.NetworkName + "/" + e.Sender.Nickname;
 			Request request;
 			if (requests.TryGetValue(key, out request)) {
@@ -262,7 +262,7 @@ namespace Time {
 			return null;
 		}
 
-		private void Request_Timeout(object sender, System.Timers.ElapsedEventArgs e) {
+		private void Request_Timeout(object? sender, System.Timers.ElapsedEventArgs e) {
 			var request = requests.Values.FirstOrDefault(request2 => request2.Timer == sender);
 			if (request == null) return;
 			Bot.Say(request.Connection, request.Sender.Nickname, "Didn't receive a CTCP TIME reply from you.");

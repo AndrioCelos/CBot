@@ -42,13 +42,11 @@ namespace BattleBot {
 			this.State = IrcClientState.Online;
 		}
 
-		public override void Disconnect() => this.client?.Close();
+		public override void DisconnectTcpClient() => this.client?.Close();
 
-		public override void Send(string t) {
+		public override void Send(IrcLine line) {
 			if (this.State != IrcClientState.Online) return;
-			ConsoleUtils.WriteLine("%cDKGRAY{0} %cDKRED<<%cDKGRAY {1}%r", this.Address, t.Replace("%", "%%"));
-
-			var line = IrcLine.Parse(t);
+			ConsoleUtils.WriteLine("%cDKGRAY{0} %cDKRED<<%cDKGRAY {1}%r", this.Address, line.ToString().Replace("%", "%%"));
 
 			if ((line.Message.Equals("PRIVMSG", StringComparison.OrdinalIgnoreCase) || line.Message.Equals("NOTICE", StringComparison.OrdinalIgnoreCase)) && (line.Parameters[0] == "#" ||
 				IrcStringComparer.RFC1459.Equals("#Lobby", line.Parameters[0]) ||

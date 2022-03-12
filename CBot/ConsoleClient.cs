@@ -22,11 +22,9 @@ namespace CBot {
 			this.ReceivedLine(":User!User@console JOIN #");
 		}
 
-		public override void Disconnect() { }
+		public override void DisconnectTcpClient() { }
 
-		public override void Send(string t) {
-			var line = IrcLine.Parse(t);
-
+		public override void Send(IrcLine line) {
 			if ((line.Message.Equals("PRIVMSG", StringComparison.OrdinalIgnoreCase) || line.Message.Equals("NOTICE", StringComparison.OrdinalIgnoreCase)) &&
 				(line.Parameters[0] == "#" || IrcStringComparer.RFC1459.Equals(line.Parameters[0], "User"))) {
 				// Emulate a channel message to # or PM to 'User' by sticking it on the console.
@@ -104,16 +102,16 @@ namespace CBot {
 						switch (colour % 16) {
 							case -2: Console.ForegroundColor = originalBackground; break;
 							case -1: case 99: Console.ForegroundColor = originalForeground; break;
-							case  0: Console.ForegroundColor = ConsoleColor.White; break;
-							case  1: Console.ForegroundColor = ConsoleColor.Black; break;
-							case  2: Console.ForegroundColor = ConsoleColor.DarkBlue; break;
-							case  3: Console.ForegroundColor = ConsoleColor.DarkGreen; break;
-							case  4: Console.ForegroundColor = ConsoleColor.Red; break;
-							case  5: Console.ForegroundColor = ConsoleColor.DarkRed; break;
-							case  6: Console.ForegroundColor = ConsoleColor.DarkMagenta; break;
-							case  7: Console.ForegroundColor = ConsoleColor.DarkYellow; break;
-							case  8: Console.ForegroundColor = ConsoleColor.Yellow; break;
-							case  9: Console.ForegroundColor = ConsoleColor.Green; break;
+							case 0: Console.ForegroundColor = ConsoleColor.White; break;
+							case 1: Console.ForegroundColor = ConsoleColor.Black; break;
+							case 2: Console.ForegroundColor = ConsoleColor.DarkBlue; break;
+							case 3: Console.ForegroundColor = ConsoleColor.DarkGreen; break;
+							case 4: Console.ForegroundColor = ConsoleColor.Red; break;
+							case 5: Console.ForegroundColor = ConsoleColor.DarkRed; break;
+							case 6: Console.ForegroundColor = ConsoleColor.DarkMagenta; break;
+							case 7: Console.ForegroundColor = ConsoleColor.DarkYellow; break;
+							case 8: Console.ForegroundColor = ConsoleColor.Yellow; break;
+							case 9: Console.ForegroundColor = ConsoleColor.Green; break;
 							case 10: Console.ForegroundColor = ConsoleColor.DarkCyan; break;
 							case 11: Console.ForegroundColor = ConsoleColor.Cyan; break;
 							case 12: Console.ForegroundColor = ConsoleColor.Blue; break;
@@ -126,16 +124,16 @@ namespace CBot {
 						switch (backgroundColour % 16) {
 							case -2: case 99: Console.BackgroundColor = originalBackground; break;
 							case -1: Console.BackgroundColor = originalForeground; break;
-							case  0: Console.BackgroundColor = ConsoleColor.White; break;
-							case  1: Console.BackgroundColor = ConsoleColor.Black; break;
-							case  2: Console.BackgroundColor = ConsoleColor.DarkBlue; break;
-							case  3: Console.BackgroundColor = ConsoleColor.DarkGreen; break;
-							case  4: Console.BackgroundColor = ConsoleColor.Red; break;
-							case  5: Console.BackgroundColor = ConsoleColor.DarkRed; break;
-							case  6: Console.BackgroundColor = ConsoleColor.DarkMagenta; break;
-							case  7: Console.BackgroundColor = ConsoleColor.DarkYellow; break;
-							case  8: Console.BackgroundColor = ConsoleColor.Yellow; break;
-							case  9: Console.BackgroundColor = ConsoleColor.Green; break;
+							case 0: Console.BackgroundColor = ConsoleColor.White; break;
+							case 1: Console.BackgroundColor = ConsoleColor.Black; break;
+							case 2: Console.BackgroundColor = ConsoleColor.DarkBlue; break;
+							case 3: Console.BackgroundColor = ConsoleColor.DarkGreen; break;
+							case 4: Console.BackgroundColor = ConsoleColor.Red; break;
+							case 5: Console.BackgroundColor = ConsoleColor.DarkRed; break;
+							case 6: Console.BackgroundColor = ConsoleColor.DarkMagenta; break;
+							case 7: Console.BackgroundColor = ConsoleColor.DarkYellow; break;
+							case 8: Console.BackgroundColor = ConsoleColor.Yellow; break;
+							case 9: Console.BackgroundColor = ConsoleColor.Green; break;
 							case 10: Console.BackgroundColor = ConsoleColor.DarkCyan; break;
 							case 11: Console.BackgroundColor = ConsoleColor.Cyan; break;
 							case 12: Console.BackgroundColor = ConsoleColor.Blue; break;
@@ -156,16 +154,16 @@ namespace CBot {
 						Console.Write("\u001B[0");
 						switch (colour % 16) {
 							case -2: case -1: case 99: Console.Write(";39"); break;
-							case  0: Console.Write(";97"); break;
-							case  1: Console.Write(";30"); break;
-							case  2: Console.Write(";34"); break;
-							case  3: Console.Write(";32"); break;
-							case  4: Console.Write(";91"); break;
-							case  5: Console.Write(";31"); break;
-							case  6: Console.Write(";35"); break;
-							case  7: Console.Write(";33"); break;
-							case  8: Console.Write(";93"); break;
-							case  9: Console.Write(";92"); break;
+							case 0: Console.Write(";97"); break;
+							case 1: Console.Write(";30"); break;
+							case 2: Console.Write(";34"); break;
+							case 3: Console.Write(";32"); break;
+							case 4: Console.Write(";91"); break;
+							case 5: Console.Write(";31"); break;
+							case 6: Console.Write(";35"); break;
+							case 7: Console.Write(";33"); break;
+							case 8: Console.Write(";93"); break;
+							case 9: Console.Write(";92"); break;
 							case 10: Console.Write(";36"); break;
 							case 11: Console.Write(";96"); break;
 							case 12: Console.Write(";94"); break;
@@ -175,22 +173,22 @@ namespace CBot {
 						}
 						switch (backgroundColour % 16) {
 							case -2: case -1: case 99: Console.Write(";49"); break;
-							case  0: Console.Write(";107"); break;
-							case  1: Console.Write( ";40"); break;
-							case  2: Console.Write( ";44"); break;
-							case  3: Console.Write( ";42"); break;
-							case  4: Console.Write(";101"); break;
-							case  5: Console.Write( ";41"); break;
-							case  6: Console.Write( ";45"); break;
-							case  7: Console.Write( ";43"); break;
-							case  8: Console.Write(";103"); break;
-							case  9: Console.Write(";102"); break;
-							case 10: Console.Write( ";46"); break;
+							case 0: Console.Write(";107"); break;
+							case 1: Console.Write(";40"); break;
+							case 2: Console.Write(";44"); break;
+							case 3: Console.Write(";42"); break;
+							case 4: Console.Write(";101"); break;
+							case 5: Console.Write(";41"); break;
+							case 6: Console.Write(";45"); break;
+							case 7: Console.Write(";43"); break;
+							case 8: Console.Write(";103"); break;
+							case 9: Console.Write(";102"); break;
+							case 10: Console.Write(";46"); break;
 							case 11: Console.Write(";106"); break;
 							case 12: Console.Write(";104"); break;
 							case 13: Console.Write(";105"); break;
 							case 14: Console.Write(";100"); break;
-							case 15: Console.Write( ";47"); break;
+							case 15: Console.Write(";47"); break;
 						}
 						if (bold) Console.Write(";1");
 						if (underline) Console.Write(";4");

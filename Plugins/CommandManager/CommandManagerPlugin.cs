@@ -39,7 +39,7 @@ namespace CommandManager {
 		}
 
 		[Command("addalias", 2, 2, "addalias <alias> <command>", "Adds an alias to a command.", Permission = ".addalias")]
-		public async void CommandAddAlias(object sender, CommandEventArgs e) {
+		public async void CommandAddAlias(object? sender, CommandEventArgs e) {
 			string alias = e.Parameters[1];
 			Command command = (await Bot.GetCommand(e.Sender, e.Target, null, alias, null)).Value.command;
 			foreach (var pluginEntry in Bot.Plugins) {
@@ -81,7 +81,7 @@ namespace CommandManager {
 		}
 
 		[Command("delalias", 2, 2, "delalias <alias>", "Removes an alias from a command.", Permission = ".delalias")]
-		public async void CommandDeleteAlias(object sender, CommandEventArgs e) {
+		public async void CommandDeleteAlias(object? sender, CommandEventArgs e) {
 			string alias = e.Parameters[0];
 			Command command;
 			foreach (var pluginEntry in Bot.Plugins) {
@@ -123,7 +123,7 @@ namespace CommandManager {
 
 		[Command("addtrigger", 1, 1, "addtrigger /<regex>/ <command>", "Sets up a trigger that runs a command.",
 			Permission = ".addtrigger")]
-		public async void CommandAddTrigger(object sender, CommandEventArgs e) {
+		public async void CommandAddTrigger(object? sender, CommandEventArgs e) {
 			var match = Regex.Match(e.Parameters[0], @"(?:/(\\.|[^\/])*/)?(\S+)(?>\s+)(.+)");
 			if (!match.Success) return;
 

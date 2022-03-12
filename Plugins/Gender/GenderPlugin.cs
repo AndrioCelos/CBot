@@ -137,7 +137,7 @@ namespace GenderManager {
 
 		[Command(new string[] { "setgender", "ircsetgender" }, 1, 2, "setgender [<hostmask>|=<nickname>] male|female|none|clear", "Sets a gender for the given user.",
 			Permission = ".setgender")]
-		public async void CommandSetGender(object sender, CommandEventArgs e) {
+		public async void CommandSetGender(object? sender, CommandEventArgs e) {
 			Gender gender = Gender.Unspecified;
 			bool valid = false;
 			string mask = null;
@@ -240,7 +240,7 @@ namespace GenderManager {
 
 		[Command(new string[] { "getgender", "ircgetgender" }, 1, 1, "getgender <hostmask>|<nickname>", "Returns the gender of the given user.",
 			Permission = ".getgender")]
-		public void CommandGetGender(object sender, CommandEventArgs e) {
+		public void CommandGetGender(object? sender, CommandEventArgs e) {
 			Gender gender; string header = null;
 
 			if (this.GenderTable.TryGetValue(e.Parameters[0], out gender)) {
@@ -296,7 +296,7 @@ namespace GenderManager {
 
 		[Command(new string[] { "set" }, 1, 2, "set [setting] [value]", "Changes settings for this plugin.",
 			Permission = ".set")]
-		public void CommandSet(object sender, CommandEventArgs e) {
+		public void CommandSet(object? sender, CommandEventArgs e) {
 			if (e.Parameters.Length == 1) {
 				switch (e.Parameters[0].ToUpperInvariant()) {
 					case "WHO":
@@ -351,12 +351,12 @@ namespace GenderManager {
 			}
 		}
 
-		public override bool OnChannelJoin(object sender, ChannelJoinEventArgs e) {
+		public override bool OnChannelJoin(object? sender, ChannelJoinEventArgs e) {
 			RecheckUser(e.Sender);
 			return base.OnChannelJoin(sender, e);
 		}
 
-		public override bool OnWhoList(object sender, WhoListEventArgs e) {
+		public override bool OnWhoList(object? sender, WhoListEventArgs e) {
 			// Some servers hide users from the NAMES list, but shows them in the WHO list.
 			// Previously this would confuse the following code.
 			if (((IrcClient) sender).Users.TryGetValue(e.Nickname, out var user)) {
@@ -365,12 +365,12 @@ namespace GenderManager {
 			return base.OnWhoList(sender, e);
 		}
 
-		public override bool OnWhoIsNameLine(object sender, WhoisNameEventArgs e) {
+		public override bool OnWhoIsNameLine(object? sender, WhoisNameEventArgs e) {
 			RecheckUser(((IrcClient) sender).Users[e.Nickname]);
 			return base.OnWhoIsNameLine(sender, e);
 		}
 
-		private void WhoTimer_Elapsed(object sender, ElapsedEventArgs e) {
+		private void WhoTimer_Elapsed(object? sender, ElapsedEventArgs e) {
 			// Find the next channel.
 			++this.CheckingChannel;
 			if (this.CheckingChannel >= Bot.Clients[this.CheckingConnection].Client.Channels.Count) {
@@ -391,7 +391,7 @@ namespace GenderManager {
 
 			// Send the WHO request.
 			// TODO: use enumerators?
-			Bot.Clients[this.CheckingConnection].Client.Send("WHO {0}", Bot.Clients[this.CheckingConnection].Client.Channels.ElementAt(this.CheckingChannel).Name);
+			Bot.Clients[this.CheckingConnection].Client.Send("WHO", Bot.Clients[this.CheckingConnection].Client.Channels.ElementAt(this.CheckingChannel).Name);
 		}
 	}
 }

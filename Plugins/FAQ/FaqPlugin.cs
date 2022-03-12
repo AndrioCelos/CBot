@@ -363,12 +363,12 @@ namespace FAQ {
 						target = match.Groups["target"].Value;
 					}
 
-					this.DisplayFactoid(connection, factoid.Value.NoticeOnJoin && (action == "JOIN" || action == "INVITE") ? user.Nickname : channel, target, fields[0], fields[1], factoid.Value.Data, factoid.Value.NoticeOnJoin && action == "JOIN", !factoid.Value.HideLabel, !specificChannel);
+					this.DisplayFactoid(connection, user.Nickname, factoid.Value.NoticeOnJoin && (action == "JOIN" || action == "INVITE") ? user.Nickname : channel, target, fields[0], fields[1], factoid.Value.Data, factoid.Value.NoticeOnJoin && action == "JOIN", !factoid.Value.HideLabel, !specificChannel);
 				}
 			}
 		}
 
-		public void DisplayFactoid(IrcClient connection, string? channel, string nickname, string context, string key, string text, bool notice, bool showKey, bool showContext) {
+		public void DisplayFactoid(IrcClient connection, string sender, string? channel, string nickname, string context, string key, string text, bool notice, bool showKey, bool showContext) {
 			foreach (string line in text.Split(new string[] { "\r\n", "\n", "\r" }, StringSplitOptions.RemoveEmptyEntries)) {
 				var messageBuilder = new StringBuilder();
 
@@ -384,12 +384,15 @@ namespace FAQ {
 					if (pos < line.Length - 8 && line.Substring(pos2 + 1, 8).Equals("nickname", StringComparison.InvariantCultureIgnoreCase)) {
 						messageBuilder.Append(nickname);
 						pos = pos2 + 9;
-					} else if (pos < line.Length - 6 && line.Substring(pos2 + 1, 6).Equals("channel", StringComparison.InvariantCultureIgnoreCase)) {
+					} else if (pos < line.Length - 7 && line.Substring(pos2 + 1, 7).Equals("channel", StringComparison.InvariantCultureIgnoreCase)) {
 						messageBuilder.Append(channel);
-						pos = pos2 + 7;
+						pos = pos2 + 8;
 					} else if (pos < line.Length - 2 && line.Substring(pos2 + 1, 2).Equals("me", StringComparison.InvariantCultureIgnoreCase)) {
 						messageBuilder.Append(connection.Me.Nickname);
 						pos = pos2 + 3;
+					} else if (pos < line.Length - 6 && line.Substring(pos2 + 1, 6).Equals("sender", StringComparison.InvariantCultureIgnoreCase)) {
+						messageBuilder.Append(sender);
+						pos = pos2 + 7;
 					} else if (pos < line.Length - 1 && line[pos2 + 1] == '$') {
 						messageBuilder.Append('$');
 						pos = pos2 + 2;
@@ -403,9 +406,9 @@ namespace FAQ {
 					if (showContext) context += "/";
 					else context = "";
 
-					connection.Send("{0} {1} :" + this.LabelFormat, notice ? "NOTICE" : "PRIVMSG", channel, context, key, messageBuilder.ToString());
+					connection.Send(string.Format("{0} {1} :" + this.LabelFormat, notice ? "NOTICE" : "PRIVMSG", channel, context, key, messageBuilder.ToString()));
 				} else
-					connection.Send("{0} {1} :{2}", notice ? "NOTICE" : "PRIVMSG", channel, messageBuilder.ToString());
+					connection.Send(notice ? "NOTICE" : "PRIVMSG", channel, messageBuilder.ToString());
 
 				System.Threading.Thread.Sleep(600);
 			}
@@ -605,7 +608,7 @@ namespace FAQ {
 			}
 
 			string[] fields = this.GetContextAndKey(key);
-			this.DisplayFactoid(e.Client, e.Target.Target, target ?? e.Sender.Nickname, fields[0], fields[1], text, PM, true, e.Parameters[0].Equals(key, StringComparison.InvariantCultureIgnoreCase));
+			this.DisplayFactoid(e.Client, e.Sender.Nickname, e.Target.Target, target ?? e.Sender.Nickname, fields[0], fields[1], text, PM, true, e.Parameters[0].Equals(key, StringComparison.InvariantCultureIgnoreCase));
 		}
 
 		[Command("tell", 2, 2, "give <target> <key>", "Displays the named factoid.")]
@@ -637,7 +640,7 @@ namespace FAQ {
 			string text = Colours.Bold + target + Colours.Bold + ": " + factoid.Data;
 
 			string[] fields = this.GetContextAndKey(key);
-			this.DisplayFactoid(e.Client, e.Target.Target, target ?? e.Sender.Nickname, fields[0], fields[1], text, PM, true, e.Parameters[0].Equals(key, StringComparison.InvariantCultureIgnoreCase));
+			this.DisplayFactoid(e.Client, e.Sender.Nickname, e.Target.Target, target ?? e.Sender.Nickname, fields[0], fields[1], text, PM, true, e.Parameters[0].Equals(key, StringComparison.InvariantCultureIgnoreCase));
 		}
 
 		[Trigger(@"^\?:(?:\s+(\S+))?", Permission = ".list")]

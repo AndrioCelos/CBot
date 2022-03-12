@@ -13,6 +13,7 @@ using System.Threading.Tasks;
 using Microsoft.VisualBasic;
 using System.Drawing;
 using System.Threading.Channels;
+using AnIRC;
 
 namespace Pokedex {
 	[ApiVersion(4, 0)]
@@ -65,6 +66,7 @@ namespace Pokedex {
 				DataSource = Path.Combine("data", this.Key, generation switch {
 					Generation.SwordShield => "swsh.db",
 					Generation.LetsGo => "lgpe.db",
+					Generation.BrilliantDiamondShiningPearl => "bdsp.db",
 					_ => throw new ArgumentException("Invalid generation", nameof(generation))
 				})
 			}.ToString()));
@@ -117,7 +119,13 @@ namespace Pokedex {
 		private static string GetKeySimple(string input) {
 			var key = Regex.Replace(input.Replace('é', 'e'), @"\W", "");
 
-			if (key.StartsWith("Mega", StringComparison.InvariantCultureIgnoreCase))
+			if (key.StartsWith("Mega", StringComparison.InvariantCultureIgnoreCase)
+				&& !key.Equals("Meganium", StringComparison.InvariantCultureIgnoreCase)
+				&& !key.Equals("MegaDrain", StringComparison.InvariantCultureIgnoreCase)
+				&& !key.Equals("MegaHorn", StringComparison.InvariantCultureIgnoreCase)
+				&& !key.Equals("MegaKick", StringComparison.InvariantCultureIgnoreCase)
+				&& !key.Equals("MegaPunch", StringComparison.InvariantCultureIgnoreCase)
+				&& !key.Equals("MegaLauncher", StringComparison.InvariantCultureIgnoreCase))
 				key = key[^1] is 'X' or 'x' or 'Y' or 'y' ? key[4..^1] + "Mega" + key[^1] : key[4..] + "Mega";
 			else {
 				var replaced = false;
@@ -153,8 +161,8 @@ namespace Pokedex {
 			=> emoteOnly ? "" : type.ToString();
 
 		[Command(new[] { "stats" }, 1, 1, "stats <species>[/form]", "Shows information about a Pokémon form.")]
-		public async void CommandStats(object sender, CommandEventArgs e) {
-			var gen = Generation.SwordShield;
+		public async void CommandStats(object? sender, CommandEventArgs e) {
+			var gen = this.GetGeneration(e.Channel);
 			var search = await this.GetKeyAsync(gen, e.Parameters[0]);
 			var command = await this.GetCommandAsync(gen, "SELECT Name, Form, BaseHP, BaseAttack, BaseDefense, BaseSpecialAttack, BaseSpecialDefense, BaseSpeed FROM Pokemon WHERE Key = $Key",
 				("Key", search));
@@ -168,9 +176,14 @@ namespace Pokedex {
 			e.Reply($"Base stats: HP {reader.GetInt64(reader.GetOrdinal("BaseHP"))}; Atk {reader.GetInt64(reader.GetOrdinal("BaseAttack"))}; Def {reader.GetInt64(reader.GetOrdinal("BaseDefense"))}; SpA {reader.GetInt64(reader.GetOrdinal("BaseSpecialAttack"))}; SpD {reader.GetInt64(reader.GetOrdinal("BaseSpecialDefense"))}; Spe {reader.GetInt64(reader.GetOrdinal("BaseSpeed"))}");
 		}
 
+		private Generation GetGeneration(IrcChannel? channel) {
+			return channel == null ? Generation.BrilliantDiamondShiningPearl
+				: channel.Client.Address?.Contains("youtube") ?? false ? Generation.BrilliantDiamondShiningPearl : Generation.BrilliantDiamondShiningPearl;
+		}
+
 		[Command(new[] { "data" }, 1, 1, "data <species>[/form]", "Shows information about a Pokémon, move, Ability or item.")]
-		public async void CommandData(object sender, CommandEventArgs e) {
-			var gen = Generation.SwordShield;
+		public async void CommandData(object? sender, CommandEventArgs e) {
+			var gen = this.GetGeneration(e.Channel);
 			var cacheEntry = await this.GetCacheEntryAsync(gen);
 			var search = await this.GetKeyAsync(gen, e.Parameters[0]);
 			(bool success, string[] messages) result = this.natures.TryGetValue(search, out var natureDetails)
@@ -293,7 +306,10 @@ namespace Pokedex {
 			}
 
 			async Task<(bool success, string[] message)> checkItem() {
-				var command = await this.GetCommandAsync(gen, "SELECT Name, Description, Type, Value, FlingPower, Move FROM Items LEFT JOIN Machines ON Items.Key = Machines.Item WHERE Key = $Key",
+				var command = await this.GetCommandAsync(gen,
+					gen == Generation.SwordShield
+						? "SELECT Name, Category, Description, Type, Value, FlingPower, Move FROM Items LEFT JOIN Machines ON Items.Key = Machines.Item WHERE Key = $Key"
+						: "SELECT Name, Category, Description, FlingPower, Move FROM Items LEFT JOIN Machines ON Items.Key = Machines.Item WHERE Key = $Key",
 					("Key", search));
 
 				using var reader = await command.ExecuteReaderAsync();
@@ -306,26 +322,107 @@ namespace Pokedex {
 				var move = reader.GetString("Move");
 				if (move != null) return await checkMove(move, $"{reader.GetString("Name")}: ");
 
-				var type = Enum.Parse<Type>(reader.GetString("Type")!);
+				switch (reader.GetString("Category")) {
+					case "Berry":
+						if (gen == Generation.BrilliantDiamondShiningPearl) {
+							var command2 = await this.GetCommandAsync(gen, "SELECT TagNumber, Type, NaturalGiftPower, Spicy, Dry, Sweet, Bitter, Sour, GrowthTime, DrainRate, MaximumYield, Smoothness FROM Berries WHERE Key = $Key",
+								("Key", search));
 
-				var builder = new StringBuilder();
-				builder.Append(reader.GetString("Name"));
-				if (!string.IsNullOrEmpty(reader.GetString("Type"))) {
-					builder.Append(" (");
-					builder.Append(reader.GetString("Type"));
-					builder.Append("; ");
-					builder.Append(reader.GetInt32("Value"));
-					builder.Append(')');
+							using var reader2 = await command2.ExecuteReaderAsync();
+							if (await reader2.ReadAsync() && reader2.GetNullableInt32("TagNumber") != null) {
+								var flavourDescrpition = string.Join(", ", new[] { "Spicy", "Dry", "Sweet", "Bitter", "Sour" }.Select(s => (flavour: s, value: reader2.GetInt32(s))).Where(e => e.value > 0).Select(e => $"{e.value} {e.flavour}"));
+								return (true, new[] {
+									$"{reader.GetString("Name")} (#{reader2.GetInt32("TagNumber")}): {flavourDescrpition}. Grows in {reader2.GetInt32("GrowthTime")} hours; drain rate {reader2.GetInt32("DrainRate")}; maximum yield {reader2.GetInt32("MaximumYield")}; smoothness {reader2.GetInt32("Smoothness")}",
+									(reader.GetString("Description")?.StartsWith("Cannot be eaten") ?? true) ? "No battle effect." : (reader.GetString("Description") ?? "")
+								});
+							}
+						}
+						break;
 				}
-				builder.Append(": ");
-				builder.Append(reader.GetString("Description"));
-				return (true, new[] { builder.ToString() });
+
+				if (gen == Generation.SwordShield) {
+					var type = Enum.Parse<Type>(reader.GetString("Type")!);
+
+					var builder = new StringBuilder();
+					builder.Append(reader.GetString("Name"));
+					if (!string.IsNullOrEmpty(reader.GetString("Type"))) {
+						builder.Append(" (");
+						builder.Append(reader.GetString("Type"));
+						builder.Append("; ");
+						builder.Append(reader.GetNullableInt32("Value"));
+						builder.Append(')');
+					}
+					builder.Append(": ");
+					builder.Append(reader.GetString("Description"));
+					return (true, new[] { builder.ToString() });
+				} else {
+					return (true, new[] { $"{reader.GetString("Name")}: {reader.GetString("Description")}" });
+				}
 			}
 		}
 
+		[Command(new[] { "grow", "plant", "berry" }, 1, 1, "grow <berry>[, <mulch>]", "Shows information about Berry growth.")]
+		public async void CommandGrow(object? sender, CommandEventArgs e) {
+			var gen = Generation.BrilliantDiamondShiningPearl;
+			var cacheEntry = await this.GetCacheEntryAsync(gen);
+
+			var parameters = e.Parameters[0].Split(',');
+			if (parameters.Length is not (1 or 2)) {
+				e.Fail(this.Bot.ReplaceCommands("Usage: !grow <berry>[, <mulch>]", e.Target));
+				return;
+			}
+
+			var itemKey = parameters[0].Trim();
+			if (!itemKey.EndsWith("Berry", StringComparison.InvariantCultureIgnoreCase)) itemKey += "Berry";
+			itemKey = await this.GetKeyAsync(gen, itemKey);
+			string? mulchKey;
+			if (parameters.Length > 1) {
+				mulchKey = parameters[1].Trim();
+				if (!mulchKey.EndsWith("Mulch", StringComparison.InvariantCultureIgnoreCase)) mulchKey += "Mulch";
+				mulchKey = await this.GetKeyAsync(gen, mulchKey);
+			} else
+				mulchKey = null;
+
+			var command = await this.GetCommandAsync(gen, "SELECT Name, Category, Spicy, Dry, Sweet, Bitter, Sour, GrowthTime, DrainRate, MaximumYield, Smoothness FROM Items LEFT JOIN Berries ON Items.Key = Berries.Key WHERE Items.Key = $Key",
+				("Key", itemKey));
+
+			using var reader = await command.ExecuteReaderAsync();
+			if (!await reader.ReadAsync()) {
+				e.Fail("No such item is known.");
+				return;
+			}
+			if (!reader.GetString("Category")!.Equals("Berry", StringComparison.InvariantCultureIgnoreCase)) {
+				e.Fail("That item is not a Berry.");
+				return;
+			}
+			if (reader.IsNull("DrainRate")) {
+				e.Fail("I don't have data on that Berry.");
+				return;
+			}
+
+			var flavourDescrpition = string.Join(", ", new[] { "Spicy", "Dry", "Sweet", "Bitter", "Sour" }.Select(s => (flavour: s, value: reader.GetInt32(s))).Where(e => e.value > 0).Select(e => $"{e.value} {e.flavour}"));
+			int growthTime = reader.GetInt32("GrowthTime"), drainRate = reader.GetInt32("DrainRate");
+
+			if (mulchKey != null) {
+				switch (mulchKey.ToLowerInvariant()) {
+					case "growthmulch":
+						drainRate += drainRate / 2;
+						growthTime -= growthTime / 4;
+						break;
+					case "dampmulch":
+						drainRate /= 2;
+						growthTime += growthTime / 2;
+						break;
+						// Ignore other mulches for now.
+				}
+			}
+
+			e.Reply($"{reader.GetString("Name")}: {flavourDescrpition}. It will take {growthTime} hours to grow, and should be watered at least every {(int) Math.Ceiling(100.0 / drainRate) + 1} hours. The maximum yield is {reader.GetInt32("MaximumYield")}.");
+		}
+
 		[Command(new[] { "evolve" }, 1, 1, "evolve <species>[/form]", "Shows a Pokémon's pre-evolution and evolutions.")]
-		public async void CommandEvolve(object sender, CommandEventArgs e) {
-			var gen = Generation.SwordShield;
+		public async void CommandEvolve(object? sender, CommandEventArgs e) {
+			var gen = this.GetGeneration(e.Channel);
 			var pokemon = await this.GetKeyAsync(gen, e.Parameters[0]);
 
 			var command = await this.GetCommandAsync(gen,
@@ -405,7 +502,7 @@ namespace Pokedex {
 			};
 
 		[Command(new[] { "bosses" }, 1, 2, "bosses <type> [sword|shield]", "Shows Dynamax Adventure bosses of the specified type.")]
-		public async void CommandBosses(object sender, CommandEventArgs e) {
+		public async void CommandBosses(object? sender, CommandEventArgs e) {
 			if (!Enum.TryParse<Type>(e.Parameters[0], true, out var type)) {
 				e.Fail("That is not a valid type.");
 				return;
@@ -458,7 +555,7 @@ namespace Pokedex {
 		}
 
 		[Command(new[] { "learn" }, 1, 1, "learn <pokemon>, <move>", "Shows how the specified Pokémon can learn the specified move.")]
-		public async void CommandLearn(object sender, CommandEventArgs e) {
+		public async void CommandLearn(object? sender, CommandEventArgs e) {
 			var parameters = e.Parameters[0].Split(',');
 			if (parameters.Length == 1) parameters = e.Parameters[0].Split((char[]?) null, 2, StringSplitOptions.RemoveEmptyEntries);
 			if (parameters.Length != 2) {
@@ -466,7 +563,7 @@ namespace Pokedex {
 				return;
 			}
 
-			var gen = Generation.SwordShield;
+			var gen = this.GetGeneration(e.Channel);
 			var pokemonKey = await this.GetKeyAsync(gen, parameters[0]);
 			var moveKey = await this.GetKeyAsync(gen, parameters[1]);
 
@@ -577,8 +674,8 @@ namespace Pokedex {
 		}
 
 		[Command(new[] { "weak", "weakness" }, 1, 1, "weakness <species>|<type>, <type>", "Shows type matchups against the specified opponent.")]
-		public async void CommandWeakness(object sender, CommandEventArgs e) {
-			var gen = Generation.SwordShield;
+		public async void CommandWeakness(object? sender, CommandEventArgs e) {
+			var gen = this.GetGeneration(e.Channel);
 			var parameters = e.Parameters[0].Split(',');
 			var types = new List<Type>();
 
@@ -718,11 +815,11 @@ namespace Pokedex {
 		};
 
 		[Command(new[] { "dexsearch" }, 1, 1, "dexsearch <query>[, <query>]*", "Searches for Pokémon. Queries can be types, Egg groups, Abilities or stats (as stat = value, or <, >, <=, >=, !=). To sort, specify max=<stat> or min=<stat>.")]
-		public async void CommandDexSearch(object sender, CommandEventArgs e) {
-			var gen = Generation.SwordShield;
+		public async void CommandDexSearch(object? sender, CommandEventArgs e) {
+			var gen = this.GetGeneration(e.Channel);
 			try {
 				var baseClause = "SELECT Name, Form FROM Pokemon";
-				var extraClauses = new List<string>() { "SELECT Name, Form FROM Pokemon" };
+				var extraClauses = new List<string>();
 				var conditions = new List<string>();
 				string? orderBy = null;
 				int types = 0, eggGroups = 0;
@@ -892,20 +989,23 @@ namespace Pokedex {
 		};
 
 		[Command(new[] { "movesearch" }, 1, 1, "movesearch <query>[, <query>]*", "Searches for moves. Queries can be types, Pokémon, effective: Pokémon, categories, flags. To sort, specify max=<stat> or min=<stat>.")]
-		public async void CommandMoveSearch(object sender, CommandEventArgs e) {
-			var gen = Generation.SwordShield;
+		public async void CommandMoveSearch(object? sender, CommandEventArgs e) {
+			var gen = this.GetGeneration(e.Channel);
 			try {
 				var baseClause = "SELECT Name FROM Moves";
 				var extraClauses = new List<string>();
 				var conditions = new List<string>();
 				string? orderBy = null;
 				bool typeSpecified = false, categorySpecified = false, conditionSpecified = false;
+				string? pokemonKey = null;
+				bool useLevel = false;
 
 				var cacheEntry = await this.GetCacheEntryAsync(gen);
 				using var command = cacheEntry.connection.CreateCommand();
 				var parameterIndex = 0;
 
-				foreach (var clause in e.Parameters[0].Split(',')) {
+				foreach (var rawClause in e.Parameters[0].Split(',')) {
+					var clause = rawClause.Trim().Equals("level", StringComparison.InvariantCultureIgnoreCase) ? "sort:level" : rawClause;
 					var match = Regex.Match(clause, @"[<=>]=?|!=|:");
 					if (match.Success) {
 						var key = await this.GetKeyAsync(gen, clause.Substring(0, match.Index), false);
@@ -918,9 +1018,15 @@ namespace Pokedex {
 							case "sort":
 								if (orderBy != null) throw new ArgumentException("Can't specify more than one sort order.");
 								var column = await this.GetKeyAsync(gen, value, false);
-								column = MoveColumnAliases.TryGetValue(column, out key2) ? key2 : await this.GetKeyAsync(gen, column);
-								orderBy = column + " " + (key.Equals("max", StringComparison.InvariantCultureIgnoreCase) ? " DESC" : " ASC");
-								baseClause = $"SELECT Name, {column} FROM Moves";
+								if (column == "level") {
+									useLevel = true;
+									baseClause = "SELECT Name, LearnsetsLevelFiltered.Level FROM Moves";
+									orderBy = $"LearnsetsLevelFiltered.Level {(key.Equals("max", StringComparison.InvariantCultureIgnoreCase) ? " DESC" : " ASC")}";
+								} else {
+									column = MoveColumnAliases.TryGetValue(column, out key2) ? key2 : await this.GetKeyAsync(gen, column);
+									orderBy = column + " " + (key.Equals("max", StringComparison.InvariantCultureIgnoreCase) ? " DESC" : " ASC");
+									baseClause = $"SELECT Name, {column} FROM Moves";
+								}
 								break;
 							case "eff":
 							case "effective":
@@ -934,6 +1040,10 @@ namespace Pokedex {
 								conditions.Add($"Category IN ('Physical', 'Special')");
 								conditions.Add($"Type IN ('{string.Join("', '", Enumerable.Range(0, (int) Type.Fairy).Cast<Type>().Where(t => TypeChart.Standard.GetMatchup(t, types) > 1))}')");
 								break;
+							case "level":
+								key = "LearnsetsLevelFiltered.Level";
+								useLevel = true;
+								goto case "number";
 							case "number":
 							case "basepower":
 							case "accuracy":
@@ -995,6 +1105,7 @@ namespace Pokedex {
 							categorySpecified = true;
 						} else if (cacheEntry.keysPokemon.Contains(field)) {
 							// Pokémon
+							pokemonKey = field;
 							command.Parameters.AddWithValue("$pokemon" + extraClauses.Count, field);
 							extraClauses.Add($"INNER JOIN (SELECT * FROM Learnsets WHERE Pokemon = $pokemon{extraClauses.Count} AND (Egg = 1 OR Evolution = 1 OR Level = 1 OR Machine = 1 OR Tutor = 1)) AS learnsets{extraClauses.Count} ON Moves.Key = learnsets{extraClauses.Count}.Move");
 						} else {
@@ -1041,6 +1152,12 @@ namespace Pokedex {
 					}
 				}
 
+				if (useLevel) {
+					if (pokemonKey == null) throw new ArgumentException("Must specify a Pokémon when sorting by level learned.");
+					command.Parameters.AddWithValue("$pokemonLL", pokemonKey);
+					extraClauses.Add($"INNER JOIN (SELECT * FROM LearnsetsLevel WHERE Pokemon = $pokemonLL) AS LearnsetsLevelFiltered ON Moves.Key = LearnsetsLevelFiltered.Move");
+				}
+
 				command.CommandText = "SELECT COUNT(*) FROM Moves " + string.Join(' ', extraClauses)
 					+ (conditions.Count > 0 ? "\nWHERE " + string.Join(" AND ", conditions) : "");
 
@@ -1080,7 +1197,7 @@ namespace Pokedex {
 		};
 
 		[Command(new[] { "cram" }, 1, 1, "cram <item>|<move>, [items to exclude]", "Searches for a Cram-o-matic recipe for the specified item or TR.")]
-		public async void CommandCram(object sender, CommandEventArgs e) {
+		public async void CommandCram(object? sender, CommandEventArgs e) {
 			var parameters = e.Parameters[0].Split(',');
 			var item = await this.GetKeyAsync(Generation.SwordShield, parameters[0]);
 			var cacheEntry = this.cache[Generation.SwordShield];
@@ -1262,7 +1379,7 @@ namespace Pokedex {
 		}
 
 		[Command(new[] { "da" }, 1, 1, "da <pokemon>", "Shows the Ability and moves of the specified Dynamax Adventure rental.")]
-		public async void CommandDynamaxAdventure(object sender, CommandEventArgs e) {
+		public async void CommandDynamaxAdventure(object? sender, CommandEventArgs e) {
 			string key = await this.GetKeyAsync(Generation.SwordShield, e.Parameters[0]);
 			var command = await this.GetCommandAsync(Generation.SwordShield, "SELECT Pokemon.Name, Form, Level, Abilities.Name AS Ability FROM DynamaxAdventurePokemon INNER JOIN Pokemon ON DynamaxAdventurePokemon.Pokemon = Pokemon.Key INNER JOIN Abilities ON DynamaxAdventurePokemon.Ability = Abilities.Key WHERE DynamaxAdventurePokemon.Pokemon = $Key",
 				("Key", key));

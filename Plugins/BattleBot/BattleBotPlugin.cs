@@ -1539,7 +1539,7 @@ namespace BattleBot {
 				// Devoice them if we're on the channel.
 				if (this.ArenaConnection != null && this.ArenaChannel != null && this.ArenaConnection.Channels.Contains(this.ArenaChannel)) {
 					if (this.ArenaConnection.Channels[this.ArenaChannel].Me?.Status >= ChannelStatus.Halfop) {
-						this.ArenaConnection.Send("MODE {0} -v {1}", this.ArenaChannel, e.Parameters[0]);
+						this.ArenaConnection.Send($"MODE {this.ArenaChannel} -v {e.Parameters[0]}");
 					}
 				}
 			} catch (Exception) { }

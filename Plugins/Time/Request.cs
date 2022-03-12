@@ -46,7 +46,7 @@ namespace Time {
 
 		}
 
-		private void Timer_Elapsed(object sender, ElapsedEventArgs e) {
+		private void Timer_Elapsed(object? sender, ElapsedEventArgs e) {
 			this.Timeout?.Invoke(sender, e);
 		}
 	}

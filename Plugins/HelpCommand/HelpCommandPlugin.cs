@@ -21,11 +21,11 @@ namespace HelpCommand {
 		}
 
 		[Command("help", 0, 1, "help [topic]", "Shows help text for active plugins.")]
-		public async void CommandHelp(object sender, CommandEventArgs e)
+		public async void CommandHelp(object? sender, CommandEventArgs e)
 			=> await this.ShowHelp(e.Target, e.Sender, e.Parameters.Length >= 1 ? e.Parameters[0] : null);
 
 		[Trigger(@"^\s*help\s*$")]
-		public async void TriggerHelp(object sender, TriggerEventArgs e)
+		public async void TriggerHelp(object? sender, TriggerEventArgs e)
 			=> await this.ShowHelp(e.Target, e.Sender, null);
 
 		private async Task ShowHelp(IrcMessageTarget target, IrcUser user, string topic) {
@@ -96,7 +96,7 @@ namespace HelpCommand {
 		}
 
 		[Command("cmdlist", 0, 1, "cmdlist [plugin]", "Returns a list of my commands.")]
-		public async void CommandCommandList(object sender, CommandEventArgs e) {
+		public async void CommandCommandList(object? sender, CommandEventArgs e) {
 			StringBuilder generalBuilder = new StringBuilder("\u0002General commands:\u0002 ");
 			StringBuilder channelBuilder = new StringBuilder(string.Format("\u0002Commands for {0}:\u0002 ", e.Target));
 			int channelMinLength = channelBuilder.Length;
@@ -156,7 +156,7 @@ namespace HelpCommand {
 		}
 
 		[Command("cmdinfo", 1, 1, "cmdinfo <command>", "Returns information on a command.")]
-		public async void CommandCommandInfo(object sender, CommandEventArgs e) {
+		public async void CommandCommandInfo(object? sender, CommandEventArgs e) {
 			if (!await showCommandInfo(e.Target, e.Sender, e.Parameters[0])) {
 				e.Whisper($"I don't recognise that command. Use {Colours.Bold}{Bot.ReplaceCommands("!cmdlist", e.Target)}{Colours.Bold} for a list of commands.");
 			}
