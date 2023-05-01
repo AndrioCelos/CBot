@@ -1,4 +1,4 @@
 [submodule "AnIRC"]
 	path = AnIRC
 	url = https://github.com/AndrioCelos/AnIRC.git
-	branch = net5.0
+	branch = main
