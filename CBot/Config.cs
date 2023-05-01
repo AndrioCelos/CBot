@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Net;
 
 using Newtonsoft.Json.Linq;
 
@@ -15,5 +16,8 @@ namespace CBot {
 		public Dictionary<string, string[]> ChannelCommandPrefixes = new(StringComparer.OrdinalIgnoreCase);
 
 		public List<JObject> Networks = new();
+
+		public IPAddress? WebSocketBindAddress { get; set; }
+		public int? WebSocketPort { get; set; }
 	}
 }

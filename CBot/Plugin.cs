@@ -9,6 +9,8 @@ using System.Threading.Tasks;
 
 using AnIRC;
 
+using WebSocketSharp.Server;
+
 namespace CBot {
 	public delegate void PluginCommandHandler(object? sender, CommandEventArgs e);
 	public delegate int PluginCommandPriorityHandler(CommandEventArgs e);
@@ -561,6 +563,8 @@ namespace CBot {
 		/// <param name="Procedure">The human-readable name of the procedure that had the problem.</param>
 		/// <param name="ex">The exception that was thrown.</param>
 		protected void LogError(string Procedure, Exception ex) => Bot.LogError(this.Key, Procedure, ex);
+
+		public virtual void OnHttpRequest(HttpRequestEventArgs e) { }
 
 		/// <summary>When overridden, handles the AwayCancelled event. Return true to stop further processing of the event.</summary>
 		public virtual bool OnAwayCancelled(object? sender, EventArgs e) => false;

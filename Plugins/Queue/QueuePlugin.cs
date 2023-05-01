@@ -1,10 +1,16 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 using System.Text;
 
 using AnIRC;
 using CBot;
+
+using Newtonsoft.Json;
+
+using WebSocketSharp.Net;
+using WebSocketSharp.Server;
 
 namespace Queue {
 	[ApiVersion(4, 0)]
@@ -16,6 +22,45 @@ namespace Queue {
 		public override bool OnCapabilitiesAdded(object? sender, CapabilitiesAddedEventArgs e) {
 			e.EnableIfSupported("twitch.tv/tags");
 			return false;
+		}
+
+		public override void Initialize() {
+			if (this.Bot.HttpServer is not null) {
+				this.Bot.HttpServer.AddWebSocketService<QueueWebSocketBehavior>($"/{this.Key}/websocket", s => s.Module = this);
+			}
+		}
+
+		public override void OnHttpRequest(HttpRequestEventArgs e) {
+			if (e.Request.Url.AbsolutePath == $"/{this.Key}/queue") {
+				if (e.Request.HttpMethod == "GET") {
+					if (e.Request.QueryString["channel"] is string key) {
+						if (!this.queues.TryGetValue(key, out var queue)) queue = new();
+
+						e.Response.StatusCode = (int) HttpStatusCode.OK;
+						using var writer = new JsonTextWriter(new StreamWriter(e.Response.OutputStream));
+						new JsonSerializer().Serialize(writer, new { IsClosed = queue.IsClosed, Queue = queue });
+					}
+					// Otherwise return Not Found.
+				} else {
+					e.Response.StatusCode = (int) HttpStatusCode.MethodNotAllowed;
+				}
+			}
+		}
+
+		private void SendWebSocketUpdates(IrcMessageTarget channel, Queue queue, List<string>? mentionUsers = null) {
+			var key = channel is IrcChannel ircChannel ? ircChannel.Name[1..] : channel.Target;
+			this.SendWebSocketUpdates(key, queue, mentionUsers);
+		}
+		private void SendWebSocketUpdates(string channel, Queue queue, List<string>? mentionUsers = null) {
+			if (this.Bot.HttpServer is not null) {
+				var text = JsonConvert.SerializeObject(new { IsClosed = queue.IsClosed, Queue = queue, MentionUsers = mentionUsers });
+				foreach (var session in this.Bot.HttpServer.WebSocketServices[$"/{this.Key}/websocket"].Sessions.Sessions) {
+					if (session is QueueWebSocketBehavior behavior) {
+						if (behavior.Channel is not null && behavior.Channel.Equals(channel, StringComparison.OrdinalIgnoreCase))
+							behavior.SendInternal(text);
+					}
+				}
+			}
 		}
 
 		[Command(new[] { "q", "queue" }, 0, 2, "q <command>", "Alternate form for all queue commands.")]
@@ -43,7 +88,7 @@ namespace Queue {
 
 		[Command(new[] { "qhelp" }, 0, 0, "qhelp", "Asks for help on queue commands.")]
 		public void CommandHelp(object? sender, CommandEventArgs e) {
-			var queue = this.GetQueue(e.Target);
+			var queue = this.GetOrCreateQueue(e.Target);
 			if (queue.IsClosed)
 				e.Reply("The queue is currently closed.");
 			else
@@ -52,7 +97,7 @@ namespace Queue {
 
 		[Command(new[] { "qjoin" }, 0, 0, "qjoin", "Adds you to the queue.")]
 		public void CommandJoin(object? sender, CommandEventArgs e) {
-			var queue = this.GetQueue(e.Target);
+			var queue = this.GetOrCreateQueue(e.Target);
 			int i;
 			for (i = queue.Count - 1; i >= 0; --i) {
 				if (e.Client.CaseMappingComparer.Equals(queue[i], GetDisplayName(e.Client.CurrentLine?.Tags, e.Sender))) break;
@@ -63,6 +108,7 @@ namespace Queue {
 				else {
 					queue.Add(GetDisplayName(e.Client.CurrentLine?.Tags, e.Sender));
 					e.Reply($"@{GetDisplayName(e.Client.CurrentLine?.Tags, e.Sender)}, you've joined the queue at position {queue.Count}.");
+					this.SendWebSocketUpdates(e.Target, queue);
 				}
 			} else
 				e.Reply($"@{GetDisplayName(e.Client.CurrentLine?.Tags, e.Sender)}, you're already in the queue at position {i + 1}.");
@@ -70,12 +116,13 @@ namespace Queue {
 
 		[Command(new[] { "qleave" }, 0, 0, "qleave", "Removes you from the queue.")]
 		public void CommandLeave(object? sender, CommandEventArgs e) {
-			var queue = this.GetQueue(e.Target);
+			var queue = this.GetOrCreateQueue(e.Target);
 			int i;
 			for (i = queue.Count - 1; i >= 0; --i) {
 				if (e.Client.CaseMappingComparer.Equals(queue[i], GetDisplayName(e.Client.CurrentLine?.Tags, e.Sender))) {
 					queue.RemoveAt(i);
 					e.Reply($"@{GetDisplayName(e.Client.CurrentLine?.Tags, e.Sender)}, you've left the queue.");
+					this.SendWebSocketUpdates(e.Target, queue);
 					return;
 				}
 			}
@@ -84,7 +131,7 @@ namespace Queue {
 
 		[Command(new[] { "qposition" }, 0, 1, "qposition [user]", "Shows your position in the queue.")]
 		public void CommandPosition(object? sender, CommandEventArgs e) {
-			var queue = this.GetQueue(e.Target);
+			var queue = this.GetOrCreateQueue(e.Target);
 			int i;
 			for (i = queue.Count - 1; i >= 0; --i) {
 				if (e.Client.CaseMappingComparer.Equals(queue[i], GetDisplayName(e.Client.CurrentLine?.Tags, e.Sender))) break;
@@ -104,7 +151,7 @@ namespace Queue {
 			}
 			var usersToRemove = new HashSet<string>(e.Parameters.Select(s => s.TrimStart(new[] { '@', ',', ' ' })), e.Client.CaseMappingComparer);
 			int removed = 0;
-			var queue = this.GetQueue(e.Target);
+			var queue = this.GetOrCreateQueue(e.Target);
 			int i;
 			for (i = queue.Count - 1; i >= 0; --i) {
 				if (usersToRemove.Contains(queue[i])) {
@@ -112,12 +159,15 @@ namespace Queue {
 					removed++;
 				}
 			}
-			if (removed == 0)
+			if (removed == 0) {
 				e.Reply("None of them were in the queue.");
-			else if (removed == 1)
-				e.Reply("Removed 1 user from the queue.");
-			else
-				e.Reply($"Removed {removed} users from the queue.");
+			} else {
+				if (removed == 1)
+					e.Reply("Removed 1 user from the queue.");
+				else
+					e.Reply($"Removed {removed} users from the queue.");
+				this.SendWebSocketUpdates(e.Target, queue);
+			}
 		}
 
 		[Command(new[] { "qnext" }, 0, 1, "qnext [n]", "Removes and mentions the next n nicknames in the queue.")]
@@ -126,7 +176,7 @@ namespace Queue {
 				e.Fail("Only moderators can do that.");
 				return;
 			}
-			var queue = this.GetQueue(e.Target);
+			var queue = this.GetOrCreateQueue(e.Target);
 			if (queue.Count == 0) {
 				e.Reply("The queue is currently empty.");
 				return;
@@ -142,6 +192,7 @@ namespace Queue {
 			} else
 				n = 1;
 
+			var mentionUsers = new List<string>();
 			var builder = new StringBuilder();
 			builder.Append("You are up: ");
 			bool any = false;
@@ -149,16 +200,18 @@ namespace Queue {
 				if (!any) any = true;
 				else builder.Append(", ");
 				if (e.Client.NetworkName == "Twitch") builder.Append('@');
+				mentionUsers.Add(queue[0]);
 				builder.Append(queue[0]);
 				queue.RemoveAt(0);
 				--n;
 			}
 			e.Reply(builder.ToString());
+			this.SendWebSocketUpdates(e.Target, queue, mentionUsers);
 		}
 
 		[Command(new[] { "qpeek" }, 0, 1, "qpeek [n]", "Mentions the next n nicknames in the queue without changing it.")]
 		public void CommandPeek(object? sender, CommandEventArgs e) {
-			var queue = this.GetQueue(e.Target);
+			var queue = this.GetOrCreateQueue(e.Target);
 			if (queue.Count == 0) {
 				e.Reply("The queue is currently empty.");
 				return;
@@ -190,7 +243,7 @@ namespace Queue {
 				e.Fail("Only moderators can do that.");
 				return;
 			}
-			var queue = this.GetQueue(e.Target);
+			var queue = this.GetOrCreateQueue(e.Target);
 			if (queue.Count == 0) {
 				e.Reply("The queue is currently empty.");
 				return;
@@ -198,6 +251,7 @@ namespace Queue {
 
 			queue.Clear();
 			e.Reply("The queue has been cleared.");
+			this.SendWebSocketUpdates(e.Target, queue);
 		}
 
 		[Command(new[] { "qclose", "qlock" }, 0, 0, "qclose", "Closes the queue, preventing new users from joining.")]
@@ -206,12 +260,13 @@ namespace Queue {
 				e.Fail("Only moderators can do that.");
 				return;
 			}
-			var queue = this.GetQueue(e.Target);
+			var queue = this.GetOrCreateQueue(e.Target);
 			if (queue.IsClosed)
 				e.Reply("The queue was already closed.");
 			else {
 				queue.IsClosed = true;
 				e.Reply("The queue is now closed.");
+				this.SendWebSocketUpdates(e.Target, queue);
 			}
 		}
 
@@ -221,12 +276,13 @@ namespace Queue {
 				e.Fail("Only moderators can do that.");
 				return;
 			}
-			var queue = this.GetQueue(e.Target);
+			var queue = this.GetOrCreateQueue(e.Target);
 			if (!queue.IsClosed)
 				e.Reply("The queue was already open.");
 			else {
 				queue.IsClosed = false;
 				e.Reply("The queue is now open.");
+				this.SendWebSocketUpdates(e.Target, queue);
 			}
 		}
 
@@ -243,11 +299,19 @@ namespace Queue {
 				? displayName
 				: user.Nickname;
 
-		private Queue GetQueue(IrcMessageTarget domain) {
-			var key = $"{domain.Client.NetworkName}/{domain.Target}";
+		public Queue GetOrCreateQueue(IrcMessageTarget domain) {
+			//var key = $"{domain.Client.NetworkName}/{domain.Target}";
+			var key = domain is IrcChannel ircChannel ? ircChannel.Name[1..] : domain.Target;
 			if (!this.queues.TryGetValue(key, out var queue)) {
 				queue = new Queue();
 				this.queues[key] = queue;
+			}
+			return queue;
+		}
+
+		public Queue GetQueue(string domain) {
+			if (!this.queues.TryGetValue(domain, out var queue)) {
+				queue = new Queue();
 			}
 			return queue;
 		}

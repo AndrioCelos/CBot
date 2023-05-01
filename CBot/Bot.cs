@@ -10,6 +10,7 @@ using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
 using System.IO;
 using System.Linq;
+using System.Net;
 using System.Reflection;
 using System.Security.Cryptography;
 using System.Text;
@@ -20,6 +21,9 @@ using System.Timers;
 
 using AnIRC;
 using Newtonsoft.Json;
+
+using WebSocketSharp;
+using WebSocketSharp.Server;
 
 namespace CBot {
 	/// <summary>
@@ -64,6 +68,8 @@ namespace CBot {
 
 		/// <summary>The minimum compatible plugin API version with this version of CBot.</summary>
 		public static readonly Version MinPluginVersion = new(4, 0);
+
+		public HttpServer? HttpServer { get; private set; }
 
 		/// <summary>Indicates whether there are any NickServ-based permissions.</summary>
 		internal bool commandCallbackNeeded;
@@ -1218,6 +1224,18 @@ namespace CBot {
 			}
 
 			if (update) this.UpdateNetworks(true);
+
+			if (this.Config.WebSocketPort != null) {
+				var ipAddress = this.Config.WebSocketBindAddress ?? IPAddress.Any;
+				if (this.HttpServer == null || this.HttpServer.Port != this.Config.WebSocketPort || this.HttpServer.Address != ipAddress) {
+					if (this.HttpServer != null && this.HttpServer.IsListening)
+						this.HttpServer.Stop(CloseStatusCode.Away, "Server restarting due to a configuration change.");
+					this.SetUpHttpServer(ipAddress);
+				}
+			} else {
+				if (this.HttpServer != null && this.HttpServer.IsListening)
+					this.HttpServer.Stop(CloseStatusCode.Away, "Server shutting down.");
+			}
 		}
 		/// <summary>Compares and applies changes in IRC network configuration.</summary>
 		public void UpdateNetworks(bool reconnect) {
@@ -1303,6 +1321,30 @@ namespace CBot {
 					ConsoleUtils.WriteLine("Connecting to {0} on port {1}.", network.Address, network.Port);
 					this.Connect(network);
 				}
+			}
+		}
+
+		private void SetUpHttpServer(IPAddress bindAddress) {
+			this.HttpServer = new HttpServer(bindAddress, this.Config.WebSocketPort!.Value, false);
+			this.HttpServer.OnConnect += this.HttpServer_OnGet;
+			this.HttpServer.OnDelete += this.HttpServer_OnGet;
+			this.HttpServer.OnGet += this.HttpServer_OnGet;
+			this.HttpServer.OnHead += this.HttpServer_OnGet;
+			this.HttpServer.OnOptions += this.HttpServer_OnGet;
+			this.HttpServer.OnPatch += this.HttpServer_OnGet;
+			this.HttpServer.OnPost += this.HttpServer_OnGet;
+			this.HttpServer.OnPut += this.HttpServer_OnGet;
+			this.HttpServer.OnTrace += this.HttpServer_OnGet;
+			this.HttpServer.Start();
+			ConsoleUtils.WriteLine($"HTTP server started on http://{this.HttpServer.Address}:{this.HttpServer.Port}.");
+		}
+
+		private void HttpServer_OnGet(object? sender, HttpRequestEventArgs e) {
+			// Send 404 Not Found unless a module changes it.
+			e.Response.StatusCode = (int) HttpStatusCode.NotFound;
+
+			foreach (var plugin in this.Plugins) {
+				plugin.Obj.OnHttpRequest(e);
 			}
 		}
 
