@@ -1,37 +1,35 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
-  <PropertyGroup>
-    <OutputType>Exe</OutputType>
-    <TargetFramework>net6.0</TargetFramework>
-	<LangVersion>preview</LangVersion>
-	<Version>4.1.0</Version>
-	<Company>Andrio Celos</Company>
-	<Authors>Andrio Celos</Authors>
-	<Copyright>© 2012-2022 Andrea Giannone</Copyright>
-	<Nullable>enable</Nullable>
-	<AssemblyVersion>4.1.0.0</AssemblyVersion>
-	<FileVersion>4.1.0.0</FileVersion>
-	<PackageProjectUrl>https://github.com/AndrioCelos/CBot</PackageProjectUrl>
-	<PackageReadmeFile>readme.md</PackageReadmeFile>
-	<PackageLicenseFile>..\license.md</PackageLicenseFile>
-	<EnforceCodeStyleInBuild>True</EnforceCodeStyleInBuild>
-	<AnalysisLevel>preview</AnalysisLevel>
-	<ImplicitUsings>enable</ImplicitUsings>
-  </PropertyGroup>
+	<PropertyGroup>
+		<OutputType>Exe</OutputType>
+		<TargetFramework>net6.0</TargetFramework>
+		<EnableDynamicLoading>true</EnableDynamicLoading>
+		<ImplicitUsings>enable</ImplicitUsings>
+		<Nullable>enable</Nullable>
+		<LangVersion>preview</LangVersion>
+		<Title>CBot</Title>
+		<Version>4.1.0</Version>
+		<Authors>Andrio Celos</Authors>
+		<Copyright>© 2023 Andrio Celos</Copyright>
+		<PackageProjectUrl>https://github.com/AndrioCelos/CBot</PackageProjectUrl>
+		<PackageReadmeFile>readme.md</PackageReadmeFile>
+		<PackageLicenseFile>..\license.md</PackageLicenseFile>
+	</PropertyGroup>
 
-  <ItemGroup>
-    <None Include="..\readme.md">
-      <Pack>True</Pack>
-      <PackagePath>\</PackagePath>
-    </None>
-  </ItemGroup>
+	<ItemGroup>
+		<None Include="..\readme.md">
+			<Pack>True</Pack>
+			<PackagePath>\</PackagePath>
+		</None>
+	</ItemGroup>
 
-  <ItemGroup>
-    <PackageReference Include="Newtonsoft.Json" Version="13.0.1" />
-  </ItemGroup>
+	<ItemGroup>
+		<PackageReference Include="Newtonsoft.Json" Version="13.0.1" />
+		<PackageReference Include="WebSocketSharp-netstandard" Version="1.0.1" />
+	</ItemGroup>
 
-  <ItemGroup>
-    <ProjectReference Include="..\AnIRC\AnIRC\AnIRC.csproj" />
-  </ItemGroup>
+	<ItemGroup>
+		<ProjectReference Include="..\AnIRC\AnIRC\AnIRC.csproj" />
+	</ItemGroup>
 
 </Project>

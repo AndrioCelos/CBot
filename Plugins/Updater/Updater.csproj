@@ -1,16 +1,22 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
-  <PropertyGroup>
-    <TargetFramework>net6.0</TargetFramework>
-    <Version>1.1.0</Version>
-    <Authors>Andrio Celos</Authors>
-    <PackageProjectUrl>https://github.com/AndrioCelos/CBot</PackageProjectUrl>
-    <RepositoryUrl>https://github.com/AndrioCelos/CBot</RepositoryUrl>
-    <Copyright>© 2021-2022 Andrea Giannone</Copyright>
-  </PropertyGroup>
+	<PropertyGroup>
+		<TargetFramework>net6.0</TargetFramework>
+		<EnableDynamicLoading>true</EnableDynamicLoading>
+		<ImplicitUsings>enable</ImplicitUsings>
+		<Nullable>enable</Nullable>
+		<LangVersion>preview</LangVersion>
+		<Title>CBot Updater module</Title>
+		<Version>1.2.0</Version>
+		<Authors>Andrio Celos</Authors>
+		<Copyright>© 2021-2023 Andrio Celos</Copyright>
+	</PropertyGroup>
 
-  <ItemGroup>
-    <ProjectReference Include="..\..\CBot\CBot.csproj" />
-  </ItemGroup>
+	<ItemGroup>
+		<ProjectReference Include="..\..\CBot\CBot.csproj">
+			<Private>false</Private>
+			<ExcludeAssets>runtime</ExcludeAssets>
+		</ProjectReference>
+	</ItemGroup>
 
 </Project>

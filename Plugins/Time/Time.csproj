@@ -1,24 +1,32 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
 
-  <PropertyGroup>
-    <TargetFramework>net6.0</TargetFramework>
-    <Nullable>enable</Nullable>
-    <Version>2.1.0</Version>
-    <Authors>Andrio Celos</Authors>
-    <Copyright>© 2014-2022 Andrea Giannone</Copyright>
-    <PackageProjectUrl>https://github.com/AndrioCelos/CBot</PackageProjectUrl>
-    <RepositoryType>https://github.com/AndrioCelos/CBot</RepositoryType>
-  </PropertyGroup>
+	<PropertyGroup>
+		<TargetFramework>net6.0</TargetFramework>
+		<EnableDynamicLoading>true</EnableDynamicLoading>
+		<ImplicitUsings>enable</ImplicitUsings>
+		<Nullable>enable</Nullable>
+		<LangVersion>preview</LangVersion>
+		<Title>CBot Time module</Title>
+		<Version>2.2.0</Version>
+		<Authors>Andrio Celos</Authors>
+		<Copyright>© 2014-2023 Andrio Celos</Copyright>
+	</PropertyGroup>
 
-  <ItemGroup>
-    <Compile Remove="data\**" />
-    <EmbeddedResource Remove="data\**" />
-    <None Remove="data\**" />
-  </ItemGroup>
+	<ItemGroup>
+		<Compile Remove="data\**" />
+		<EmbeddedResource Remove="data\**" />
+		<None Remove="data\**" />
+	</ItemGroup>
 
-  <ItemGroup>
-    <ProjectReference Include="..\..\AnIRC\AnIRC\AnIRC.csproj" />
-    <ProjectReference Include="..\..\CBot\CBot.csproj" />
-  </ItemGroup>
+	<ItemGroup>
+		<ProjectReference Include="..\..\AnIRC\AnIRC\AnIRC.csproj">
+			<Private>false</Private>
+			<ExcludeAssets>runtime</ExcludeAssets>
+		</ProjectReference>
+		<ProjectReference Include="..\..\CBot\CBot.csproj">
+			<Private>false</Private>
+			<ExcludeAssets>runtime</ExcludeAssets>
+		</ProjectReference>
+	</ItemGroup>
 
 </Project>

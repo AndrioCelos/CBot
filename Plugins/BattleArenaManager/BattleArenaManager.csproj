@@ -1,23 +1,26 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
 
-  <PropertyGroup>
-    <TargetFramework>net6.0</TargetFramework>
-    <Nullable>enable</Nullable>
-    <Version>2.1.0</Version>
-    <Authors>Andrio Celos</Authors>
-    <Copyright>© 2018-2022 Andrea Giannone</Copyright>
-    <Product>Battle Arena Manager</Product>
-    <PackageProjectUrl>https://github.com/AndrioCelos/CBot</PackageProjectUrl>
-    <RepositoryUrl>https://github.com/AndrioCelos/CBot</RepositoryUrl>
-  </PropertyGroup>
+	<PropertyGroup>
+		<TargetFramework>net6.0</TargetFramework>
+		<EnableDynamicLoading>true</EnableDynamicLoading>
+		<ImplicitUsings>enable</ImplicitUsings>
+		<Nullable>enable</Nullable>
+		<LangVersion>preview</LangVersion>
+		<Title>CBot Battle Arena Manager module</Title>
+		<Version>2.2.0</Version>
+		<Authors>Andrio Celos</Authors>
+		<Copyright>© 2018-2023 Andrio Celos</Copyright>
+	</PropertyGroup>
 
-  <ItemGroup>
-    <PackageReference Include="LibGit2Sharp" Version="0.26.2" />
-  </ItemGroup>
-
-  <ItemGroup>
-    <ProjectReference Include="..\..\AnIRC\AnIRC\AnIRC.csproj" />
-    <ProjectReference Include="..\..\CBot\CBot.csproj" />
-  </ItemGroup>
+	<ItemGroup>
+		<ProjectReference Include="..\..\AnIRC\AnIRC\AnIRC.csproj">
+			<Private>false</Private>
+			<ExcludeAssets>runtime</ExcludeAssets>
+		</ProjectReference>
+		<ProjectReference Include="..\..\CBot\CBot.csproj">
+			<Private>false</Private>
+			<ExcludeAssets>runtime</ExcludeAssets>
+		</ProjectReference>
+	</ItemGroup>
 
 </Project>

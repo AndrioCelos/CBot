@@ -1,21 +1,26 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
-  <PropertyGroup>
-    <TargetFramework>net6.0</TargetFramework>
-	<Nullable>enable</Nullable>
-	<Version>1.1.0</Version>
-	<Authors>Andrio Celos</Authors>
-	<PackageProjectUrl>https://github.com/AndrioCelos/CBot</PackageProjectUrl>
-	<RepositoryUrl>https://github.com/AndrioCelos/CBot</RepositoryUrl>
-	<Copyright>© 2021-2022 Andrea Giannone</Copyright>
-  </PropertyGroup>
+	<PropertyGroup>
+		<TargetFramework>net6.0</TargetFramework>
+		<EnableDynamicLoading>true</EnableDynamicLoading>
+		<ImplicitUsings>enable</ImplicitUsings>
+		<Nullable>enable</Nullable>
+		<LangVersion>preview</LangVersion>
+		<Title>CBot SplatNet 2 module</Title>
+		<Version>1.2.0</Version>
+		<Authors>Andrio Celos</Authors>
+		<Copyright>© 2021-2023 Andrio Celos</Copyright>
+	</PropertyGroup>
 
-  <ItemGroup>
-    <PackageReference Include="Newtonsoft.Json" Version="13.0.1" />
-  </ItemGroup>
+	<ItemGroup>
+		<PackageReference Include="Newtonsoft.Json" Version="13.0.1" />
+	</ItemGroup>
 
-  <ItemGroup>
-    <ProjectReference Include="..\..\CBot\CBot.csproj" />
-  </ItemGroup>
+	<ItemGroup>
+		<ProjectReference Include="..\..\CBot\CBot.csproj">
+			<Private>false</Private>
+			<ExcludeAssets>runtime</ExcludeAssets>
+		</ProjectReference>
+	</ItemGroup>
 
 </Project>

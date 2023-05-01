@@ -1,23 +1,30 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
-  <PropertyGroup>
-    <TargetFramework>net6.0</TargetFramework>
-    <Version>2.1.0</Version>
-    <Authors>Andrio Celos</Authors>
-    <Product>Pokédex</Product>
-    <Copyright>© 2021-2022 Andrea Giannone</Copyright>
-	<Nullable>enable</Nullable>
-	<PackageProjectUrl>https://github.com/AndrioCelos/CBot</PackageProjectUrl>
-	<RepositoryUrl>https://github.com/AndrioCelos/CBot</RepositoryUrl>
-  </PropertyGroup>
+	<PropertyGroup>
+		<TargetFramework>net6.0</TargetFramework>
+		<EnableDynamicLoading>true</EnableDynamicLoading>
+		<ImplicitUsings>enable</ImplicitUsings>
+		<Nullable>enable</Nullable>
+		<LangVersion>preview</LangVersion>
+		<Title>CBot Pokédex module</Title>
+		<Version>2.2.0</Version>
+		<Authors>Andrio Celos</Authors>
+		<Copyright>© 2021-2023 Andrio Celos</Copyright>
+	</PropertyGroup>
 
-  <ItemGroup>
-    <PackageReference Include="System.Data.SQLite.Core" Version="1.0.113.7" />
-  </ItemGroup>
+	<ItemGroup>
+		<PackageReference Include="System.Data.SQLite.Core" Version="1.0.113.7" />
+	</ItemGroup>
 
-  <ItemGroup>
-    <ProjectReference Include="..\..\AnIRC\AnIRC\AnIRC.csproj" />
-    <ProjectReference Include="..\..\CBot\CBot.csproj" />
-  </ItemGroup>
+	<ItemGroup>
+		<ProjectReference Include="..\..\AnIRC\AnIRC\AnIRC.csproj">
+			<Private>false</Private>
+			<ExcludeAssets>runtime</ExcludeAssets>
+		</ProjectReference>
+		<ProjectReference Include="..\..\CBot\CBot.csproj">
+			<Private>false</Private>
+			<ExcludeAssets>runtime</ExcludeAssets>
+		</ProjectReference>
+	</ItemGroup>
 
 </Project>
