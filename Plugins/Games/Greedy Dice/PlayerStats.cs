@@ -1,4 +1,3 @@
-﻿namespace GreedyDice {
-	class PlayerStats {
-	}
+﻿namespace GreedyDice;
+class PlayerStats {
 }

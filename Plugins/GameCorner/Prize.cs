@@ -1,22 +1,15 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
+﻿using AnIRC;
 
-using AnIRC;
+namespace GameCorner;
+public abstract class Prize {
+	public abstract Task<bool> AwardAsync(IrcUser user, IGame game);
+	public abstract int Remaining { get; }
+}
 
-namespace GameCorner {
-	public abstract class Prize {
-		public abstract Task<bool> AwardAsync(IrcUser user, IGame game);
-		public abstract int Remaining { get; }
+public class TestPrize : Prize {
+	public override Task<bool> AwardAsync(IrcUser user, IGame game) {
+		user.Say("Congratulations. At some point we'll add actual prizes.");
+		return Task.FromResult(true);
 	}
-
-	public class TestPrize : Prize {
-		public override Task<bool> AwardAsync(IrcUser user, IGame game) {
-			user.Say("Congratulations. At some point we'll add actual prizes.");
-			return Task.FromResult(true);
-		}
-		public override int Remaining => int.MaxValue;
-	}
+	public override int Remaining => int.MaxValue;
 }
